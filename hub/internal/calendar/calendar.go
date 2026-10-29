@@ -33,9 +33,24 @@ type Event struct {
 	Kind        Kind      `json:"kind" yaml:"kind"`
 }
 
-// Provider lists events overlapping [from, to).
+// Provider lists events overlapping [from, to). A provider with several
+// sources may return a partial result together with an error.
 type Provider interface {
 	Events(ctx context.Context, from, to time.Time) ([]Event, error)
+}
+
+// AccountStatus reports the health of one calendar account.
+type AccountStatus struct {
+	Name      string    `json:"name"`
+	Connected bool      `json:"connected"`
+	LastSync  time.Time `json:"last_sync,omitzero"`
+	Events    int       `json:"events"`
+	Error     string    `json:"error,omitempty"`
+}
+
+// StatusReporter is implemented by providers with accounts (Google).
+type StatusReporter interface {
+	Status() []AccountStatus
 }
 
 // Fake is an in-memory provider for tests and demos.
