@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/padalton/office-traffic-light/hub/internal/calendar"
-	"github.com/padalton/office-traffic-light/hub/internal/engine"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
-	"github.com/padalton/office-traffic-light/hub/internal/store"
+	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/engine"
+	"github.com/padalton/doormutex/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/store"
 )
 
 // Errors returned for invalid requests.

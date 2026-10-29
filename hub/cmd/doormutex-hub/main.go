@@ -1,8 +1,8 @@
-// Command otl-hub is the office-traffic-light hub.
+// Command doormutex-hub is the doormutex hub.
 //
-//	otl-hub serve [-config config.yaml]     run the hub (default)
-//	otl-hub token create|list|revoke NAME   manage API tokens
-//	otl-hub healthcheck                     exit 0 if the local hub answers (for Docker)
+//	doormutex-hub serve [-config config.yaml]     run the hub (default)
+//	doormutex-hub token create|list|revoke NAME   manage API tokens
+//	doormutex-hub healthcheck                     exit 0 if the local hub answers (for Docker)
 package main
 
 import (
@@ -19,12 +19,12 @@ import (
 	"time"
 	_ "time/tzdata" // the distroless image has no zoneinfo
 
-	"github.com/padalton/office-traffic-light/hub/internal/api"
-	"github.com/padalton/office-traffic-light/hub/internal/calendar"
-	"github.com/padalton/office-traffic-light/hub/internal/config"
-	"github.com/padalton/office-traffic-light/hub/internal/mqttpub"
-	"github.com/padalton/office-traffic-light/hub/internal/service"
-	"github.com/padalton/office-traffic-light/hub/internal/store"
+	"github.com/padalton/doormutex/hub/internal/api"
+	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/config"
+	"github.com/padalton/doormutex/hub/internal/mqttpub"
+	"github.com/padalton/doormutex/hub/internal/service"
+	"github.com/padalton/doormutex/hub/internal/store"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -50,7 +50,7 @@ func main() {
 		err = fmt.Errorf("unknown command %q (want serve, token, healthcheck, version)", cmd)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "otl-hub:", err)
+		fmt.Fprintln(os.Stderr, "doormutex-hub:", err)
 		os.Exit(1)
 	}
 }
@@ -58,11 +58,11 @@ func main() {
 func isFlag(s string) bool { return len(s) > 0 && s[0] == '-' }
 
 func configFlag(fs *flag.FlagSet) *string {
-	def := os.Getenv("OTL_CONFIG")
+	def := os.Getenv("DOORMUTEX_CONFIG")
 	if def == "" {
 		def = "/config/config.yaml"
 	}
-	return fs.String("config", def, "config file (env OTL_CONFIG)")
+	return fs.String("config", def, "config file (env DOORMUTEX_CONFIG)")
 }
 
 func loadConfig(path string) (*config.Config, error) {
@@ -108,7 +108,7 @@ func serve(args []string) error {
 		return err
 	}
 	if tokens, _ := st.ListTokens(); len(tokens) == 0 {
-		log.Warn("no API tokens yet – create one per client with: otl-hub token create <name>")
+		log.Warn("no API tokens yet – create one per client with: doormutex-hub token create <name>")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -163,7 +163,7 @@ func token(args []string) error {
 	_ = fs.Parse(args)
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return errors.New("usage: otl-hub token create|list|revoke [NAME]")
+		return errors.New("usage: doormutex-hub token create|list|revoke [NAME]")
 	}
 	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
@@ -197,7 +197,7 @@ func token(args []string) error {
 	case rest[0] == "revoke" && len(rest) == 2:
 		return st.RevokeToken(rest[1])
 	default:
-		return errors.New("usage: otl-hub token create|list|revoke [NAME]")
+		return errors.New("usage: doormutex-hub token create|list|revoke [NAME]")
 	}
 	return nil
 }

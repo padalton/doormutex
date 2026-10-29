@@ -1,7 +1,7 @@
 // Package mqttpub publishes the hub state to MQTT and announces the
 // entities to Home Assistant via MQTT discovery.
 //
-// Topics (base = "office-traffic-light" by default):
+// Topics (base = "doormutex" by default):
 //
 //	<base>/state       retained JSON state, the same document as GET /api/v1/status
 //	<base>/event       status_changed events (not retained), for HA event entities
@@ -19,9 +19,9 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"github.com/padalton/office-traffic-light/hub/internal/engine"
-	"github.com/padalton/office-traffic-light/hub/internal/service"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/engine"
+	"github.com/padalton/doormutex/hub/internal/service"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 // Config for the MQTT connection.

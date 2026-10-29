@@ -1,4 +1,6 @@
-# office-traffic-light 🚦
+# doormutex 🚦
+
+*A mutex for your door.*
 
 **A traffic light for my basement office.** From the hallway the family can see whether it's worth coming downstairs:
 🔴 **red** = meeting, please don't disturb · 🟡 **yellow** = working, come in if it's important · 🟢 **green** = come in · ⚫ **off** = not in the office.
@@ -263,7 +265,7 @@ Any tool can set a claim with a TTL via `POST /api/v1/signals/<name>`. Example o
         "hooks": [
           {
             "type": "command",
-            "command": "curl -fsS -m 2 -X POST \"$OTL_URL/api/v1/signals/claude\" -H \"Authorization: Bearer $OTL_TOKEN\" -d '{\"status\":\"working\",\"ttl\":\"30m\"}' || true"
+            "command": "curl -fsS -m 2 -X POST \"$DOORMUTEX_URL/api/v1/signals/claude\" -H \"Authorization: Bearer $DOORMUTEX_TOKEN\" -d '{\"status\":\"working\",\"ttl\":\"30m\"}' || true"
           }
         ]
       }
@@ -322,24 +324,24 @@ The hub only creates entities via MQTT discovery (one device, device-based disco
 
 | Entity | Type | Content |
 |---|---|---|
-| `sensor.office_traffic_light_status` | enum | `free`, `working`, `dnd`, `away` – attributes: reason, detail, phase, light, since, until |
-| `event.office_traffic_light_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
-| `sensor.office_traffic_light_slot_start` / `…_slot_end` | timestamp | current slot |
-| `sensor.office_traffic_light_next_free_start` / `…_next_free_end` | timestamp | next free slot |
-| `sensor.office_traffic_light_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
-| `binary_sensor.office_traffic_light_charging` | binary | charging / on USB (announced by the light itself) |
+| `sensor.doormutex_status` | enum | `free`, `working`, `dnd`, `away` – attributes: reason, detail, phase, light, since, until |
+| `event.doormutex_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
+| `sensor.doormutex_slot_start` / `…_slot_end` | timestamp | current slot |
+| `sensor.doormutex_next_free_start` / `…_next_free_end` | timestamp | next free slot |
+| `sensor.doormutex_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
+| `binary_sensor.doormutex_charging` | binary | charging / on USB (announced by the light itself) |
 | diagnostics | – | Wi-Fi signal, firmware version, online |
-| `select.office_traffic_light_override` | select | planned: `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home |
-| `text.office_traffic_light_message` | text | planned: short message for the e-ink |
+| `select.doormutex_override` | select | planned: `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home |
+| `text.doormutex_message` | text | planned: short message for the e-ink |
 
 | Topic | Content |
 |---|---|
-| `office-traffic-light/state` | retained JSON (see below), same document as `GET /api/v1/status` |
-| `office-traffic-light/event` | `status_changed` events for the HA event entity (not retained) |
-| `office-traffic-light/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
-| `office-traffic-light/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
-| `office-traffic-light/device/<id>/telemetry` | battery, charging, RSSI, firmware |
-| `office-traffic-light/device/<id>/cmd` | OTA, restart, identify |
+| `doormutex/state` | retained JSON (see below), same document as `GET /api/v1/status` |
+| `doormutex/event` | `status_changed` events for the HA event entity (not retained) |
+| `doormutex/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
+| `doormutex/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
+| `doormutex/device/<id>/telemetry` | battery, charging, RSSI, firmware |
+| `doormutex/device/<id>/cmd` | OTA, restart, identify |
 
 ```json
 {
@@ -371,12 +373,12 @@ triggers:
     to: "on"
 conditions:
   - condition: state
-    entity_id: sensor.office_traffic_light_status
+    entity_id: sensor.doormutex_status
     state: ["dnd", "working"]
 actions:
   - variables:
       # Hue yellow looks greenish – orange reads as traffic-light yellow
-      colour: "{{ 'red' if is_state('sensor.office_traffic_light_status', 'dnd') else 'orange' }}"
+      colour: "{{ 'red' if is_state('sensor.doormutex_status', 'dnd') else 'orange' }}"
   - action: scene.create
     data:
       scene_id: stairs_before
@@ -612,7 +614,7 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 ## Open source
 
 ```
-office-traffic-light/
+doormutex/
 ├── api/          OpenAPI spec – the contract between all components
 ├── hub/          Go – rule engine, API, web UI, MQTT, HA discovery, e-ink rendering
 ├── companion/    Go – Linux daemon: PipeWire, lock, notifications, OAuth
@@ -658,7 +660,7 @@ office-traffic-light/
 4. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
 5. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but needed for push notifications to the web app.
 6. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
-7. **Room mode without a homelab:** proposal: a standalone mode in which the light hosts its own web UI and API at `office-traffic-light-<name>.local` (ESP-IDF HTTP server, setup via a Wi-Fi QR code on the e-ink, pairing code against siblings). Alternatives: a Home Assistant add-on or a hosted service. Decide before the firmware architecture is fixed.
+7. **Room mode without a homelab:** proposal: a standalone mode in which the light hosts its own web UI and API at `doormutex-<name>.local` (ESP-IDF HTTP server, setup via a Wi-Fi QR code on the e-ink, pairing code against siblings). Alternatives: a Home Assistant add-on or a hosted service. Decide before the firmware architecture is fixed.
 8. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing are proposals – check on the breadboard whether they read well from the stairs.
 
 ## Risks
@@ -700,7 +702,7 @@ office-traffic-light/
 | 2026-10-29 | Everything on GitHub in English | open source / open hardware for an international audience |
 | 2026-10-29 | Hub: SSE instead of WebSocket for live updates | one-way stream is enough, works through every proxy, trivial in QML/TypeScript/curl |
 | 2026-10-29 | Hub: pure-Go SQLite (modernc), distroless static image (~26 MB) | no cgo, easy multi-arch builds |
-| 2026-10-29 | Hub: API tokens created via CLI (`otl-hub token create`), stored as SHA-256 | no default password; tokens are 256-bit random |
+| 2026-10-29 | Hub: API tokens created via CLI (`doormutex-hub token create`), stored as SHA-256 | no default password; tokens are 256-bit random |
 | 2026-10-29 | Hub: unknown slot ends stay `null` (call without calendar entry, locked screen); a call during a calendar meeting is assumed to end with the meeting | honest instead of guessed times on the e-ink and in HA |
 | 2026-10-29 | Hub: unclassified calendar events count as `dnd` by default (superseded below) | mirrored events lose attendees; red is the safer guess |
 | 2026-10-29 | Hub: last call only from green, ending soon only if yellow or green follows (last call extended below) | follows the StVO meaning (red+yellow → green is coming) |
@@ -723,4 +725,5 @@ office-traffic-light/
 | 2026-10-29 | Overlapping calendar events: the strictest status wins | the M0 engine lets the latest start win, so a yellow event could interrupt a red meeting |
 | 2026-10-29 | Licences confirmed: Apache-2.0 (software, firmware), CERN-OHL-S-2.0 (hardware, enclosure), CC BY-SA 4.0 (docs); REUSE-compliant | real open source, OSHWA certification for marketing |
 | 2026-10-29 | Matter over Wi-Fi as an additional interface, uncertified and without the logo | Apple Home, Google Home and Alexa without HA; certification is expensive |
-| 2026-10-29 | mDNS name `office-traffic-light[-<name>].local` | English project name, several lights per network |
+| 2026-10-29 | mDNS name `doormutex[-<name>].local` | English project name, several lights per network |
+| 2026-10-29 | Project renamed from the working title office-traffic-light to **doormutex** | the old name already existed on GitHub and was too narrow for room mode; a mutex lets only one into the critical section |

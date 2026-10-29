@@ -37,7 +37,7 @@ jobs:
         run: docker pull -q eclipse-mosquitto:2
       - name: Test (incl. MQTT integration against Docker)
         env:
-          OTL_INTEGRATION: "1"
+          DOORMUTEX_INTEGRATION: "1"
         run: go test -race -count=1 ./...
 
   hub-lint:
@@ -60,9 +60,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Build image
-        run: docker build --build-arg VERSION=${{ github.sha }} -t office-traffic-light-hub:ci hub
+        run: docker build --build-arg VERSION=${{ github.sha }} -t doormutex-hub:ci hub
       - name: Smoke test
         run: |
-          docker run -d --name hub -p 127.0.0.1:8080:8080 office-traffic-light-hub:ci
+          docker run -d --name hub -p 127.0.0.1:8080:8080 doormutex-hub:ci
           for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8080/healthz && exit 0; sleep 1; done
           docker logs hub; exit 1

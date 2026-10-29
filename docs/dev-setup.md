@@ -55,7 +55,7 @@ Run the hub tests including the MQTT integration test:
 
 ```bash
 cd hub
-OTL_INTEGRATION=1 go test -race ./...
+DOORMUTEX_INTEGRATION=1 go test -race ./...
 golangci-lint run
 ```
 

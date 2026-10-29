@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/padalton/office-traffic-light/hub/internal/calendar"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 func TestExampleConfigLoads(t *testing.T) {
-	t.Setenv("OTL_MQTT_PASSWORD", "from-env")
+	t.Setenv("DOORMUTEX_MQTT_PASSWORD", "from-env")
 	c, err := Load("../../config.example.yaml")
 	if err != nil {
 		t.Fatal(err)

@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: office-traffic-light hub API
+  title: doormutex hub API
   version: 0.1.0
   summary: Contract between the hub, the desktop companion, the Plasma widget and the Stream Deck plugin.
   description: |
@@ -10,7 +10,7 @@ info:
     changes via Server-Sent Events and set overrides.
 
     All endpoints except `/healthz` require a bearer token. Create one per
-    client with `otl-hub token create <name>`.
+    client with `doormutex-hub token create <name>`.
 
     Durations are Go-style strings such as `30s`, `25m` or `1h30m`.
     Timestamps are RFC 3339.

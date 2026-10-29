@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 // Report is one heartbeat from the desktop companion.

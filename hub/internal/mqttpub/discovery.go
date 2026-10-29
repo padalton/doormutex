@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 const (
-	deviceID   = "office_traffic_light_hub"
-	entityBase = "office_traffic_light"
-	supportURL = "https://github.com/padalton/office-traffic-light"
+	deviceID   = "doormutex_hub"
+	entityBase = "doormutex"
+	supportURL = "https://github.com/padalton/doormutex"
 )
 
 // Discovery returns the topic and payload for Home Assistant's
@@ -36,13 +36,13 @@ func Discovery(cfg Config) (string, []byte) {
 	payload := map[string]any{
 		"device": map[string]any{
 			"identifiers":  []string{deviceID},
-			"name":         "Office Traffic Light",
-			"manufacturer": "office-traffic-light",
+			"name":         "doormutex",
+			"manufacturer": "doormutex",
 			"model":        "Hub",
 			"sw_version":   cfg.Version,
 		},
 		"origin": map[string]any{
-			"name":        "office-traffic-light hub",
+			"name":        "doormutex hub",
 			"sw_version":  cfg.Version,
 			"support_url": supportURL,
 		},

@@ -1,6 +1,6 @@
-# office-traffic-light hub configuration. Copy to config.yaml and adjust.
+# doormutex hub configuration. Copy to config.yaml and adjust.
 # Secrets never go into this file: the MQTT password comes from the
-# environment variable OTL_MQTT_PASSWORD.
+# environment variable DOORMUTEX_MQTT_PASSWORD.
 
 timezone: Europe/Vienna
 listen: ":8080"
@@ -48,7 +48,7 @@ calendar:
 mqtt:
   url: "" # e.g. tcp://mosquitto:1883 – empty disables MQTT
   username: ""
-  client_id: office-traffic-light-hub
-  base_topic: office-traffic-light
+  client_id: doormutex-hub
+  base_topic: doormutex
   discovery_prefix: homeassistant
   discovery: true

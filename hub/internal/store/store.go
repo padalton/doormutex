@@ -82,7 +82,7 @@ func (s *Store) CreateToken(name string) (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	tok := "otl_" + base64.RawURLEncoding.EncodeToString(b)
+	tok := "dm_" + base64.RawURLEncoding.EncodeToString(b)
 	_, err := s.db.Exec(`INSERT INTO tokens(name, hash, created_at) VALUES(?, ?, ?)`,
 		name, hash(tok), time.Now().UTC().Format(time.RFC3339))
 	if err != nil {

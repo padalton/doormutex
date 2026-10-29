@@ -6,8 +6,8 @@ import (
 )
 
 func TestDiscoveryPayload(t *testing.T) {
-	topic, b := Discovery(Config{BaseTopic: "office-traffic-light", DiscoveryPrefix: "homeassistant/", Version: "test"})
-	if topic != "homeassistant/device/office_traffic_light_hub/config" {
+	topic, b := Discovery(Config{BaseTopic: "doormutex", DiscoveryPrefix: "homeassistant/", Version: "test"})
+	if topic != "homeassistant/device/doormutex_hub/config" {
 		t.Fatalf("topic = %s", topic)
 	}
 	var p struct {
@@ -18,16 +18,16 @@ func TestDiscoveryPayload(t *testing.T) {
 	if err := json.Unmarshal(b, &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.Availability != "office-traffic-light/hub/online" || p.StateTopic != "office-traffic-light/state" {
+	if p.Availability != "doormutex/hub/online" || p.StateTopic != "doormutex/state" {
 		t.Errorf("topics: %+v", p)
 	}
 	want := map[string]string{
-		"status":          "sensor.office_traffic_light_status",
-		"status_changed":  "event.office_traffic_light_status_changed",
-		"slot_start":      "sensor.office_traffic_light_slot_start",
-		"slot_end":        "sensor.office_traffic_light_slot_end",
-		"next_free_start": "sensor.office_traffic_light_next_free_start",
-		"next_free_end":   "sensor.office_traffic_light_next_free_end",
+		"status":          "sensor.doormutex_status",
+		"status_changed":  "event.doormutex_status_changed",
+		"slot_start":      "sensor.doormutex_slot_start",
+		"slot_end":        "sensor.doormutex_slot_end",
+		"next_free_start": "sensor.doormutex_next_free_start",
+		"next_free_end":   "sensor.doormutex_next_free_end",
 	}
 	if len(p.Components) != len(want) {
 		t.Errorf("components: got %d, want %d", len(p.Components), len(want))

@@ -26,4 +26,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/padalton/office-traffic-light
+        - github.com/padalton/doormutex

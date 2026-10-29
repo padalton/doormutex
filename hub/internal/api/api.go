@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/padalton/office-traffic-light/hub/internal/engine"
-	"github.com/padalton/office-traffic-light/hub/internal/service"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/engine"
+	"github.com/padalton/doormutex/hub/internal/service"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 // Authenticator maps a bearer token to a client name.
@@ -74,7 +74,7 @@ func (s *Server) handle(pattern string, h http.HandlerFunc) {
 		}
 		name, ok := s.auth.Authenticate(tok)
 		if !ok {
-			w.Header().Set("WWW-Authenticate", `Bearer realm="office-traffic-light"`)
+			w.Header().Set("WWW-Authenticate", `Bearer realm="doormutex"`)
 			writeError(w, http.StatusUnauthorized, "missing or invalid token")
 			return
 		}
