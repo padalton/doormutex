@@ -82,6 +82,7 @@ Content: reason, until when, what comes next, hints such as "camera on" (don't w
 
 ### Could
 
+- **Matter over Wi-Fi** (uncertified, without the logo): Apple Home, Google Home, Alexa and HA directly, next to MQTT. Matter has no traffic-light device type, so each state becomes an on/off endpoint (mutually exclusive)
 - Generic **webhook signals**, e.g. for Claude Code (see below)
 - **ESPHome example config** for builds on mains power ("bring your own lamp")
 - **Prometheus metrics** and a Grafana dashboard (meeting statistics)
@@ -632,10 +633,10 @@ office-traffic-light/
   - firmware build with web flasher on GitHub Pages
   - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
   - OpenSCAD: STL/3MF with preview images
-- **Licences (proposal, open question 6)** – real open source, so that the hardware can be [OSHWA certified](https://certification.oshwa.org/):
-  - software and firmware: Apache-2.0
-  - hardware and enclosure: CERN-OHL-S-2.0
-  - docs and photos: CC BY-SA 4.0
+- **Licences** – real open source, so that the hardware can be [OSHWA certified](https://certification.oshwa.org/). Per path in [`REUSE.toml`](REUSE.toml), texts in [`LICENSES/`](LICENSES/), checked with `reuse lint`:
+  - software and firmware: [Apache-2.0](LICENSES/Apache-2.0.txt)
+  - hardware and enclosure: [CERN-OHL-S-2.0](LICENSES/CERN-OHL-S-2.0.txt)
+  - docs and photos: [CC BY-SA 4.0](LICENSES/CC-BY-SA-4.0.txt)
 - **Third-party licences:** all dependencies so far are permissive (Go modules: BSD-3, MIT/Apache-2.0, Paho under EPL-2.0/EDL-1.0; ESP-IDF: Apache-2.0; BOSL2: BSD-2; KiCad libraries: CC BY-SA with an exception for designs). Shipping binaries or devices only requires including their notices. To keep it that way: no GPL e-paper drivers (e.g. GxEPD2) in the firmware, and fonts under the OFL.
 - **How it differs:** busylights (Luxafor, Kuando), PresenceLight and countless "on air" lamps mostly show "in a call yes/no" at the desk. This one is for the family: a traffic light you can see from a distance, with times, a rule engine with many sources and a failsafe, Linux first, and battery-capable open hardware.
 
@@ -656,10 +657,9 @@ office-traffic-light/
 3. **Cells:** which 18650s are they (type, age)? Is there a charger with capacity test?
 4. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
 5. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but needed for push notifications to the web app.
-6. **Licences:** confirm Apache-2.0 / CERN-OHL-S-2.0 / CC BY-SA 4.0. Until a `LICENSE` file is in the repo, nobody may legally reuse anything.
-7. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
-8. **Room mode without a homelab:** proposal: a standalone mode in which the light hosts its own web UI and API (ESP-IDF HTTP server, setup via a Wi-Fi QR code on the e-ink). Alternatives: a Home Assistant add-on or a hosted service. Decide before the firmware architecture is fixed.
-9. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing are proposals – check on the breadboard whether they read well from the stairs.
+6. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
+7. **Room mode without a homelab:** proposal: a standalone mode in which the light hosts its own web UI and API at `office-traffic-light-<name>.local` (ESP-IDF HTTP server, setup via a Wi-Fi QR code on the e-ink, pairing code against siblings). Alternatives: a Home Assistant add-on or a hosted service. Decide before the firmware architecture is fixed.
+8. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing are proposals – check on the breadboard whether they read well from the stairs.
 
 ## Risks
 
@@ -673,7 +673,7 @@ office-traffic-light/
 | Parts not available at JLCPCB/LCSC | note alternatives in the schematic |
 | Plugin doesn't run cleanly in OpenDeck | test early; fallback: StreamController plugin |
 | Work Google Workspace blocks third-party OAuth apps | not an issue in the reference setup (the owner is the Workspace admin); for others: mirroring script with kind marks (see Google Calendar) or the iCal address |
-| Selling hardware later (e.g. Kickstarter) | open licences allow it. The real effort is regulatory: CE (EMC, Radio Equipment Directive incl. its cybersecurity requirements for connected devices), RoHS, WEEE and battery registration, new certified cells (never reused ones), UN 38.3 for shipping. A USB-powered variant without battery avoids a large part of it |
+| Selling hardware later (e.g. Kickstarter) | open licences allow it. The real effort is regulatory: CE (EMC, Radio Equipment Directive incl. its cybersecurity requirements for connected devices), RoHS, WEEE and battery registration, new certified cells (never reused ones), UN 38.3 for shipping. A USB-powered variant without battery avoids a large part of it. A DIY kit is no way around it – kits sold to consumers count as products too. What works without CE: bare PCBs, or buyers ordering assembled boards from the published files at JLCPCB themselves (built for own use) |
 
 ## Decision log
 
@@ -721,3 +721,6 @@ office-traffic-light/
 | 2026-10-29 | Goal for the licence: no commercial redistribution by others (superseded below) | keeps the option to sell it later |
 | 2026-10-29 | Licence: real open source (OSI + OSHWA) after all; selling it yourself stays possible | OSHWA certification is worth more for marketing than a non-commercial clause |
 | 2026-10-29 | Overlapping calendar events: the strictest status wins | the M0 engine lets the latest start win, so a yellow event could interrupt a red meeting |
+| 2026-10-29 | Licences confirmed: Apache-2.0 (software, firmware), CERN-OHL-S-2.0 (hardware, enclosure), CC BY-SA 4.0 (docs); REUSE-compliant | real open source, OSHWA certification for marketing |
+| 2026-10-29 | Matter over Wi-Fi as an additional interface, uncertified and without the logo | Apple Home, Google Home and Alexa without HA; certification is expensive |
+| 2026-10-29 | mDNS name `office-traffic-light[-<name>].local` | English project name, several lights per network |
