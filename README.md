@@ -3,7 +3,7 @@
 **A traffic light for my basement office.** From the hallway the family can see whether it's worth coming downstairs:
 🔴 **red** = meeting, please don't disturb · 🟡 **yellow** = working, come in if it's important · 🟢 **green** = come in · ⚫ **off** = not in the office.
 
-The state is detected automatically (microphone/camera, Google Calendar, working hours, screen lock) and can be overridden at any time from a KDE widget, a Stream Deck or the web UI. Open source & open hardware: software, firmware, PCB (KiCad) and a 3D-printed enclosure (OpenSCAD).
+The state is detected automatically (microphone/camera, Google Calendar, working hours, screen lock) and can be overridden at any time from a KDE widget, a Stream Deck or the web UI. Everything is public: software, firmware, PCB (KiCad) and a 3D-printed enclosure (OpenSCAD) – the licence is still being decided.
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-29). The repo is public from day one so anyone can follow the project as it grows. The hub core (M0) is in [`hub/`](hub/).
 >
@@ -24,12 +24,13 @@ One traffic light, three chambers, just like on the road: red on top, yellow in 
 
 | Light | Phase | When |
 |---|---|---|
-| 🟢 blinking | **Last call** | N minutes (default 5) before a meeting – "quick, I'm in a meeting soon" |
-| 🔴 + 🟡 | **Ending soon** | the last N minutes of a meeting. In the StVO, red+yellow means: stop, green is coming |
-| 🟡 blinking | **Fault** | hub or Wi-Fi gone, data too old. Blinking yellow means "caution" in the StVO |
+| 🟢 blinking | **Last call** | before a meeting, coming from green – "quick, I'm in a meeting soon" |
+| 🔴 / 🟡 alternating | **Last call from yellow** | before a meeting, coming from yellow. The StVO has no such signal, and blinking yellow is taken by the fault |
+| 🔴 + 🟡 | **Ending soon** | before a meeting ends and yellow or green follows. In the StVO, red+yellow means: stop, green is coming |
+| 🟡 blinking | **Fault** | hub or Wi-Fi gone, data too old, or the companion went silent without signing off. Blinking yellow means "caution" in the StVO |
 | off + "battery empty" | **Battery empty** | cut-off threshold reached |
 
-Transitions work like on a real traffic light: yellow shows briefly (≈ 3 s) before red.
+**Timing:** by default the phases follow the StVO – green blinks four times, yellow shows ≈ 3 s before red, red+yellow ≈ 1–2 s before green. That's authentic, but over in seconds. A switch per phase (config and web UI) turns it into a real warning with a lead time instead, e.g. 3 or 5 minutes.
 
 ### E-ink sign
 
@@ -63,7 +64,7 @@ Content: reason, until when, what comes next, hints such as "camera on" (don't w
   - PC locked → off
   - otherwise → green
 - **Manual override with duration:** from 15 min to "until end of work day" or indefinite; "auto" resets
-- **KDE Plasma widget** (panel and desktop): see the detected state and its reason, override with a time, focus/pomodoro
+- **KDE Plasma widget** (panel and desktop): see the detected state and its reason, override with a time, pomodoro
 - **Desktop notification** on every state change
 - **Last call** and **failsafe** (see Signals)
 - **Home Assistant via MQTT discovery:** state, state-change event, current slot, next free slot, battery
@@ -76,6 +77,8 @@ Content: reason, until when, what comes next, hints such as "camera on" (don't w
 - **Flashing and Wi-Fi setup in the browser** (ESP Web Tools + Improv), OTA updates
 - **Automatic brightness** via light sensor, night dimming
 - **Battery runtime estimate** in HA
+- **Profiles:** several people and lights on one hub, each with its own rules, calendars and tokens
+- **Room mode** for people without a PC companion – a teenager's room, the parents' bedroom or living room: controlled by phone (web app, Apple Shortcuts), web UI or Home Assistant, and through HA by voice via Alexa or Google Home (see [Profiles & room mode](#profiles--room-mode))
 
 ### Could
 
@@ -84,7 +87,6 @@ Content: reason, until when, what comes next, hints such as "camera on" (don't w
 - **Prometheus metrics** and a Grafana dashboard (meeting statistics)
 - **Wi-Fi 6 TWT** on the ESP32-C6 for longer battery life, if the router supports it
 - Companion for Windows/macOS, GNOME extension
-- Several people or traffic lights
 - "Tell me when free" push (ntfy) – for families who don't just text anyway
 
 ### Won't – on purpose
@@ -107,7 +109,7 @@ Content: reason, until when, what comes next, hints such as "camera on" (don't w
 flowchart LR
   subgraph desk["Desk (KDE Plasma)"]
     comp["Companion<br/>mic · camera · lock<br/>notifications"]
-    widget["Plasma widget<br/>state · override · focus"]
+    widget["Plasma widget<br/>state · override · pomodoro"]
     deck["Stream Deck XL<br/>OpenDeck plugin"]
   end
   subgraph lab["Homelab (Docker)"]
@@ -132,7 +134,7 @@ flowchart LR
 |---|---|---|
 | Hub | Go, Docker, SQLite | Rule engine, calendar, working hours, REST/SSE API, web UI, MQTT + HA discovery, e-ink rendering |
 | Companion | Go, systemd user service | Microphone/camera (PipeWire), screen lock, desktop notifications, OAuth helper |
-| Plasma widget | QML (Plasma 6) | State, override, focus/pomodoro |
+| Plasma widget | QML (Plasma 6) | State, override, pomodoro |
 | Stream Deck plugin | TypeScript (Elgato SDK) | Control panel on the Stream Deck XL |
 | Firmware | C, ESP-IDF | Wi-Fi power saving, MQTT, LEDs, e-ink, battery |
 | Project homepage | GitHub Pages (static) + own domain | Required for Google's OAuth branding (description, privacy policy, terms), plus docs, web flasher (ESP Web Tools needs HTTPS) and the OAuth redirect relay. No backend, no user data |
@@ -150,7 +152,7 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `GET /api/v1/status` | current state incl. reason, slot, next free slot |
 | `GET /api/v1/timeline?from=…&to=…` | planned slots from calendar, working hours and timers |
 | `PUT` / `DELETE /api/v1/override` | set an override (status + duration or end) / clear it |
-| `PUT` / `DELETE /api/v1/focus` | start / stop a focus (pomodoro) timer |
+| `PUT` / `DELETE /api/v1/focus` | start / stop a pomodoro timer (renamed to `/api/v1/pomodoro` in the next PR, to avoid confusion with Google focus time) |
 | `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) |
 | `POST` / `DELETE /api/v1/signals/{source}` | webhook signals with TTL |
 | `GET /api/v1/events` | live updates (Server-Sent Events) |
@@ -159,22 +161,39 @@ Home Assistant is not a separate component: the hub announces its entities via M
 
 Every source contributes a *claim*: status, priority and validity. The best valid claim wins.
 
+> Decided 2026-10-29 after the M0 review; the M0 hub still has the old order (override first) – the change follows in the next PR.
+
 | Prio | Source | Result | Details |
 |---|---|---|---|
-| 1 | Manual override (widget, Stream Deck, web UI, focus timer) | any | always ends: after a duration, "until the event ends", "until end of work day" – or explicitly indefinite |
-| 2 | Microphone or camera in use | `dnd` | counts after ≥ 10 s (debounce), holds for 2 min (reconnects, chat after the call) |
-| 3 | PC locked or companion silent | `away` | only if microphone and camera are off |
-| 4 | Calendar event | `dnd` / `working` / `away` | rules per event kind |
+| 1 | Microphone or camera in use | `dnd` | counts after ≥ 10 s (debounce), holds for 2 min (reconnects, chat after the call) |
+| 2 | PC locked, shut down or suspended | `away` | the companion signs off; silence without a goodbye is a fault (see below) |
+| 3 | Manual override (widget, Stream Deck, web UI, phone, HA) or pomodoro | any | always ends: after a duration, "until the event ends", "until end of work day" – or explicitly indefinite |
+| 4 | Calendar event | by event kind | see [Google Calendar](#google-calendar) |
 | 5 | Working hours | `working` | weekly plan, public holidays, extra days off |
 | 6 | Webhook signals (optional) | usually `working` | with TTL |
 | 7 | Default | `free` | – |
 
+- **Microphone/camera beat everything,** including a manual override: a spontaneous Slack or Teams call turns the light red at once. The override isn't cleared and applies again after the call.
 - **Microphone/camera beat the lock screen:** nobody locks the PC by hand during a call. But in a meeting where you only listen, you don't touch the mouse, and after a few minutes the screen locks itself. It stays red anyway.
-- **Conflict hint:** if a manual override (e.g. green) is running and the microphone goes on, the notification asks "switch to red?"
-- **Heartbeats:** the companion reports every 30 s. If it is silent for 90 s (PC off, standby), that counts as "locked".
+- **Locking beats the override:** a nerd only locks the PC when leaving the desk. The override isn't cleared either; after unlocking it applies again while it's still valid.
+- **Heartbeats:** the companion reports every 30 s and signs off on shutdown, suspend and lock (logind). If it is silent for 90 s *without* signing off (crash, killed), the light shows a fault (yellow blinks) until the end of the work day, then off.
+- **Public holidays and days off** only remove the working hours. Calendar events still count: PC on with meetings on a holiday → red as usual (holiday workers, self-employed); PC on without events → green; PC off → off.
 - **Failsafe on the light:** hub offline (MQTT Last Will) or state too old → yellow blinks.
 - **Planning ahead:** the hub knows the future (calendar + working hours). From it, it computes the current slot, the next change and the next free slot – for the e-ink, the widget and HA.
 - **Unknown end:** a call without a calendar entry or a locked screen has no known end. Then `until` and `next_free` are `null` instead of a guess. If a calendar meeting is running during a call, the call is assumed to end with the meeting.
+
+## Profiles & room mode
+
+One hub, several **profiles** – one per person and light. Each profile has its own rules, calendars, working hours, MQTT topics and API tokens. A token only controls its own profile: the teenager's phone can't switch the office light.
+
+**Room mode** is a profile without a PC companion and usually without a calendar. It is for everyone who isn't the nerd in the basement: a teenager's room, the parents' bedroom or living room.
+
+- **Controls:** phone, web UI and Home Assistant – and through HA by voice via Alexa or Google Home.
+- **No companion required:** the light shows what was set last; when that ends, it falls back to the profile's default (e.g. off).
+- **The e-ink shows a short message** ("Gaming until 21:00").
+- **The office profile can also run without a companion,** controlled only via HA (light and message) – for setups where the companion can't run.
+
+Where room mode runs for people *without* a homelab (no Docker, no HA) is still open – see [open questions](#open-questions).
 
 ## Signal sources
 
@@ -192,13 +211,21 @@ Every source contributes a *claim*: status, priority and validity. The best vali
 ### Google Calendar
 
 - **Connection:** Google Calendar API (recommended: near real time, provides `eventType`, attendees and conference links) or the secret iCal address (simpler, but sometimes heavily delayed).
-- **Rules per event kind** (configurable), for example:
-  - event with attendees or a video link → `dnd`
-  - `focusTime` or titles like "Focus|Blocker" → `working`
-  - `outOfOffice` or "vacation" → `away`
-  - all-day events and events marked "free" → ignored
-  - events the provider can't classify → `dnd` by default
-- **Mirrored events:** in the reference setup an Apps Script copies work events into the private calendar, and attendees often get lost. Tip: let the script mark meetings (colour, prefix or `extendedProperties`) and the hub reads the mark.
+- **Several Google accounts per profile,** e.g. private and work: each account has its own sign-in and refresh token, and any number of calendars per account. In the reference setup this replaces the Apps Script that mirrored work events into the private calendar (and lost attendees and conference links on the way).
+- **Event kinds and default lights** – the light per kind can be changed in the web UI:
+
+  | Kind | Detected via | Default |
+  |---|---|---|
+  | Video call | Google Meet: `conferenceData` (`hangoutsMeet`); Zoom, Teams, Webex, Jitsi: conference add-on or link in location/description | 🔴 `dnd` |
+  | Focus time | `eventType: focusTime` | 🟡 `working` |
+  | Out of office, timed | `eventType: outOfOffice` | 🔴 `dnd` – in the reference setup private appointments are blocked as OOO in the work calendar. If the PC is locked, the light is off anyway |
+  | Out of office, all day | `eventType: outOfOffice`, all-day | day off (vacation): no working hours that day |
+  | Other event | – | 🟡 `working` – e.g. a phone call on the mobile, which the companion can't see |
+  | Ignored | working location, birthdays, other all-day events, events marked "free", declined events | – |
+
+- **Calendar and microphone/camera complement each other:** a call known from the calendar gives the last call ahead of time; microphone/camera catch spontaneous calls and always win.
+- **Focus time and out of office only exist in Google Workspace accounts** and only on primary calendars – in a private Gmail calendar there are plain events only.
+- **Privacy:** location and description are only read to find video links; titles and contents are never stored or shown. Before connecting a work account, check the employer's IT policy.
 - **M0 status:** the hub has a calendar interface with a fake implementation; the Google provider comes next.
 
 #### Google sign-in for self-hosters
@@ -254,7 +281,7 @@ Any tool can set a claim with a TTL via `POST /api/v1/signals/<name>`. Example o
   - detected state with source ("microphone in use", "calendar: meeting until 14:30")
   - override: red / yellow / green / off for 15 min, 30 min, 1 h, 2 h, until the event ends, until end of work day, or indefinite
   - "auto" clears the override
-  - focus/pomodoro, e.g. 25/5 or 50/10 (work phase yellow, break green – configurable)
+  - pomodoro, e.g. 25/5 or 50/10 (work phase red, break green – configurable)
   - day bar: today's slots as a coloured bar
 - Works in the panel and on the desktop; distributed via the KDE Store ("Get New Widgets").
 - **Other desktops:** the web UI can be installed as a PWA; a GNOME extension would be a nice community project.
@@ -268,7 +295,7 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 | | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
 | **A** | 🔴 red | state | until 14:30 | next free | 15 min | 30 min | 1 h | ∞ |
-| **B** | 🟡 yellow | reason | 🎙 mic | 📷 camera | focus 25 | focus 50 | break 5 | ⏱ 12:34 |
+| **B** | 🟡 yellow | reason | 🎙 mic | 📷 camera | 🍅 25 | 🍅 50 | break 5 | ⏱ 12:34 |
 | **C** | 🟢 green | 🔋 72 % | | | | | | |
 | **D** | auto | | | | | | | |
 
@@ -277,7 +304,14 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 ### Web UI
 
-State and override, day view, rules, calendar connection, working hours, device health (battery, Wi-Fi, firmware), history.
+State and override, day view, rules (light per calendar event kind, phase timing), calendar accounts, working hours, profiles and tokens, device health (battery, Wi-Fi, firmware), history.
+
+### Phone (iPhone and Android)
+
+No native app – so no Apple developer account and no app store:
+
+- **Web app:** the web UI can be added to the home screen ("Add to Home Screen") and then opens like an app. Within the home network plain HTTP is enough for controlling the light; push notifications need HTTPS (on iOS from 16.4, for web apps on the home screen).
+- **Apple Shortcuts:** a shortcut calls the hub API with the profile's token. That gives Siri ("traffic light red"), the Action Button and home-screen widgets – and automations such as "when the *Do Not Disturb* focus turns on → light red". The iPhone's focus mode then switches the light.
 
 ## Home Assistant & MQTT
 
@@ -292,6 +326,8 @@ The hub only creates entities via MQTT discovery (one device, device-based disco
 | `sensor.office_traffic_light_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
 | `binary_sensor.office_traffic_light_charging` | binary | charging / on USB (announced by the light itself) |
 | diagnostics | – | Wi-Fi signal, firmware version, online |
+| `select.office_traffic_light_override` | select | planned: `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home |
+| `text.office_traffic_light_message` | text | planned: short message for the e-ink |
 
 | Topic | Content |
 |---|---|
@@ -594,36 +630,30 @@ office-traffic-light/
   - firmware build with web flasher on GitHub Pages
   - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
   - OpenSCAD: STL/3MF with preview images
-- **Licences (proposal):**
-  - software: Apache-2.0
-  - hardware and enclosure: CERN-OHL-S-2.0
-  - docs: CC BY-SA 4.0
-- **How it differs:** busylights (Luxafor, Kuando), PresenceLight and countless "on air" lamps mostly show "in a call yes/no" at the desk. This one is for the family: a traffic light you can see from a distance, with times, a rule engine with many sources and a failsafe, Linux first, and battery-capable open hardware.
+- **Licences: not decided yet** (open question 6). The goal: others must not sell the project or modified versions of it. That rules out OSI open-source and OSHWA open-hardware licences, which all allow commercial use. Candidates: software under PolyForm Noncommercial 1.0.0 or Apache-2.0 + Commons Clause; hardware, enclosure and docs under CC BY-NC-SA 4.0. Until a `LICENSE` file exists, all rights are reserved.
+- **How it differs:** busylights (Luxafor, Kuando), PresenceLight and countless "on air" lamps mostly show "in a call yes/no" at the desk. This one is for the family: a traffic light you can see from a distance, with times, a rule engine with many sources and a failsafe, Linux first, and battery-capable hardware with public design files.
 
 ## Roadmap
 
 | Milestone | Content |
 |---|---|
-| **M0 – software core** | Hub (override, working hours, calendar, rules, MQTT/HA) ✅ in review, then companion and Plasma widget. A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
+| **M0 – software core** | Hub (override, working hours, calendar, rules, MQTT/HA) ✅ in review, then the rule changes from the review, profiles, Google Calendar, web UI/web app, companion and Plasma widget. A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
 | **M1a – breadboard** | [Prototype from ready-made modules](docs/breadboard.md): firmware, LEDs + lens test, e-ink, current measurement, then battery operation. Runs in parallel to M0 |
 | **M1b – PCB + enclosure v1** | KiCad schematic + layout + review based on the measurements, JLCPCB order, tolerance test prints, enclosure v1 |
 | **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin, web flasher, OTA |
-| **M3 – release** | CI, KDE Store, Printables/MakerWorld, Docker image, optional OSHWA certification |
+| **M3 – release** | CI, KDE Store, Printables/MakerWorld, Docker image, optional OSHWA certification (only with an open-hardware licence) |
 
 ## Open questions
 
 1. **Mounting spot:** photos of the stairs and hallway. How long is the line of sight? It drives LED brightness and enclosure size.
-2. **Calendar:** can the mirroring script mark meetings? Which calendars should the hub read?
-3. **Focus:** is the pomodoro work phase yellow or red? (Hub default: yellow, configurable per timer.)
-4. **Lock vs. override:** should locking the PC end a running manual override? Current behaviour: no – an override (priority 1) wins and ends on its own.
-5. **E-ink:** 1.54″ (decided 2026-10-29). Check on the breadboard whether the text is readable from the top of the stairs.
-6. **Cells:** which 18650s are they (type, age)? Is there a charger with capacity test?
-7. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
-8. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but nice for the web UI and PWA.
-9. **Licences:** confirm. Until a `LICENSE` file is in the repo, nobody may legally reuse the code.
-10. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
-11. **Unclassified calendar events:** `dnd` (current default) or `working`? Depends on whether the mirroring script can mark meetings (question 2).
-12. **Last call while yellow:** currently green blinks only when the light is green before a meeting. Should yellow blink too (it is reserved for the failsafe today)?
+2. **E-ink:** 1.54″ (decided 2026-10-29). Check on the breadboard whether the text is readable from the top of the stairs.
+3. **Cells:** which 18650s are they (type, age)? Is there a charger with capacity test?
+4. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
+5. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but needed for push notifications to the web app.
+6. **Licences:** no commercial redistribution by others – PolyForm Noncommercial vs. Apache-2.0 + Commons Clause for the software, CC BY-NC-SA 4.0 for hardware and docs? A contributor licence agreement (CLA) keeps the option to sell it yourself. Until a `LICENSE` file is in the repo, nobody may legally reuse anything.
+7. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
+8. **Room mode without a homelab:** where does it run for people who install nothing – a web UI on the light itself (ESP32), a Home Assistant add-on, or a hosted service? Decide before the firmware architecture is fixed.
+9. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing are proposals – check on the breadboard whether they read well from the stairs.
 
 ## Risks
 
@@ -636,6 +666,7 @@ office-traffic-light/
 | Google OAuth is fiddly | step-by-step guide with screenshots; iCal address as fallback |
 | Parts not available at JLCPCB/LCSC | note alternatives in the schematic |
 | Plugin doesn't run cleanly in OpenDeck | test early; fallback: StreamController plugin |
+| Work Google Workspace blocks third-party OAuth apps | test sign-in early; fallback: Apps Script in the work account or the iCal address |
 
 ## Decision log
 
@@ -664,8 +695,20 @@ office-traffic-light/
 | 2026-10-29 | Hub: pure-Go SQLite (modernc), distroless static image (~26 MB) | no cgo, easy multi-arch builds |
 | 2026-10-29 | Hub: API tokens created via CLI (`otl-hub token create`), stored as SHA-256 | no default password; tokens are 256-bit random |
 | 2026-10-29 | Hub: unknown slot ends stay `null` (call without calendar entry, locked screen); a call during a calendar meeting is assumed to end with the meeting | honest instead of guessed times on the e-ink and in HA |
-| 2026-10-29 | Hub: unclassified calendar events count as `dnd` by default | mirrored events lose attendees; red is the safer guess (open question 11) |
-| 2026-10-29 | Hub: last call only from green, ending soon only if yellow or green follows | follows the StVO meaning (red+yellow → green is coming) |
+| 2026-10-29 | Hub: unclassified calendar events count as `dnd` by default (superseded below) | mirrored events lose attendees; red is the safer guess |
+| 2026-10-29 | Hub: last call only from green, ending soon only if yellow or green follows (last call extended below) | follows the StVO meaning (red+yellow → green is coming) |
 | 2026-10-29 | Hub: override and focus timer replace each other | one manual source at a time is easier to understand |
 | 2026-10-29 | Hub: HA device-based discovery with `default_entity_id`; battery/charging come from the light itself | stable entity IDs; each device announces what it measures |
 | 2026-10-29 | Hub: e-ink rendering not part of M0, `display` topic reserved | the display (1.54″) and firmware come later |
+| 2026-10-29 | Review: microphone/camera beat everything, including a manual override | spontaneous Slack/Teams calls must turn red at once |
+| 2026-10-29 | Review: locking the PC beats override and calendar → off; the override isn't cleared | a nerd only locks the PC when leaving the desk |
+| 2026-10-29 | Review: the companion signs off on shutdown/suspend/lock; silence without goodbye = fault (yellow blinks) until end of work day | blinking yellow means "out of order" in the StVO; a PC that is off is normal |
+| 2026-10-29 | Review: phases use StVO timing by default, a switch per phase gives a lead time (e.g. 3/5 min) | authentic by default, useful as a warning when wanted |
+| 2026-10-29 | Review: last call from yellow = red/yellow alternating | the StVO has nothing for it; blinking yellow is the fault |
+| 2026-10-29 | Review: several Google accounts per profile (private + work) instead of the mirroring script | conference data and event types arrive intact |
+| 2026-10-29 | Review: event kinds → light, editable in the web UI. Defaults: video call (Meet, Zoom, Teams …) red, focus time yellow, timed OOO red, all-day OOO day off, other events yellow | private appointments are blocked as OOO in the work calendar; phone calls aren't visible to the companion |
+| 2026-10-29 | Review: holidays only remove working hours; calendar events still count | holiday workers and self-employed |
+| 2026-10-29 | Review: focus timer renamed to pomodoro, work phase red | avoids confusion with Google focus time (yellow) |
+| 2026-10-29 | Review: companion required by default; profiles can run without it, controlled via phone, web UI or HA | the office needs the companion; other rooms don't |
+| 2026-10-29 | Review: profiles and room mode (teenager, parents); phone via web app + Apple Shortcuts, no native app | no Apple developer account; voice via HA → Alexa/Google Home |
+| 2026-10-29 | Goal for the licence: no commercial redistribution by others (licence itself still open) | keeps the option to sell it later |
