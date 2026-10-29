@@ -57,9 +57,25 @@ type Profile struct {
 		StaleAfter       *Duration `yaml:"stale_after"`
 	} `yaml:"presence"`
 	Calendar struct {
-		Provider   string           `yaml:"provider"` // "none" or "fake"
+		Provider   string           `yaml:"provider"` // "none", "google" or "fake"
+		Accounts   []GoogleAccount  `yaml:"accounts"` // provider google
 		FakeEvents []calendar.Event `yaml:"fake_events"`
 	} `yaml:"calendar"`
+}
+
+// GoogleAccount is one Google account of a profile, e.g. private or work.
+type GoogleAccount struct {
+	Name      string   `yaml:"name"`
+	Calendars []string `yaml:"calendars"` // default: primary
+	Mirror    string   `yaml:"mirror"`    // copies of a mirroring script: ignore (default) or use
+}
+
+// Google is the OAuth client shared by all profiles (a "desktop app"
+// client from the Google Cloud console).
+type Google struct {
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"` // or DOORMUTEX_GOOGLE_CLIENT_SECRET
+	MirrorKey    string `yaml:"mirror_key"`    // extendedProperties.private key of mirrored copies
 }
 
 // Config mirrors config.example.yaml. Without a profiles list, the
@@ -73,6 +89,7 @@ type Config struct {
 		Extra   []string `yaml:"extra"`
 	} `yaml:"holidays"`
 	CalendarPoll Duration  `yaml:"calendar_poll"`
+	Google       Google    `yaml:"google"`
 	Single       Profile   `yaml:",inline"`
 	Profiles     []Profile `yaml:"profiles"`
 	MQTT         struct {
@@ -102,6 +119,9 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 	c.MQTT.Password = os.Getenv("DOORMUTEX_MQTT_PASSWORD")
+	if v := os.Getenv("DOORMUTEX_GOOGLE_CLIENT_SECRET"); v != "" {
+		c.Google.ClientSecret = v
+	}
 	if v := os.Getenv("DOORMUTEX_MQTT_URL"); v != "" {
 		c.MQTT.URL = v
 	}
@@ -146,6 +166,9 @@ func (c *Config) applyDefaults() error {
 		def(&p.Mode, ModeOffice)
 		def(&p.Name, strings.ToUpper(p.ID[:1])+p.ID[1:])
 		def(&p.Calendar.Provider, "none")
+		if err := checkCalendar(p); err != nil {
+			return err
+		}
 		switch p.Mode {
 		case ModeOffice:
 			if p.WorkHours == nil {
@@ -161,6 +184,40 @@ func (c *Config) applyDefaults() error {
 		default:
 			return fmt.Errorf("profile %s: mode %q: want office or room", p.ID, p.Mode)
 		}
+	}
+	return nil
+}
+
+var accountName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)
+
+func checkCalendar(p *Profile) error {
+	switch p.Calendar.Provider {
+	case "none", "fake":
+		return nil
+	case "google":
+	default:
+		return fmt.Errorf("profile %s: calendar.provider %q: want none, google or fake", p.ID, p.Calendar.Provider)
+	}
+	if len(p.Calendar.Accounts) == 0 {
+		return fmt.Errorf("profile %s: calendar.accounts: add at least one Google account, e.g. - name: private", p.ID)
+	}
+	seen := map[string]bool{}
+	for _, a := range p.Calendar.Accounts {
+		if !accountName.MatchString(a.Name) || seen[a.Name] {
+			return fmt.Errorf("profile %s: calendar account %q: unique lowercase name required", p.ID, a.Name)
+		}
+		seen[a.Name] = true
+		if a.Mirror != "" && a.Mirror != "ignore" && a.Mirror != "use" {
+			return fmt.Errorf("profile %s: calendar account %s: mirror must be ignore or use", p.ID, a.Name)
+		}
+	}
+	return nil
+}
+
+// GoogleReady reports whether the OAuth client is configured.
+func (c *Config) GoogleReady() error {
+	if c.Google.ClientID == "" || c.Google.ClientSecret == "" {
+		return errors.New("google.client_id and the client secret (google.client_secret or DOORMUTEX_GOOGLE_CLIENT_SECRET) are required – see docs/google-calendar.md")
 	}
 	return nil
 }

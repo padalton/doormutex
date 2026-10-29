@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/padalton/doormutex/hub/internal/calendar"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/status"
@@ -26,10 +27,11 @@ type Authenticator interface {
 
 // Profile is one person and light served by the API.
 type Profile struct {
-	ID   string
-	Name string
-	Mode string
-	Svc  *service.Service
+	ID       string
+	Name     string
+	Mode     string
+	Calendar string // calendar provider: none, google, fake
+	Svc      *service.Service
 }
 
 // Server is the HTTP API.
@@ -52,6 +54,7 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	s.handle("GET /api/v1/profiles", s.getProfiles)
 	s.handle("GET /api/v1/status", s.getStatus)
 	s.handle("GET /api/v1/history", s.getHistory)
+	s.handle("GET /api/v1/calendar", s.getCalendar)
 	s.handle("PUT /api/v1/message", s.putMessage)
 	s.handle("DELETE /api/v1/message", s.deleteMessage)
 	s.handle("GET /api/v1/timeline", s.getTimeline)
@@ -182,6 +185,21 @@ func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
 		h = []store.HistoryEntry{}
 	}
 	writeJSON(w, http.StatusOK, h)
+}
+
+// CalendarInfo is the body of GET /api/v1/calendar.
+type CalendarInfo struct {
+	Provider string                   `json:"provider"`
+	Accounts []calendar.AccountStatus `json:"accounts"`
+}
+
+func (s *Server) getCalendar(w http.ResponseWriter, r *http.Request) {
+	p := r.Context().Value(profileKey{}).(*Profile)
+	acc := p.Svc.CalendarStatus()
+	if acc == nil {
+		acc = []calendar.AccountStatus{}
+	}
+	writeJSON(w, http.StatusOK, CalendarInfo{Provider: p.Calendar, Accounts: acc})
 }
 
 // MessageBody is the body of PUT /api/v1/message.

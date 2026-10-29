@@ -184,6 +184,15 @@ func (s *Service) Run(ctx context.Context, tick, poll time.Duration) {
 	}
 }
 
+// CalendarStatus reports the calendar accounts (nil without a calendar or
+// for providers without accounts).
+func (s *Service) CalendarStatus() []calendar.AccountStatus {
+	if r, ok := s.cal.(calendar.StatusReporter); ok {
+		return r.Status()
+	}
+	return nil
+}
+
 // RefreshCalendar fetches events for the planning horizon. On error the
 // previous events are kept.
 func (s *Service) RefreshCalendar(ctx context.Context) {
@@ -193,8 +202,11 @@ func (s *Service) RefreshCalendar(ctx context.Context) {
 	now := s.now()
 	ev, err := s.cal.Events(ctx, now.Add(-s.base.Rules.Lookback), now.Add(s.base.Rules.Horizon))
 	if err != nil {
-		s.log.Warn("calendar refresh failed, keeping previous events", "err", err)
-		return
+		if ev == nil {
+			s.log.Warn("calendar refresh failed, keeping previous events", "err", err)
+			return
+		}
+		s.log.Warn("calendar refresh partly failed", "err", err)
 	}
 	s.mu.Lock()
 	s.events = ev

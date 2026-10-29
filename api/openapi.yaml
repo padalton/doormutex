@@ -81,6 +81,20 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/UnknownProfile" }
 
+  /api/v1/calendar:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
+    get:
+      summary: Calendar connection status
+      description: Provider and, for Google, the health of every connected account (no event data).
+      operationId: getCalendar
+      responses:
+        "200":
+          description: Calendar status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CalendarInfo" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/message:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     put:
@@ -425,6 +439,23 @@ components:
         status: { $ref: "#/components/schemas/Status" }
         reason: { $ref: "#/components/schemas/Reason" }
         detail: { type: string }
+
+    CalendarInfo:
+      type: object
+      required: [provider, accounts]
+      properties:
+        provider: { type: string, enum: [none, google, fake] }
+        accounts:
+          type: array
+          items:
+            type: object
+            required: [name, connected, events]
+            properties:
+              name: { type: string, examples: [private, work] }
+              connected: { type: boolean, description: "false until someone ran `doormutex-hub google login`" }
+              last_sync: { type: string, format: date-time }
+              events: { type: integer, description: Events in the planning window at the last sync. }
+              error: { type: string }
 
     MessageRequest:
       type: object

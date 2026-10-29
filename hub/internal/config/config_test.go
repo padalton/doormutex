@@ -139,3 +139,42 @@ func TestSingleProfileFallback(t *testing.T) {
 		t.Fatalf("profiles: %+v", c.Profiles)
 	}
 }
+
+func TestGoogleCalendarConfig(t *testing.T) {
+	t.Setenv("DOORMUTEX_GOOGLE_CLIENT_SECRET", "from-env")
+	path := filepath.Join(t.TempDir(), "c.yaml")
+	_ = os.WriteFile(path, []byte(`
+google:
+  client_id: abc.apps.googleusercontent.com
+profiles:
+  - id: office
+    calendar:
+      provider: google
+      accounts:
+        - name: private
+        - name: work
+          calendars: [primary, team@example.com]
+          mirror: use
+`), 0o600)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.GoogleReady(); err != nil || c.Google.ClientSecret != "from-env" {
+		t.Fatalf("google: %+v %v", c.Google, err)
+	}
+	if a := c.Profiles[0].Calendar.Accounts; len(a) != 2 || a[1].Mirror != "use" || len(a[1].Calendars) != 2 {
+		t.Fatalf("accounts: %+v", a)
+	}
+	for name, body := range map[string]string{
+		"no accounts":  "profiles:\n  - id: a\n    calendar:\n      provider: google\n",
+		"dup account":  "profiles:\n  - id: a\n    calendar:\n      provider: google\n      accounts: [{name: x}, {name: x}]\n",
+		"bad mirror":   "profiles:\n  - id: a\n    calendar:\n      provider: google\n      accounts: [{name: x, mirror: maybe}]\n",
+		"bad provider": "profiles:\n  - id: a\n    calendar:\n      provider: outlook\n",
+	} {
+		_ = os.WriteFile(path, []byte(body), 0o600)
+		if _, err := Load(path); err == nil {
+			t.Errorf("%s: expected an error", name)
+		}
+	}
+}

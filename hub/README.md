@@ -35,10 +35,11 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -d '{"locked":false}' localhos
 | `doormutex-hub serve [-config path]` | run the hub (default; config from `DOORMUTEX_CONFIG`, default `/config/config.yaml`) |
 | `doormutex-hub token create NAME [PROFILE]` | create an API token for a client; with a profile it only works for that profile |
 | `doormutex-hub token list` / `token revoke NAME` | list / revoke tokens |
+| `doormutex-hub google login\|logout PROFILE ACCOUNT` | connect or remove a Google account ([guide](../docs/google-calendar.md)) |
 | `doormutex-hub healthcheck` | used by the Docker `HEALTHCHECK` |
 | `doormutex-hub version` | print the version |
 
-Environment: `DOORMUTEX_CONFIG`, `DOORMUTEX_MQTT_URL`, `DOORMUTEX_MQTT_PASSWORD` (the password is never read from the file).
+Environment: `DOORMUTEX_CONFIG`, `DOORMUTEX_MQTT_URL`, `DOORMUTEX_MQTT_PASSWORD`, `DOORMUTEX_GOOGLE_CLIENT_SECRET` (secrets belong in the environment, not the file).
 
 ## Layout
 
@@ -47,7 +48,8 @@ Environment: `DOORMUTEX_CONFIG`, `DOORMUTEX_MQTT_URL`, `DOORMUTEX_MQTT_PASSWORD`
 | `internal/engine` | pure decision logic: claims, priorities, slots, phases – no clock, no I/O |
 | `internal/holidays` | Austrian public holidays (Easter-based ones computed) + extra days off |
 | `internal/schedule` | weekly working hours, DST-safe |
-| `internal/calendar` | calendar provider interface + in-memory fake (Google follows) |
+| `internal/calendar` | calendar provider interface + in-memory fake |
+| `internal/calendar/google` | Google Calendar: several accounts, classification, OAuth login |
 | `internal/service` | live state of one profile: inputs, expiry, message, change fan-out to SSE and MQTT |
 | `internal/api` | REST + SSE handlers, bearer-token auth |
 | `internal/store` | SQLite (pure Go): tokens, override/pomodoro, history |

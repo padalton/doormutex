@@ -443,6 +443,11 @@ func TestProfiles(t *testing.T) {
 	if st := decodeState(t, b); st.Message != "" {
 		t.Fatalf("message not cleared: %+v", st)
 	}
+	_, b = f.do(t, http.MethodGet, "/api/v1/calendar", "")
+	var ci CalendarInfo
+	if err := json.Unmarshal(b, &ci); err != nil || ci.Accounts == nil {
+		t.Fatalf("calendar: %s", b)
+	}
 	if resp, _ := f.do(t, http.MethodGet, "/api/v1/status?profile=garage", ""); resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("unknown profile: %d", resp.StatusCode)
 	}
