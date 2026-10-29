@@ -55,6 +55,8 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	s.handle("GET /api/v1/status", s.getStatus)
 	s.handle("GET /api/v1/history", s.getHistory)
 	s.handle("GET /api/v1/calendar", s.getCalendar)
+	s.handle("GET /api/v1/settings", s.getSettings)
+	s.handle("PUT /api/v1/settings", s.putSettings)
 	s.handle("PUT /api/v1/message", s.putMessage)
 	s.handle("DELETE /api/v1/message", s.deleteMessage)
 	s.handle("GET /api/v1/timeline", s.getTimeline)
@@ -68,6 +70,10 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	s.handle("GET /api/v1/events", s.events)
 	return s
 }
+
+// Mount serves an extra handler without authentication, e.g. the web UI
+// on "GET /".
+func (s *Server) Mount(pattern string, h http.Handler) { s.mux.Handle(pattern, h) }
 
 // ServeHTTP implements http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
@@ -200,6 +206,33 @@ func (s *Server) getCalendar(w http.ResponseWriter, r *http.Request) {
 		acc = []calendar.AccountStatus{}
 	}
 	writeJSON(w, http.StatusOK, CalendarInfo{Provider: p.Calendar, Accounts: acc})
+}
+
+func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, svc(r).Settings())
+}
+
+// SettingsBody is the body of PUT /api/v1/settings; omitted fields stay.
+type SettingsBody struct {
+	Calendar   map[calendar.Kind]string `json:"calendar,omitempty"`
+	LastCall   *engine.Lead             `json:"last_call,omitempty"`
+	EndingSoon *engine.Lead             `json:"ending_soon,omitempty"`
+}
+
+func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
+	var b SettingsBody
+	if !decode(w, r, &b) {
+		return
+	}
+	st, err := svc(r).UpdateSettings(service.SettingsUpdate{Calendar: b.Calendar, LastCall: b.LastCall, EndingSoon: b.EndingSoon})
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, st)
+	case errors.Is(err, service.ErrInvalid):
+		writeError(w, http.StatusBadRequest, err.Error())
+	default:
+		s.respond(w, r, engine.State{}, err)
+	}
 }
 
 // MessageBody is the body of PUT /api/v1/message.

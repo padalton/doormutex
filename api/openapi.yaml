@@ -95,6 +95,40 @@ paths:
               schema: { $ref: "#/components/schemas/CalendarInfo" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/settings:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
+    get:
+      summary: Runtime settings
+      description: Light per calendar event kind and the timing of the warning phases. Saved settings override the config file.
+      operationId: getSettings
+      responses:
+        "200":
+          description: Current settings.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      summary: Change runtime settings
+      description: Omitted fields stay as they are.
+      operationId: updateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Settings" }
+            examples:
+              focusRed: { value: { calendar: { focus: dnd } } }
+              realWarning: { value: { last_call: 5m } }
+      responses:
+        "200":
+          description: The settings after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/message:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     put:
@@ -456,6 +490,23 @@ components:
               last_sync: { type: string, format: date-time }
               events: { type: integer, description: Events in the planning window at the last sync. }
               error: { type: string }
+
+    Lead:
+      type: string
+      description: "`stvo` (seconds, like on the road) or a lead time from 1s to 1h."
+      examples: [stvo, 5m]
+
+    Settings:
+      type: object
+      additionalProperties: false
+      properties:
+        calendar:
+          type: object
+          description: Status per event kind, or `ignore`.
+          propertyNames: { enum: [video_call, focus, out_of_office, other] }
+          additionalProperties: { type: string, enum: [free, working, dnd, away, ignore] }
+        last_call: { $ref: "#/components/schemas/Lead" }
+        ending_soon: { $ref: "#/components/schemas/Lead" }
 
     MessageRequest:
       type: object

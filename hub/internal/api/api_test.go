@@ -481,3 +481,39 @@ func TestMessageValidation(t *testing.T) {
 		t.Fatalf("message did not expire: %+v", st)
 	}
 }
+
+func TestSettings(t *testing.T) {
+	f := newFixture(t)
+	_, b := f.do(t, http.MethodGet, "/api/v1/settings", "")
+	var st service.Settings
+	if err := json.Unmarshal(b, &st); err != nil || st.Calendar[calendar.KindOther] != "working" || st.LastCall != 0 {
+		t.Fatalf("defaults: %s", b)
+	}
+	if !strings.Contains(string(b), `"last_call":"stvo"`) {
+		t.Errorf("lead not written as stvo: %s", b)
+	}
+	resp, b := f.do(t, http.MethodPut, "/api/v1/settings", `{"calendar":{"other":"ignore","focus":"dnd"},"last_call":"3m"}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("put: %d %s", resp.StatusCode, b)
+	}
+	if err := json.Unmarshal(b, &st); err != nil || st.Calendar[calendar.KindOther] != "ignore" || st.Calendar[calendar.KindFocus] != "dnd" ||
+		time.Duration(st.LastCall) != 3*time.Minute || st.Calendar[calendar.KindVideoCall] != "dnd" {
+		t.Fatalf("after put: %s", b)
+	}
+	// The rules apply: a focus event is now red.
+	f.cal.Set(calendar.Event{ID: "1", Start: f.clk.now().Add(-time.Minute), End: f.clk.now().Add(time.Hour), Kind: calendar.KindFocus})
+	f.svc.RefreshCalendar(t.Context())
+	if s := f.svc.Evaluate(); s.Status != status.DND {
+		t.Fatalf("focus with dnd setting: %+v", s)
+	}
+	// Persisted: a new service on the same store restores them.
+	again, err := service.New(service.Options{Profile: "office", Base: engine.Inputs{Rules: engine.DefaultRules()}, Store: f.store})
+	if err != nil || again.Settings().Calendar[calendar.KindFocus] != "dnd" {
+		t.Fatalf("not persisted: %+v %v", again.Settings(), err)
+	}
+	for _, bad := range []string{`{"calendar":{"party":"dnd"}}`, `{"calendar":{"other":"purple"}}`, `{"last_call":"2h"}`} {
+		if resp, _ := f.do(t, http.MethodPut, "/api/v1/settings", bad); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: %d", bad, resp.StatusCode)
+		}
+	}
+}

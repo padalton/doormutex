@@ -47,7 +47,19 @@ const (
 	keyOverride = "override"
 	keyPomodoro = "pomodoro"
 	keyMessage  = "message"
+	keySettings = "settings"
 )
+
+// Ignore is the calendar setting for event kinds the hub skips.
+const Ignore = "ignore"
+
+// Settings are the rules people change at runtime (web UI). They are
+// persisted and override the config file.
+type Settings struct {
+	Calendar   map[calendar.Kind]string `json:"calendar"` // status or "ignore"
+	LastCall   engine.Lead              `json:"last_call"`
+	EndingSoon engine.Lead              `json:"ending_soon"`
+}
 
 // Message is a short text for the e-ink, optionally with an expiry.
 type Message struct {
@@ -124,6 +136,13 @@ func New(o Options) (*Service, error) {
 	}
 	if s.message, err = restore[Message](s, keyMessage); err != nil {
 		return nil, err
+	}
+	saved, err := restore[Settings](s, keySettings)
+	if err != nil {
+		return nil, err
+	}
+	if saved != nil {
+		s.applyLocked(*saved)
 	}
 	return s, nil
 }
@@ -251,7 +270,7 @@ func (s *Service) Evaluate() engine.State {
 	}
 	if !had || prev.Status != st.Status {
 		c := Change{From: prev.Status, To: st.Status, Reason: st.Reason, Detail: st.Detail, At: now}
-		s.log.Info("status changed", "profile", s.id, "from", c.From, "to", c.To, "reason", c.Reason, "detail", c.Detail)
+		s.log.Info("status changed", "from", c.From, "to", c.To, "reason", c.Reason, "detail", c.Detail)
 		if err := s.store.AppendHistory(store.HistoryEntry{Profile: s.id, At: now, Status: string(st.Status), Reason: st.Reason, Detail: st.Detail}); err != nil {
 			s.log.Error("write history", "err", err)
 		}
@@ -452,6 +471,72 @@ func (s *Service) CompanionReport(r engine.Report) engine.State {
 	s.companion.Observe(s.now(), r, s.base.Rules)
 	s.mu.Unlock()
 	return s.Evaluate()
+}
+
+// Settings returns the current runtime settings.
+func (s *Service) Settings() Settings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settingsLocked()
+}
+
+func (s *Service) settingsLocked() Settings {
+	r := s.base.Rules
+	out := Settings{Calendar: map[calendar.Kind]string{}, LastCall: r.LastCall, EndingSoon: r.EndingSoon}
+	for _, k := range calendar.Kinds {
+		out.Calendar[k] = Ignore
+		if st, ok := r.CalendarStatus[k]; ok {
+			out.Calendar[k] = string(st)
+		}
+	}
+	return out
+}
+
+// SettingsUpdate changes some settings; nil fields stay as they are.
+type SettingsUpdate struct {
+	Calendar   map[calendar.Kind]string
+	LastCall   *engine.Lead
+	EndingSoon *engine.Lead
+}
+
+// UpdateSettings validates, applies and persists a settings change.
+func (s *Service) UpdateSettings(u SettingsUpdate) (Settings, error) {
+	for k, v := range u.Calendar {
+		if !slices.Contains(calendar.Kinds, k) {
+			return Settings{}, fmt.Errorf("%w: unknown event kind %q", ErrInvalid, k)
+		}
+		if v != Ignore {
+			if _, err := status.Parse(v); err != nil {
+				return Settings{}, fmt.Errorf("%w: calendar.%s: %w", ErrInvalid, k, err)
+			}
+		}
+	}
+	s.mu.Lock()
+	next := s.settingsLocked()
+	maps.Copy(next.Calendar, u.Calendar)
+	if u.LastCall != nil {
+		next.LastCall = *u.LastCall
+	}
+	if u.EndingSoon != nil {
+		next.EndingSoon = *u.EndingSoon
+	}
+	s.applyLocked(next)
+	s.persist(keySettings, next)
+	out := s.settingsLocked()
+	s.mu.Unlock()
+	s.Evaluate()
+	return out, nil
+}
+
+func (s *Service) applyLocked(st Settings) {
+	cs := map[calendar.Kind]status.Status{}
+	for k, v := range st.Calendar {
+		if v != Ignore {
+			cs[k] = status.Status(v)
+		}
+	}
+	s.base.Rules.CalendarStatus = cs
+	s.base.Rules.LastCall, s.base.Rules.EndingSoon = st.LastCall, st.EndingSoon
 }
 
 // SetMessage sets the e-ink message; an empty text clears it. A zero ttl
