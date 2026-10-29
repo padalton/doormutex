@@ -193,7 +193,7 @@ func TestOverrideValidation(t *testing.T) {
 func TestEndOfEventOverride(t *testing.T) {
 	f := newFixture(t)
 	now := f.clk.now()
-	f.cal.Set(calendar.Event{ID: "1", Start: now.Add(-10 * time.Minute), End: now.Add(20 * time.Minute), Kind: calendar.KindMeeting})
+	f.cal.Set(calendar.Event{ID: "1", Start: now.Add(-10 * time.Minute), End: now.Add(20 * time.Minute), Kind: calendar.KindVideoCall})
 	f.svc.RefreshCalendar(context.Background())
 	resp, b := f.do(t, http.MethodPut, "/api/v1/override", `{"status":"free","mode":"end_of_event"}`)
 	if resp.StatusCode != http.StatusOK {
@@ -246,17 +246,34 @@ func TestCompanionAndSignals(t *testing.T) {
 	}
 }
 
-func TestFocusAndTimeline(t *testing.T) {
+func TestCompanionGoodbye(t *testing.T) {
 	f := newFixture(t)
-	resp, b := f.do(t, http.MethodPut, "/api/v1/focus", `{"work":"50m","break":"10m","cycles":1,"work_status":"dnd"}`)
+	if resp, _ := f.do(t, http.MethodPost, "/api/v1/signals/companion", `{"goodbye":"reboot"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unknown goodbye accepted: %d", resp.StatusCode)
+	}
+	_, b := f.do(t, http.MethodPost, "/api/v1/signals/companion", `{"goodbye":"shutdown"}`)
+	if st := decodeState(t, b); st.Status != status.Away || st.Reason != engine.ReasonPCOff || st.Light != status.LightOff {
+		t.Fatalf("after goodbye: %+v", st)
+	}
+	// Silence after a goodbye is expected: still off, no fault.
+	f.clk.add(10 * time.Minute)
+	_, b = f.do(t, http.MethodGet, "/api/v1/status", "")
+	if st := decodeState(t, b); st.Reason != engine.ReasonPCOff || st.Phase == status.PhaseFault {
+		t.Fatalf("after silence: %+v", st)
+	}
+}
+
+func TestPomodoroAndTimeline(t *testing.T) {
+	f := newFixture(t)
+	resp, b := f.do(t, http.MethodPut, "/api/v1/pomodoro", `{"work":"50m","break":"10m","cycles":1,"work_status":"dnd"}`)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("focus: %d %s", resp.StatusCode, b)
+		t.Fatalf("pomodoro: %d %s", resp.StatusCode, b)
 	}
-	if st := decodeState(t, b); st.Status != status.DND || st.Reason != engine.ReasonFocus {
-		t.Fatalf("focus state: %+v", st)
+	if st := decodeState(t, b); st.Status != status.DND || st.Reason != engine.ReasonPomodoro {
+		t.Fatalf("pomodoro state: %+v", st)
 	}
-	if resp, _ := f.do(t, http.MethodPut, "/api/v1/focus", `{"work":"10s"}`); resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("short focus accepted: %d", resp.StatusCode)
+	if resp, _ := f.do(t, http.MethodPut, "/api/v1/pomodoro", `{"work":"10s"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("short pomodoro accepted: %d", resp.StatusCode)
 	}
 
 	from := url.QueryEscape(f.clk.now().Format(time.RFC3339))
@@ -275,7 +292,7 @@ func TestFocusAndTimeline(t *testing.T) {
 	if resp, _ := f.do(t, http.MethodGet, "/api/v1/timeline?from=yesterday", ""); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad from: %d", resp.StatusCode)
 	}
-	_, b = f.do(t, http.MethodDelete, "/api/v1/focus", "")
+	_, b = f.do(t, http.MethodDelete, "/api/v1/pomodoro", "")
 	if st := decodeState(t, b); st.Status != status.Working {
 		t.Fatalf("after stop: %+v", st)
 	}
@@ -353,7 +370,7 @@ func TestSpecMatchesRoutes(t *testing.T) {
 	}
 	for _, route := range []string{
 		"GET /healthz", "GET /api/v1/status", "GET /api/v1/timeline", "PUT /api/v1/override",
-		"DELETE /api/v1/override", "PUT /api/v1/focus", "DELETE /api/v1/focus",
+		"DELETE /api/v1/override", "PUT /api/v1/pomodoro", "DELETE /api/v1/pomodoro",
 		"POST /api/v1/signals/companion", "POST /api/v1/signals/{source}",
 		"DELETE /api/v1/signals/{source}", "GET /api/v1/events",
 	} {

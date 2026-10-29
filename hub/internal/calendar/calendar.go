@@ -1,5 +1,4 @@
-// Package calendar abstracts calendar sources. The Google Calendar
-// implementation follows later; for now there is an in-memory fake.
+// Package calendar abstracts calendar sources.
 package calendar
 
 import (
@@ -10,15 +9,18 @@ import (
 )
 
 // Kind classifies an event. Providers decide the kind (e.g. Google:
-// attendees or a conference link → meeting, eventType focusTime → focus).
+// a Meet/Zoom/Teams link → video call, eventType focusTime → focus).
 type Kind string
 
 const (
-	KindMeeting     Kind = "meeting"
+	KindVideoCall   Kind = "video_call"
 	KindFocus       Kind = "focus"
 	KindOutOfOffice Kind = "out_of_office"
 	KindOther       Kind = "other"
 )
+
+// Kinds lists every kind in a stable order.
+var Kinds = []Kind{KindVideoCall, KindFocus, KindOutOfOffice, KindOther}
 
 // Event is a calendar entry. Title never leaves the hub.
 type Event struct {

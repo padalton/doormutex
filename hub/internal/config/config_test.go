@@ -23,10 +23,11 @@ func TestExampleConfigLoads(t *testing.T) {
 	if in.Location.String() != "Europe/Vienna" || len(in.WorkWeek[time.Friday]) != 1 || len(in.WorkWeek[time.Monday]) != 2 {
 		t.Errorf("unexpected inputs: %v %v", in.Location, in.WorkWeek)
 	}
-	if !in.Holidays.IsHoliday(time.Date(2026, 12, 24, 12, 0, 0, 0, in.Location)) {
-		t.Error("extra day off not applied")
+	if !in.Holidays.IsHoliday(time.Date(2026, 10, 26, 12, 0, 0, 0, in.Location)) {
+		t.Error("Nationalfeiertag missing")
 	}
-	if in.Rules.CalendarStatus[calendar.KindOther] != status.DND || in.Rules.MediaHold != 2*time.Minute {
+	if in.Rules.CalendarStatus[calendar.KindOther] != status.Working || in.Rules.CalendarStatus[calendar.KindOutOfOffice] != status.DND ||
+		in.Rules.MediaHold != 2*time.Minute || in.Rules.LastCall != 0 || in.Rules.EndingSoon != 0 {
 		t.Errorf("rules: %+v", in.Rules)
 	}
 	if c.MQTT.Password != "from-env" || !c.DiscoveryEnabled() {
@@ -38,7 +39,7 @@ func TestInvalidConfig(t *testing.T) {
 	for name, body := range map[string]string{
 		"bad duration": "rules:\n  last_call: soon\n",
 		"bad kind":     "rules:\n  calendar:\n    party: dnd\n",
-		"bad status":   "rules:\n  calendar:\n    meeting: red\n",
+		"bad status":   "rules:\n  calendar:\n    video_call: red\n",
 		"bad hours":    "work_hours:\n  monday: [\"17:00-08:00\"]\n",
 		"bad timezone": "timezone: Mars/Olympus\n",
 	} {
@@ -53,6 +54,22 @@ func TestInvalidConfig(t *testing.T) {
 		if err == nil {
 			t.Errorf("%s: expected an error", name)
 		}
+	}
+}
+
+func TestLeadTimes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.yaml")
+	_ = os.WriteFile(path, []byte("rules:\n  last_call: 3m\n  ending_soon: stvo\n"), 0o600)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in, err := c.Inputs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if time.Duration(in.Rules.LastCall) != 3*time.Minute || in.Rules.EndingSoon != 0 {
+		t.Errorf("lead times: %v %v", in.Rules.LastCall, in.Rules.EndingSoon)
 	}
 }
 

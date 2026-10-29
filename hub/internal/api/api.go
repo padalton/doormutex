@@ -41,8 +41,8 @@ func New(svc *service.Service, auth Authenticator, log *slog.Logger) *Server {
 	s.handle("GET /api/v1/timeline", s.getTimeline)
 	s.handle("PUT /api/v1/override", s.putOverride)
 	s.handle("DELETE /api/v1/override", s.deleteOverride)
-	s.handle("PUT /api/v1/focus", s.putFocus)
-	s.handle("DELETE /api/v1/focus", s.deleteFocus)
+	s.handle("PUT /api/v1/pomodoro", s.putPomodoro)
+	s.handle("DELETE /api/v1/pomodoro", s.deletePomodoro)
 	s.handle("POST /api/v1/signals/companion", s.postCompanion)
 	s.handle("POST /api/v1/signals/{source}", s.postSignal)
 	s.handle("DELETE /api/v1/signals/{source}", s.deleteSignal)
@@ -157,16 +157,16 @@ func (s *Server) deleteOverride(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.svc.ClearOverride())
 }
 
-// FocusBody is the body of PUT /api/v1/focus.
-type FocusBody struct {
+// PomodoroBody is the body of PUT /api/v1/pomodoro.
+type PomodoroBody struct {
 	Work       string `json:"work,omitempty"`
 	Break      string `json:"break,omitempty"`
 	Cycles     *int   `json:"cycles,omitempty"`
 	WorkStatus string `json:"work_status,omitempty"`
 }
 
-func (s *Server) putFocus(w http.ResponseWriter, r *http.Request) {
-	b := FocusBody{Work: "25m", Break: "5m"}
+func (s *Server) putPomodoro(w http.ResponseWriter, r *http.Request) {
+	b := PomodoroBody{Work: "25m", Break: "5m"}
 	if !decode(w, r, &b) {
 		return
 	}
@@ -180,12 +180,12 @@ func (s *Server) putFocus(w http.ResponseWriter, r *http.Request) {
 	if b.Cycles != nil {
 		cycles = *b.Cycles
 	}
-	st, err := s.svc.SetFocus(service.FocusRequest{Work: work, Break: brk, Cycles: cycles, WorkStatus: status.Status(b.WorkStatus)})
+	st, err := s.svc.SetPomodoro(service.PomodoroRequest{Work: work, Break: brk, Cycles: cycles, WorkStatus: status.Status(b.WorkStatus)})
 	s.respond(w, r, st, err)
 }
 
-func (s *Server) deleteFocus(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.svc.ClearFocus())
+func (s *Server) deletePomodoro(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.svc.ClearPomodoro())
 }
 
 // MediaBody describes one media device in a companion heartbeat.
@@ -199,6 +199,7 @@ type CompanionBody struct {
 	Locked     bool      `json:"locked"`
 	Microphone MediaBody `json:"microphone"`
 	Camera     MediaBody `json:"camera"`
+	Goodbye    string    `json:"goodbye,omitempty"` // "shutdown" or "suspend": the companion signs off
 }
 
 func (s *Server) postCompanion(w http.ResponseWriter, r *http.Request) {
@@ -206,10 +207,17 @@ func (s *Server) postCompanion(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &b) {
 		return
 	}
+	switch b.Goodbye {
+	case "", engine.GoodbyeShutdown, engine.GoodbyeSuspend:
+	default:
+		writeError(w, http.StatusBadRequest, "goodbye must be shutdown or suspend")
+		return
+	}
 	st := s.svc.CompanionReport(engine.Report{
 		Locked:     b.Locked,
 		Microphone: b.Microphone.Active, MicApps: limitApps(b.Microphone.Apps),
 		Camera: b.Camera.Active, CamApps: limitApps(b.Camera.Apps),
+		Goodbye: b.Goodbye,
 	})
 	writeJSON(w, http.StatusOK, st)
 }

@@ -53,7 +53,7 @@ paths:
     get:
       summary: Planned slots
       description: |
-        Slots planned from calendar, working hours, focus timer and
+        Slots planned from calendar, working hours, pomodoro timer and
         overrides. Live signals (microphone, screen lock, webhooks) are not
         part of the plan.
       operationId: getTimeline
@@ -78,7 +78,10 @@ paths:
   /api/v1/override:
     put:
       summary: Set a manual status
-      description: Replaces a running focus timer. Every override ends unless mode is `indefinite`.
+      description: |
+        Replaces a running pomodoro timer. Every override ends unless mode is
+        `indefinite`. Microphone/camera and a locked PC beat an override; it
+        applies again afterwards while it is still valid.
       operationId: setOverride
       requestBody:
         required: true
@@ -104,23 +107,23 @@ paths:
         "200": { $ref: "#/components/responses/State" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
-  /api/v1/focus:
+  /api/v1/pomodoro:
     put:
-      summary: Start a focus (pomodoro) timer
-      description: Replaces a running override. Work phases show `work_status`, breaks show `free`.
-      operationId: startFocus
+      summary: Start a pomodoro timer
+      description: Replaces a running override. Work phases show `work_status` (default `dnd`), breaks show `free`.
+      operationId: startPomodoro
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/FocusRequest" }
+            schema: { $ref: "#/components/schemas/PomodoroRequest" }
       responses:
         "200": { $ref: "#/components/responses/State" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
     delete:
-      summary: Stop the focus timer
-      operationId: stopFocus
+      summary: Stop the pomodoro timer
+      operationId: stopPomodoro
       responses:
         "200": { $ref: "#/components/responses/State" }
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -129,9 +132,12 @@ paths:
     post:
       summary: Companion heartbeat
       description: |
-        Sent by the desktop companion every 30 s and on every change. If no
-        heartbeat arrives for 90 s the hub assumes the PC is off (`away`).
-        Microphone/camera count after 10 s of activity and hold for 2 min.
+        Sent by the desktop companion every 30 s and on every change.
+        Before shutdown or suspend it signs off with `goodbye`; the light
+        goes off. If heartbeats stop for 90 s *without* a goodbye, that is
+        a fault (phase `fault`, blinking yellow) until the end of the work
+        day, then `away`. Microphone/camera count after 10 s of activity and
+        hold for 2 min.
       operationId: companionHeartbeat
       requestBody:
         required: true
@@ -222,14 +228,20 @@ components:
       description: "free = green, working = yellow, dnd = red, away = off"
     Phase:
       type: string
-      enum: [normal, last_call, ending_soon]
+      enum: [normal, last_call, amber, ending_soon, fault]
+      description: |
+        `last_call`: a meeting starts soon (green blinks from free, red/yellow
+        alternate from working). `amber`: yellow shows ≈3 s before red.
+        `ending_soon`: red+yellow before a meeting ends. `fault`: the
+        companion went silent without signing off. Timing: StVO seconds by
+        default, or a configured lead time.
     Light:
       type: string
-      enum: [off, red, yellow, green, green_blink, red_yellow, yellow_blink]
-      description: Lamp pattern. `yellow_blink` (failsafe) is decided by the device itself.
+      enum: [off, red, yellow, green, green_blink, red_yellow, red_yellow_alternate, yellow_blink]
+      description: Lamp pattern. `yellow_blink` means fault; the device also falls back to it on its own when the hub is gone.
     Reason:
       type: string
-      enum: [override, focus, focus_break, microphone, camera, screen_locked, companion_offline, calendar, work_hours, signal, default]
+      enum: [override, pomodoro, pomodoro_break, microphone, camera, screen_locked, pc_off, companion_lost, companion_offline, calendar, work_hours, signal, default]
 
     State:
       type: object
@@ -263,7 +275,7 @@ components:
         phase: ending_soon
         light: red_yellow
         reason: calendar
-        detail: meeting
+        detail: video_call
         since: "2026-10-28T14:00:00+01:00"
         until: "2026-10-28T14:30:00+01:00"
         next: { status: working, reason: work_hours, since: "2026-10-28T14:30:00+01:00", until: "2026-10-28T17:00:00+01:00" }
@@ -314,7 +326,7 @@ components:
           format: date-time
           description: Required for mode `until`.
 
-    FocusRequest:
+    PomodoroRequest:
       type: object
       additionalProperties: false
       properties:
@@ -324,7 +336,7 @@ components:
         work_status:
           type: string
           enum: [working, dnd]
-          default: working
+          default: dnd
 
     Media:
       type: object
@@ -344,6 +356,10 @@ components:
         locked: { type: boolean }
         microphone: { $ref: "#/components/schemas/Media" }
         camera: { $ref: "#/components/schemas/Media" }
+        goodbye:
+          type: string
+          enum: [shutdown, suspend]
+          description: The companion signs off; silence after this is expected and the light goes off.
 
     SignalRequest:
       type: object

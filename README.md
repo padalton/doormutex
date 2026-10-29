@@ -155,16 +155,14 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `GET /api/v1/status` | current state incl. reason, slot, next free slot |
 | `GET /api/v1/timeline?from=…&to=…` | planned slots from calendar, working hours and timers |
 | `PUT` / `DELETE /api/v1/override` | set an override (status + duration or end) / clear it |
-| `PUT` / `DELETE /api/v1/focus` | start / stop a pomodoro timer (renamed to `/api/v1/pomodoro` in the next PR, to avoid confusion with Google focus time) |
-| `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) |
+| `PUT` / `DELETE /api/v1/pomodoro` | start / stop a pomodoro timer (work phase red by default) |
+| `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) and goodbye before shutdown/suspend |
 | `POST` / `DELETE /api/v1/signals/{source}` | webhook signals with TTL |
 | `GET /api/v1/events` | live updates (Server-Sent Events) |
 
 ## State logic
 
 Every source contributes a *claim*: status, priority and validity. The best valid claim wins.
-
-> Decided 2026-10-29 after the M0 review; the M0 hub still has the old order (override first) – the change follows in the next PR.
 
 | Prio | Source | Result | Details |
 |---|---|---|---|
@@ -349,7 +347,7 @@ The hub only creates entities via MQTT discovery (one device, device-based disco
   "phase": "ending_soon",
   "light": "red_yellow",
   "reason": "calendar",
-  "detail": "meeting",
+  "detail": "video_call",
   "since": "2026-10-28T14:00:00+01:00",
   "until": "2026-10-28T14:30:00+01:00",
   "next": { "status": "working", "reason": "work_hours", "since": "2026-10-28T14:30:00+01:00", "until": "2026-10-28T17:00:00+01:00" },
@@ -727,3 +725,4 @@ doormutex/
 | 2026-10-29 | Matter over Wi-Fi as an additional interface, uncertified and without the logo | Apple Home, Google Home and Alexa without HA; certification is expensive |
 | 2026-10-29 | mDNS name `doormutex[-<name>].local` | English project name, several lights per network |
 | 2026-10-29 | Project renamed from the working title office-traffic-light to **doormutex** | the old name already existed on GitHub and was too narrow for room mode; a mutex lets only one into the critical section |
+| 2026-10-30 | Implemented the review rules in the hub (PR m1-rules). Fault is reported as status `away` with phase `fault`; calendar kind `meeting` became `video_call` | `away` keeps HA automations simple (nobody to disturb is known); the kind name matches the README table |

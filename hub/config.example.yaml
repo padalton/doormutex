@@ -6,11 +6,11 @@ timezone: Europe/Vienna
 listen: ":8080"
 database: /data/hub.db
 
+# Public holidays and days off only remove the working hours; calendar
+# events still count. An all-day out-of-office event (vacation) is a day off.
 holidays:
   country: AT # Austrian public holidays; "" for none
-  extra: # additional days off (YYYY-MM-DD)
-    - "2026-12-24"
-    - "2026-12-31"
+  extra: [] # additional days off (YYYY-MM-DD), e.g. ["2026-12-24", "2026-12-31"]
 
 # Working hours → yellow. Days without an entry are free.
 work_hours:
@@ -23,12 +23,13 @@ work_hours:
 rules:
   # Status per calendar event kind: free, working, dnd, away or ignore.
   calendar:
-    meeting: dnd
-    focus: working
-    out_of_office: away
-    other: dnd # events the provider cannot classify
-  last_call: 5m # green blinks before a meeting
-  ending_soon: 5m # red+yellow before a meeting ends
+    video_call: dnd # Google Meet, Zoom, Teams, Webex, Jitsi
+    focus: working # Google focus time
+    out_of_office: dnd # timed; all-day out of office is a day off
+    other: working # e.g. a phone call on the mobile
+  # Warning phases: "stvo" (seconds, like on the road) or a lead time.
+  last_call: stvo # green blinks (red/yellow alternate when yellow) before a meeting
+  ending_soon: stvo # red+yellow before a meeting ends
   media_debounce: 10s # microphone/camera must be active this long
   media_hold: 2m # stay red this long after the call
 
@@ -43,7 +44,7 @@ calendar:
   #   - id: demo
   #     start: 2026-10-29T14:00:00+01:00
   #     end: 2026-10-29T14:30:00+01:00
-  #     kind: meeting
+  #     kind: video_call
 
 mqtt:
   url: "" # e.g. tcp://mosquitto:1883 – empty disables MQTT

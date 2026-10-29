@@ -50,7 +50,7 @@ Environment: `DOORMUTEX_CONFIG`, `DOORMUTEX_MQTT_URL`, `DOORMUTEX_MQTT_PASSWORD`
 | `internal/calendar` | calendar provider interface + in-memory fake (Google follows) |
 | `internal/service` | live state: inputs, expiry, change fan-out to SSE and MQTT |
 | `internal/api` | REST + SSE handlers, bearer-token auth |
-| `internal/store` | SQLite (pure Go): tokens, override/focus, history |
+| `internal/store` | SQLite (pure Go): tokens, override/pomodoro, history |
 | `internal/mqttpub` | MQTT publisher with Last Will, HA device discovery |
 | `internal/config` | YAML config |
 | `cmd/doormutex-hub` | the binary |

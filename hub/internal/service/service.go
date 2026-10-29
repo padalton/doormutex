@@ -43,7 +43,7 @@ type Publisher interface {
 
 const (
 	keyOverride = "override"
-	keyFocus    = "focus"
+	keyPomodoro = "pomodoro"
 )
 
 // Service is safe for concurrent use.
@@ -56,7 +56,7 @@ type Service struct {
 
 	mu        sync.Mutex
 	override  *engine.Override
-	focus     *engine.Focus
+	pomodoro  *engine.Pomodoro
 	companion engine.Companion
 	signals   map[string]engine.Signal
 	events    []calendar.Event
@@ -75,7 +75,7 @@ type Options struct {
 	Logger   *slog.Logger
 }
 
-// New creates a service and restores the persisted override/focus timer.
+// New creates a service and restores the persisted override/pomodoro timer.
 func New(o Options) (*Service, error) {
 	s := &Service{
 		base:    o.Base,
@@ -105,10 +105,10 @@ func New(o Options) (*Service, error) {
 	case !errors.Is(err, store.ErrNotFound):
 		return nil, err
 	}
-	var f engine.Focus
-	switch err := s.store.Get(keyFocus, &f); {
+	var f engine.Pomodoro
+	switch err := s.store.Get(keyPomodoro, &f); {
 	case err == nil:
-		s.focus = &f
+		s.pomodoro = &f
 	case !errors.Is(err, store.ErrNotFound):
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (s *Service) RefreshCalendar(ctx context.Context) {
 
 func (s *Service) inputsLocked() engine.Inputs {
 	in := s.base
-	in.Override, in.Focus, in.Companion = s.override, s.focus, s.companion
+	in.Override, in.Pomodoro, in.Companion = s.override, s.pomodoro, s.companion
 	in.Events = s.events
 	in.Signals = slices.Collect(maps.Values(s.signals))
 	return in
@@ -218,9 +218,9 @@ func (s *Service) expireLocked(now time.Time) {
 		s.override = nil
 		s.persist(keyOverride, nil)
 	}
-	if f := s.focus; f != nil && !f.End().IsZero() && !f.End().After(now) {
-		s.focus = nil
-		s.persist(keyFocus, nil)
+	if f := s.pomodoro; f != nil && !f.End().IsZero() && !f.End().After(now) {
+		s.pomodoro = nil
+		s.persist(keyPomodoro, nil)
 	}
 	for k, sig := range s.signals {
 		if !sig.Expires.After(now) {
@@ -286,7 +286,7 @@ type OverrideRequest struct {
 	Until    time.Time     // ModeUntil
 }
 
-// SetOverride sets a manual status; it replaces a running focus timer.
+// SetOverride sets a manual status; it replaces a running pomodoro timer.
 func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 	if _, err := status.Parse(string(r.Status)); err != nil {
 		return engine.State{}, fmt.Errorf("%w: %w", ErrInvalid, err)
@@ -315,7 +315,7 @@ func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 		}
 		ov.Until = end
 	case ModeEndOfWorkday:
-		end, ok := s.base.WorkWeek.EndOfWorkday(now, s.base.Location, s.base.Holidays.IsHoliday)
+		end, ok := s.base.WorkWeek.EndOfWorkday(now, s.base.Location, s.inputsLocked().DayOff)
 		if !ok {
 			s.mu.Unlock()
 			return engine.State{}, fmt.Errorf("%w: outside working hours", ErrConflict)
@@ -326,9 +326,9 @@ func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 		s.mu.Unlock()
 		return engine.State{}, fmt.Errorf("%w: mode must be one of duration, until, end_of_event, end_of_workday, indefinite", ErrInvalid)
 	}
-	s.override, s.focus = &ov, nil
+	s.override, s.pomodoro = &ov, nil
 	s.persist(keyOverride, ov)
-	s.persist(keyFocus, nil)
+	s.persist(keyPomodoro, nil)
 	s.mu.Unlock()
 	return s.Evaluate(), nil
 }
@@ -355,38 +355,38 @@ func (s *Service) ClearOverride() engine.State {
 	return s.Evaluate()
 }
 
-// FocusRequest starts a pomodoro timer.
-type FocusRequest struct {
+// PomodoroRequest starts a pomodoro timer.
+type PomodoroRequest struct {
 	Work, Break time.Duration
 	Cycles      int
 	WorkStatus  status.Status
 }
 
-// SetFocus starts a focus timer; it replaces a running override.
-func (s *Service) SetFocus(r FocusRequest) (engine.State, error) {
+// SetPomodoro starts a pomodoro timer; it replaces a running override.
+func (s *Service) SetPomodoro(r PomodoroRequest) (engine.State, error) {
 	if r.Work < time.Minute || r.Work > 4*time.Hour || r.Break < 0 || r.Break > time.Hour || r.Cycles < 0 || r.Cycles > 24 {
 		return engine.State{}, fmt.Errorf("%w: work 1m–4h, break 0–1h, cycles 0–24", ErrInvalid)
 	}
 	if r.WorkStatus == "" {
-		r.WorkStatus = status.Working
+		r.WorkStatus = status.DND
 	}
 	if r.WorkStatus != status.Working && r.WorkStatus != status.DND {
 		return engine.State{}, fmt.Errorf("%w: work_status must be working or dnd", ErrInvalid)
 	}
 	s.mu.Lock()
-	f := engine.Focus{Start: s.now(), Work: r.Work, Break: r.Break, Cycles: r.Cycles, WorkStatus: r.WorkStatus}
-	s.focus, s.override = &f, nil
-	s.persist(keyFocus, f)
+	f := engine.Pomodoro{Start: s.now(), Work: r.Work, Break: r.Break, Cycles: r.Cycles, WorkStatus: r.WorkStatus}
+	s.pomodoro, s.override = &f, nil
+	s.persist(keyPomodoro, f)
 	s.persist(keyOverride, nil)
 	s.mu.Unlock()
 	return s.Evaluate(), nil
 }
 
-// ClearFocus stops the focus timer.
-func (s *Service) ClearFocus() engine.State {
+// ClearPomodoro stops the pomodoro timer.
+func (s *Service) ClearPomodoro() engine.State {
 	s.mu.Lock()
-	s.focus = nil
-	s.persist(keyFocus, nil)
+	s.pomodoro = nil
+	s.persist(keyPomodoro, nil)
 	s.mu.Unlock()
 	return s.Evaluate()
 }

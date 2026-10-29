@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -40,8 +41,8 @@ type Config struct {
 	WorkHours map[string][]string `yaml:"work_hours"`
 	Rules     struct {
 		Calendar      map[string]string `yaml:"calendar"`
-		LastCall      *Duration         `yaml:"last_call"`
-		EndingSoon    *Duration         `yaml:"ending_soon"`
+		LastCall      *engine.Lead      `yaml:"last_call"`   // "stvo" or a duration
+		EndingSoon    *engine.Lead      `yaml:"ending_soon"` // "stvo" or a duration
 		MediaDebounce *Duration         `yaml:"media_debounce"`
 		MediaHold     *Duration         `yaml:"media_hold"`
 	} `yaml:"rules"`
@@ -127,9 +128,7 @@ func (c *Config) Inputs() (engine.Inputs, error) {
 	}
 	r := engine.DefaultRules()
 	for kind, st := range c.Rules.Calendar {
-		switch calendar.Kind(kind) {
-		case calendar.KindMeeting, calendar.KindFocus, calendar.KindOutOfOffice, calendar.KindOther:
-		default:
+		if !slices.Contains(calendar.Kinds, calendar.Kind(kind)) {
 			return engine.Inputs{}, fmt.Errorf("rules.calendar: unknown event kind %q", kind)
 		}
 		if st == "ignore" {
@@ -147,8 +146,12 @@ func (c *Config) Inputs() (engine.Inputs, error) {
 			*dst = time.Duration(*v)
 		}
 	}
-	set(&r.LastCall, c.Rules.LastCall)
-	set(&r.EndingSoon, c.Rules.EndingSoon)
+	if c.Rules.LastCall != nil {
+		r.LastCall = *c.Rules.LastCall
+	}
+	if c.Rules.EndingSoon != nil {
+		r.EndingSoon = *c.Rules.EndingSoon
+	}
 	set(&r.MediaDebounce, c.Rules.MediaDebounce)
 	set(&r.MediaHold, c.Rules.MediaHold)
 	set(&r.StaleAfter, c.Presence.StaleAfter)

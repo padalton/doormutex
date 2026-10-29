@@ -15,13 +15,13 @@ func Claims(now, from, to time.Time, in Inputs) []Claim {
 	}
 	var cs []Claim
 
-	// 1 – manual: override or focus timer.
+	// 3 – manual: override or pomodoro timer.
 	if o := in.Override; o != nil && (o.Until.IsZero() || o.Until.After(now)) {
 		cs = append(cs, Claim{Status: o.Status, Priority: PrioManual, Reason: ReasonOverride,
 			Start: o.Start, End: o.Until, planned: true})
 	}
-	if f := in.Focus; f != nil && f.Work > 0 {
-		cs = append(cs, focusClaims(*f, from, to)...)
+	if p := in.Pomodoro; p != nil && p.Work > 0 {
+		cs = append(cs, pomodoroClaims(*p, from, to)...)
 	}
 
 	// 4 – calendar.
@@ -34,20 +34,16 @@ func Claims(now, from, to time.Time, in Inputs) []Claim {
 			Detail: string(e.Kind), Start: e.Start, End: e.End, planned: true})
 	}
 
-	// 2 – microphone / camera (live).
+	// 1 – microphone / camera (live).
 	cs = append(cs, in.Companion.mediaClaims(now, in.Rules, calendarDNDEnd(cs, now))...)
 
-	// 3 – presence (live).
-	if c := in.Companion.presenceClaim(now, in.Rules); c != nil {
-		cs = append(cs, *c)
-	}
+	// 2 – presence (live).
+	endOfWorkday := func(t time.Time) (time.Time, bool) { return in.WorkWeek.EndOfWorkday(t, loc, in.DayOff) }
+	cs = append(cs, in.Companion.presenceClaims(now, in.Rules, endOfWorkday)...)
 
-	// 5 – working hours.
-	var skip func(time.Time) bool
-	if in.Holidays != nil {
-		skip = in.Holidays.IsHoliday
-	}
-	for _, iv := range in.WorkWeek.Intervals(from, to, loc, skip) {
+	// 5 – working hours; holidays and days off only remove these, calendar
+	// events still count.
+	for _, iv := range in.WorkWeek.Intervals(from, to, loc, in.DayOff) {
 		cs = append(cs, Claim{Status: status.Working, Priority: PrioWorkHours, Reason: ReasonWorkHours,
 			Start: iv.Start, End: iv.End, planned: true})
 	}
@@ -67,21 +63,21 @@ func Claims(now, from, to time.Time, in Inputs) []Claim {
 	return cs
 }
 
-func focusClaims(f Focus, from, to time.Time) []Claim {
+func pomodoroClaims(f Pomodoro, from, to time.Time) []Claim {
 	var cs []Claim
 	ws := f.WorkStatus
 	if ws == "" {
-		ws = status.Working
+		ws = status.DND
 	}
 	period := f.Work + f.Break
 	for i, t := 0, f.Start; t.Before(to) && (f.Cycles <= 0 || i < f.Cycles); i, t = i+1, t.Add(period) {
 		if !t.Add(period).After(from) {
 			continue
 		}
-		cs = append(cs, Claim{Status: ws, Priority: PrioManual, Reason: ReasonFocus,
+		cs = append(cs, Claim{Status: ws, Priority: PrioManual, Reason: ReasonPomodoro,
 			Start: t, End: t.Add(f.Work), planned: true})
 		if f.Break > 0 {
-			cs = append(cs, Claim{Status: status.Free, Priority: PrioManual, Reason: ReasonFocusBreak,
+			cs = append(cs, Claim{Status: status.Free, Priority: PrioManual, Reason: ReasonPomodoroBreak,
 				Start: t.Add(f.Work), End: t.Add(period), planned: true})
 		}
 		if period <= 0 {
@@ -112,7 +108,9 @@ type Segment struct {
 }
 
 // Resolve splits [from, to) at every claim boundary and picks the winning
-// claim per piece: lowest priority value, on a tie the most recent start.
+// claim per piece: lowest priority value; on a tie the stricter status
+// (overlapping events: a meeting beats focus time), then the most recent
+// start.
 func Resolve(cs []Claim, from, to time.Time) []Segment {
 	points := []time.Time{from, to}
 	for _, c := range cs {
@@ -136,7 +134,7 @@ func Resolve(cs []Claim, from, to time.Time) []Segment {
 			if c.Start.After(a) || (!c.End.IsZero() && !c.End.After(a)) {
 				continue
 			}
-			if win == nil || c.Priority < win.Priority || (c.Priority == win.Priority && c.Start.After(win.Start)) {
+			if win == nil || beats(c, win) {
 				win = c
 			}
 		}
@@ -152,6 +150,16 @@ func Resolve(cs []Claim, from, to time.Time) []Segment {
 		out = append(out, seg)
 	}
 	return out
+}
+
+func beats(c, win *Claim) bool {
+	if c.Priority != win.Priority {
+		return c.Priority < win.Priority
+	}
+	if a, b := status.Severity(c.Status), status.Severity(win.Status); a != b {
+		return a > b
+	}
+	return c.Start.After(win.Start)
 }
 
 // mergeByStatus joins neighbouring segments with the same status, keeping

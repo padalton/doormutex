@@ -87,11 +87,25 @@ func TestPriorityTable(t *testing.T) {
 		{"5 holiday: Nationalfeiertag is free", time.Date(2026, 10, 26, 10, 0, 0, 0, vienna),
 			func(in *Inputs, now time.Time) { in.Companion.LastSeen = now },
 			want{status: status.Free, reason: ReasonDefault, noCheck: true}},
+		{"5 holiday: meetings still count (holiday workers, self-employed)", time.Date(2026, 10, 26, 10, 10, 0, 0, vienna),
+			func(in *Inputs, now time.Time) {
+				in.Companion.LastSeen = now
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, now.Add(-10*time.Minute), now.Add(20*time.Minute))}
+			},
+			want{status: status.DND, reason: ReasonCalendar, noCheck: true}},
+		{"5 all-day out of office: day off (vacation)", at(10, 0),
+			func(in *Inputs, _ time.Time) {
+				ooo := meeting(calendar.KindOutOfOffice, at(0, 0), at(0, 0).AddDate(0, 0, 1))
+				ooo.AllDay = true
+				in.Events = []calendar.Event{ooo}
+			},
+			want{status: status.Free, reason: ReasonDefault, light: status.LightGreen,
+				until: ptr(time.Date(2026, 10, 29, 8, 0, 0, 0, vienna)), nextStat: status.Working, nextFree: ptr(time.Date(2026, 10, 27, 17, 0, 0, 0, vienna))}},
 
 		// 4 – calendar
 		{"4 calendar meeting: dnd until meeting end", at(10, 10),
 			func(in *Inputs, _ time.Time) {
-				in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))}
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30))}
 			},
 			want{status: status.DND, reason: ReasonCalendar, light: status.LightRed,
 				until: ptr(at(10, 30)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
@@ -100,94 +114,125 @@ func TestPriorityTable(t *testing.T) {
 				in.Events = []calendar.Event{meeting(calendar.KindFocus, at(18, 0), at(19, 0))}
 			},
 			want{status: status.Working, reason: ReasonCalendar, until: ptr(at(19, 0)), nextStat: status.Free, nextFree: ptr(at(19, 0))}},
-		{"4 calendar out of office: away", at(10, 0),
+		{"4 calendar timed out of office: dnd (private appointment blocked in the work calendar)", at(10, 0),
 			func(in *Inputs, _ time.Time) {
 				in.Events = []calendar.Event{meeting(calendar.KindOutOfOffice, at(9, 0), at(12, 0))}
 			},
-			want{status: status.Away, reason: ReasonCalendar, light: status.LightOff, until: ptr(at(12, 0)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
+			want{status: status.DND, reason: ReasonCalendar, light: status.LightRed, until: ptr(at(12, 0)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
+		{"4 calendar overlap: the stricter status wins, not the later start", at(10, 15),
+			func(in *Inputs, _ time.Time) {
+				in.Events = []calendar.Event{
+					meeting(calendar.KindVideoCall, at(10, 0), at(10, 30)),
+					meeting(calendar.KindFocus, at(10, 10), at(11, 0)),
+				}
+			},
+			want{status: status.DND, reason: ReasonCalendar, until: ptr(at(10, 30)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
 		{"4 calendar: all-day and transparent events are ignored", at(10, 0),
 			func(in *Inputs, _ time.Time) {
-				allDay := meeting(calendar.KindMeeting, at(0, 0), at(0, 0).AddDate(0, 0, 1))
+				allDay := meeting(calendar.KindVideoCall, at(0, 0), at(0, 0).AddDate(0, 0, 1))
 				allDay.AllDay = true
-				free := meeting(calendar.KindMeeting, at(9, 0), at(11, 0))
+				free := meeting(calendar.KindVideoCall, at(9, 0), at(11, 0))
 				free.Transparent = true
 				in.Events = []calendar.Event{allDay, free}
 			},
 			want{status: status.Working, reason: ReasonWorkHours, noCheck: true}},
-		{"4 calendar: unclassified event counts as meeting by default", at(10, 5),
+		{"4 calendar: other events count as working by default", at(19, 5),
 			func(in *Inputs, _ time.Time) {
-				in.Events = []calendar.Event{meeting(calendar.KindOther, at(10, 0), at(11, 0))}
+				in.Events = []calendar.Event{meeting(calendar.KindOther, at(19, 0), at(20, 0))}
 			},
-			want{status: status.DND, reason: ReasonCalendar, noCheck: true}},
+			want{status: status.Working, reason: ReasonCalendar, noCheck: true}},
 
-		// 3 – presence
-		{"3 screen locked: away, even during a meeting", at(10, 10),
+		// 2 – presence
+		{"2 screen locked: away, even during a meeting", at(10, 10),
 			func(in *Inputs, now time.Time) {
-				in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))}
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30))}
 				heartbeat(&in.Companion, now.Add(-5*time.Minute), now, Report{Locked: true}, in.Rules)
 			},
 			want{status: status.Away, reason: ReasonScreenLocked, light: status.LightOff, until: nil, nextFree: nil}},
-		{"3 companion silent for 2 min: away", at(10, 0),
+		{"2 screen locked beats an override; the override survives", at(10, 0),
+			func(in *Inputs, now time.Time) {
+				in.Override = &Override{Status: status.DND, Start: now.Add(-time.Hour)}
+				heartbeat(&in.Companion, now.Add(-time.Minute), now, Report{Locked: true}, in.Rules)
+			},
+			want{status: status.Away, reason: ReasonScreenLocked, light: status.LightOff, noCheck: true}},
+		{"2 companion signed off (shutdown): off, no fault", at(10, 0),
+			func(in *Inputs, now time.Time) {
+				in.Companion.Observe(now.Add(-time.Hour), Report{Goodbye: GoodbyeShutdown}, in.Rules)
+			},
+			want{status: status.Away, reason: ReasonPCOff, phase: status.PhaseNormal, light: status.LightOff, until: nil, nextFree: nil}},
+		{"2 companion silent without goodbye during work hours: fault", at(10, 0),
 			func(in *Inputs, now time.Time) { in.Companion.LastSeen = now.Add(-2 * time.Minute) },
-			want{status: status.Away, reason: ReasonCompanionOffline, until: nil, nextFree: nil}},
-		{"3 companion never seen: away", at(10, 0),
+			want{status: status.Away, reason: ReasonCompanionLost, phase: status.PhaseFault, light: status.LightYellowBlink, until: nil, nextFree: nil}},
+		{"2 companion lost: fault ends with the work day", at(17, 30),
+			func(in *Inputs, _ time.Time) { in.Companion.LastSeen = at(16, 0) },
+			want{status: status.Away, reason: ReasonCompanionOffline, phase: status.PhaseNormal, light: status.LightOff, until: nil, nextFree: nil}},
+		{"2 companion silent outside work hours: off, no fault", at(19, 0),
+			func(in *Inputs, now time.Time) { in.Companion.LastSeen = now.Add(-2 * time.Minute) },
+			want{status: status.Away, reason: ReasonCompanionOffline, light: status.LightOff, until: nil, nextFree: nil}},
+		{"2 companion never seen: away", at(10, 0),
 			func(in *Inputs, _ time.Time) { in.Companion = Companion{} },
 			want{status: status.Away, reason: ReasonCompanionOffline, until: nil, nextFree: nil}},
-		{"3 companion not required: never seen is fine", at(10, 0),
+		{"2 companion not required: never seen is fine", at(10, 0),
 			func(in *Inputs, _ time.Time) { in.Companion = Companion{}; in.Rules.RequireCompanion = false },
 			want{status: status.Working, reason: ReasonWorkHours, noCheck: true}},
 
-		// 2 – microphone / camera
-		{"2 microphone active ≥10 s: dnd, beats a locked screen", at(10, 0),
+		// 1 – microphone / camera
+		{"1 microphone active ≥10 s: dnd, beats a locked screen", at(10, 0),
 			func(in *Inputs, now time.Time) {
 				heartbeat(&in.Companion, now.Add(-time.Minute), now,
 					Report{Locked: true, Microphone: true, MicApps: []string{"Firefox"}}, in.Rules)
 			},
 			want{status: status.DND, reason: ReasonMicrophone, light: status.LightRed, until: nil, nextFree: nil}},
-		{"2 microphone active <10 s: not yet", at(10, 0),
+		{"1 microphone active <10 s: not yet", at(10, 0),
 			func(in *Inputs, now time.Time) {
 				in.Companion.Observe(now.Add(-5*time.Second), Report{Microphone: true}, in.Rules)
 				in.Companion.Observe(now, Report{Microphone: true}, in.Rules)
 			},
 			want{status: status.Working, reason: ReasonWorkHours, noCheck: true}},
-		{"2 microphone stopped 1 min ago: still dnd (2 min hold)", at(10, 0),
+		{"1 microphone stopped 1 min ago: still dnd (2 min hold)", at(10, 0),
 			func(in *Inputs, now time.Time) {
 				heartbeat(&in.Companion, now.Add(-10*time.Minute), now.Add(-time.Minute), Report{Microphone: true}, in.Rules)
 				heartbeat(&in.Companion, now.Add(-time.Minute), now, Report{}, in.Rules)
 			},
 			want{status: status.DND, reason: ReasonMicrophone, until: ptr(at(10, 1)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
-		{"2 microphone stopped 3 min ago: hold expired", at(10, 0),
+		{"1 microphone stopped 3 min ago: hold expired", at(10, 0),
 			func(in *Inputs, now time.Time) {
 				heartbeat(&in.Companion, now.Add(-10*time.Minute), now.Add(-3*time.Minute), Report{Microphone: true}, in.Rules)
 				heartbeat(&in.Companion, now.Add(-3*time.Minute), now, Report{}, in.Rules)
 			},
 			want{status: status.Working, reason: ReasonWorkHours, noCheck: true}},
-		{"2 camera: dnd with reason camera", at(19, 0),
+		{"1 camera: dnd with reason camera", at(19, 0),
 			func(in *Inputs, now time.Time) {
 				heartbeat(&in.Companion, now.Add(-time.Minute), now, Report{Camera: true, CamApps: []string{"zoom"}}, in.Rules)
 			},
 			want{status: status.DND, reason: ReasonCamera, noCheck: true}},
-		{"2 microphone during a calendar meeting: until meeting end", at(10, 10),
+		{"1 microphone during a calendar meeting: until meeting end", at(10, 10),
 			func(in *Inputs, now time.Time) {
-				in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))}
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30))}
 				heartbeat(&in.Companion, at(10, 0), now, Report{Microphone: true}, in.Rules)
 			},
 			want{status: status.DND, reason: ReasonMicrophone, until: ptr(at(10, 30)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
 
-		// 1 – manual
-		{"1 override beats the microphone", at(10, 0),
+		// 3 – manual
+		{"1 microphone beats an override (spontaneous call)", at(10, 0),
 			func(in *Inputs, now time.Time) {
 				heartbeat(&in.Companion, now.Add(-time.Minute), now, Report{Microphone: true}, in.Rules)
 				in.Override = &Override{Status: status.Free, Start: now.Add(-time.Minute)}
 			},
+			want{status: status.DND, reason: ReasonMicrophone, light: status.LightRed, until: nil, nextFree: nil}},
+		{"3 override beats the calendar", at(10, 10),
+			func(in *Inputs, now time.Time) {
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30))}
+				in.Override = &Override{Status: status.Free, Start: now.Add(-time.Minute)}
+			},
 			// Free right now, so the "next free slot" is the current one.
-			want{status: status.Free, reason: ReasonOverride, light: status.LightGreen, until: nil, nextFree: ptr(at(9, 59))}},
-		{"1 override with end", at(10, 0),
+			want{status: status.Free, reason: ReasonOverride, light: status.LightGreen, until: nil, nextFree: ptr(at(10, 9))}},
+		{"3 override with end", at(10, 0),
 			func(in *Inputs, now time.Time) {
 				in.Override = &Override{Status: status.DND, Start: now, Until: at(10, 30)}
 			},
 			want{status: status.DND, reason: ReasonOverride, until: ptr(at(10, 30)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
-		{"1 override expired: back to automatic", at(10, 31),
+		{"3 override expired: back to automatic", at(10, 31),
 			func(in *Inputs, _ time.Time) {
 				in.Override = &Override{Status: status.DND, Start: at(10, 0), Until: at(10, 30)}
 			},
@@ -206,7 +251,7 @@ func TestPriorityTable(t *testing.T) {
 			want{status: status.Free, reason: ReasonDefault, noCheck: true}},
 		{"6 signal loses against calendar", at(19, 10),
 			func(in *Inputs, now time.Time) {
-				in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(19, 0), at(20, 0))}
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(19, 0), at(20, 0))}
 				in.Signals = []Signal{{Name: "claude", Status: status.Working, Start: now, Expires: now.Add(time.Hour)}}
 			},
 			want{status: status.DND, reason: ReasonCalendar, noCheck: true}},
@@ -225,30 +270,57 @@ func TestPriorityTable(t *testing.T) {
 }
 
 func TestPhases(t *testing.T) {
+	sec := func(hh, mm, ss int) time.Time { return at(hh, mm).Add(time.Duration(ss) * time.Second) }
+	evening := func(in *Inputs) { in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(19, 0), at(19, 30))} }
+	morning := func(in *Inputs) { in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30))} }
+	lead := func(f func(*Inputs), d time.Duration) func(*Inputs) {
+		return func(in *Inputs) { f(in); in.Rules.LastCall, in.Rules.EndingSoon = Lead(d), Lead(d) }
+	}
 	cases := []struct {
 		name  string
 		now   time.Time
 		setup func(in *Inputs)
 		want  want
 	}{
-		{"last call: green blinks 4 min before a meeting", at(18, 56),
-			func(in *Inputs) { in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(19, 0), at(19, 30))} },
-			want{status: status.Free, phase: status.PhaseLastCall, light: status.LightGreenBlink, until: ptr(at(19, 0)), nextStat: status.DND, nextFree: ptr(at(17, 0))}},
-		{"no last call 10 min before", at(18, 50),
-			func(in *Inputs) { in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(19, 0), at(19, 30))} },
+		// From green: green blinks, then ≈3 s yellow, then red.
+		{"stvo: green blinks 7–3 s before a meeting", sec(18, 59, 54), evening,
+			want{status: status.Free, phase: status.PhaseLastCall, light: status.LightGreenBlink, noCheck: true}},
+		{"stvo: yellow in the last 3 s", sec(18, 59, 58), evening,
+			want{status: status.Free, phase: status.PhaseAmber, light: status.LightYellow, noCheck: true}},
+		{"stvo: no warning 4 min before", at(18, 56), evening,
 			want{status: status.Free, phase: status.PhaseNormal, light: status.LightGreen, noCheck: true}},
-		{"ending soon: red+yellow 3 min before meeting end", at(10, 27),
-			func(in *Inputs) { in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))} },
+		{"lead 5m: green blinks 4 min before", at(18, 56), lead(evening, 5*time.Minute),
+			want{status: status.Free, phase: status.PhaseLastCall, light: status.LightGreenBlink, until: ptr(at(19, 0)), nextStat: status.DND, nextFree: ptr(at(17, 0))}},
+		{"lead 5m: still yellow in the last 3 s", sec(18, 59, 58), lead(evening, 5*time.Minute),
+			want{status: status.Free, phase: status.PhaseAmber, light: status.LightYellow, noCheck: true}},
+		{"lead 5m: no warning 10 min before", at(18, 50), lead(evening, 5*time.Minute),
+			want{status: status.Free, phase: status.PhaseNormal, light: status.LightGreen, noCheck: true}},
+
+		// From yellow: red and yellow alternate (the StVO has nothing for it).
+		{"stvo: red/yellow alternate 4 s before a meeting during work hours", sec(9, 59, 57), morning,
+			want{status: status.Working, phase: status.PhaseLastCall, light: status.LightRedYellowAlternate, noCheck: true}},
+		{"lead 3m: red/yellow alternate 2 min before", at(9, 58), lead(morning, 3*time.Minute),
+			want{status: status.Working, phase: status.PhaseLastCall, light: status.LightRedYellowAlternate, noCheck: true}},
+		{"stvo: plain yellow a minute before", at(9, 59), morning,
+			want{status: status.Working, phase: status.PhaseNormal, light: status.LightYellow, noCheck: true}},
+
+		// Ending soon: red+yellow.
+		{"stvo: red+yellow 1 s before the end", sec(10, 29, 59), morning,
+			want{status: status.DND, phase: status.PhaseEndingSoon, light: status.LightRedYellow, noCheck: true}},
+		{"stvo: plain red 3 min before the end", at(10, 27), morning,
+			want{status: status.DND, phase: status.PhaseNormal, light: status.LightRed, noCheck: true}},
+		{"lead 5m: red+yellow 3 min before the end", at(10, 27), lead(morning, 5*time.Minute),
 			want{status: status.DND, phase: status.PhaseEndingSoon, light: status.LightRedYellow, until: ptr(at(10, 30)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
 		{"no ending soon for back-to-back meetings", at(10, 27),
-			func(in *Inputs) {
-				in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30)), meeting(calendar.KindMeeting, at(10, 30), at(11, 0))}
-			},
+			lead(func(in *Inputs) {
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30)), meeting(calendar.KindVideoCall, at(10, 30), at(11, 0))}
+			}, 5*time.Minute),
 			want{status: status.DND, phase: status.PhaseNormal, light: status.LightRed, until: ptr(at(11, 0)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
 		{"no ending soon when the light goes off afterwards", at(10, 27),
-			func(in *Inputs) {
-				in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30)), meeting(calendar.KindOutOfOffice, at(10, 30), at(12, 0))}
-			},
+			lead(func(in *Inputs) {
+				in.Rules.CalendarStatus[calendar.KindOther] = status.Away
+				in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30)), meeting(calendar.KindOther, at(10, 30), at(12, 0))}
+			}, 5*time.Minute),
 			want{status: status.DND, phase: status.PhaseNormal, noCheck: true}},
 	}
 	for _, c := range cases {
@@ -260,21 +332,50 @@ func TestPhases(t *testing.T) {
 	}
 }
 
-func TestFocusTimer(t *testing.T) {
+func TestLeadText(t *testing.T) {
+	for in, want := range map[string]Lead{"stvo": 0, "5m": Lead(5 * time.Minute), "3m0s": Lead(3 * time.Minute)} {
+		var l Lead
+		if err := l.UnmarshalText([]byte(in)); err != nil || l != want {
+			t.Errorf("UnmarshalText(%q) = %v, %v", in, l, err)
+		}
+	}
+	for _, bad := range []string{"-1m", "2h", "soon"} {
+		var l Lead
+		if err := l.UnmarshalText([]byte(bad)); err == nil {
+			t.Errorf("UnmarshalText(%q) accepted", bad)
+		}
+	}
+	if b, _ := Lead(0).MarshalText(); string(b) != "stvo" {
+		t.Errorf("MarshalText(0) = %s", b)
+	}
+}
+
+func TestPomodoro(t *testing.T) {
 	in := base(at(18, 10))
 	in.Rules.RequireCompanion = false // evaluated at several times without heartbeats
-	in.Focus = &Focus{Start: at(18, 0), Work: 25 * time.Minute, Break: 5 * time.Minute, Cycles: 2, WorkStatus: status.Working}
+	in.Pomodoro = &Pomodoro{Start: at(18, 0), Work: 25 * time.Minute, Break: 5 * time.Minute, Cycles: 2}
 
-	check(t, Evaluate(at(18, 10), in), want{status: status.Working, reason: ReasonFocus,
+	// Work phases are red by default.
+	check(t, Evaluate(at(18, 10), in), want{status: status.DND, reason: ReasonPomodoro, light: status.LightRed,
 		until: ptr(at(18, 25)), nextStat: status.Free, nextFree: ptr(at(18, 25))})
-	check(t, Evaluate(at(18, 27), in), want{status: status.Free, reason: ReasonFocusBreak, noCheck: true})
-	check(t, Evaluate(at(18, 40), in), want{status: status.Working, reason: ReasonFocus, until: ptr(at(18, 55)),
+	check(t, Evaluate(at(18, 27), in), want{status: status.Free, reason: ReasonPomodoroBreak, noCheck: true})
+	check(t, Evaluate(at(18, 40), in), want{status: status.DND, reason: ReasonPomodoro, until: ptr(at(18, 55)),
 		nextStat: status.Free, nextFree: ptr(at(18, 55))})
 	// Two cycles end at 19:00; after that the default applies.
 	check(t, Evaluate(at(19, 5), in), want{status: status.Free, reason: ReasonDefault, noCheck: true})
-	if end := in.Focus.End(); !end.Equal(at(19, 0)) {
-		t.Errorf("Focus.End() = %v", end)
+	if end := in.Pomodoro.End(); !end.Equal(at(19, 0)) {
+		t.Errorf("Pomodoro.End() = %v", end)
 	}
+	in.Pomodoro.WorkStatus = status.Working
+	check(t, Evaluate(at(18, 10), in), want{status: status.Working, reason: ReasonPomodoro, noCheck: true})
+}
+
+func TestGoodbyeThenHeartbeat(t *testing.T) {
+	in := base(at(10, 0))
+	in.Companion.Observe(at(9, 0), Report{Goodbye: GoodbyeSuspend}, in.Rules)
+	check(t, Evaluate(at(10, 0), in), want{status: status.Away, reason: ReasonPCOff, noCheck: true})
+	in.Companion.Observe(at(10, 0), Report{}, in.Rules)
+	check(t, Evaluate(at(10, 0), in), want{status: status.Working, reason: ReasonWorkHours, noCheck: true})
 }
 
 func TestStateIsStableBetweenTicks(t *testing.T) {
@@ -298,7 +399,7 @@ func TestStateIsStableBetweenTicks(t *testing.T) {
 
 func TestEventTitlesNeverLeak(t *testing.T) {
 	in := base(at(10, 10))
-	in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))}
+	in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30))}
 	st := Evaluate(at(10, 10), in)
 	if st.Detail == "secret title" || st.Reason == "secret title" {
 		t.Fatal("event title leaked into the state")
@@ -307,7 +408,7 @@ func TestEventTitlesNeverLeak(t *testing.T) {
 
 func TestTimeline(t *testing.T) {
 	in := base(at(7, 0))
-	in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))}
+	in.Events = []calendar.Event{meeting(calendar.KindVideoCall, at(10, 0), at(10, 30))}
 	// Live signals must not appear in the plan.
 	heartbeat(&in.Companion, at(6, 50), at(7, 0), Report{Locked: true}, in.Rules)
 	slots := Timeline(at(7, 0), at(7, 0), at(18, 0), in)
