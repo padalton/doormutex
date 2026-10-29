@@ -12,7 +12,7 @@ docker compose -f compose.example.yaml up -d
 docker compose -f compose.example.yaml exec hub doormutex-hub token create companion office
 ```
 
-The token is printed once; store it in the client (companion, widget, Stream Deck, webhook). Tokens are stored as SHA-256 hashes. A hub serves several profiles (office, teen room, …); a token without a profile picks one with `?profile=`.
+Open `http://localhost:8080/` for the web UI (it asks for a token). The token is printed once; store it in the client (companion, widget, Stream Deck, webhook). Tokens are stored as SHA-256 hashes. A hub serves several profiles (office, teen room, …); a token without a profile picks one with `?profile=`.
 
 ```bash
 TOKEN=dm_…
@@ -51,7 +51,8 @@ Environment: `DOORMUTEX_CONFIG`, `DOORMUTEX_MQTT_URL`, `DOORMUTEX_MQTT_PASSWORD`
 | `internal/calendar` | calendar provider interface + in-memory fake |
 | `internal/calendar/google` | Google Calendar: several accounts, classification, OAuth login |
 | `internal/service` | live state of one profile: inputs, expiry, message, change fan-out to SSE and MQTT |
-| `internal/api` | REST + SSE handlers, bearer-token auth |
+| `internal/api` | REST + SSE handlers, bearer-token auth, profile selection |
+| `internal/web` | embedded web UI / PWA (no build step) |
 | `internal/store` | SQLite (pure Go): tokens, override/pomodoro, history |
 | `internal/mqttpub` | MQTT publisher with Last Will, HA device discovery per profile, HA commands (select/text) |
 | `internal/config` | YAML config |

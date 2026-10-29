@@ -9,7 +9,7 @@ The state is detected automatically (microphone/camera, Google Calendar, working
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-29). The repo is public from day one so anyone can follow the project as it grows. The hub core (M0) is in [`hub/`](hub/).
 >
-> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
 
 ## Signals
 
@@ -159,6 +159,10 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) and goodbye before shutdown/suspend |
 | `POST` / `DELETE /api/v1/signals/{source}` | webhook signals with TTL |
 | `GET /api/v1/events` | live updates (Server-Sent Events) |
+| `GET /api/v1/profiles` | profiles the token may see, with their state |
+| `GET` / `PUT /api/v1/settings` | light per calendar event kind, warning timing (saved, overrides the config) |
+| `PUT` / `DELETE /api/v1/message` | e-ink message |
+| `GET /api/v1/calendar`, `GET /api/v1/history` | calendar account health, recent status changes |
 
 ## State logic
 
@@ -325,11 +329,19 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 ### Web UI
 
-State and override, day view, rules (light per calendar event kind, phase timing), calendar accounts, working hours, profiles and tokens, device health (battery, Wi-Fi, firmware), history.
+Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
+
+- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until changed) or *auto*; e-ink message; pomodoro
+- **Day:** today's planned slots as a bar and a list
+- **Settings:** light per calendar event kind, warning timing (StVO or a lead time), calendar account health
+- **History:** recent status changes
+- **Profiles:** a selector when the token may see several profiles
+
+Later: working hours, profiles and tokens, device health (battery, Wi-Fi, firmware).
 
 ### Phone (iPhone and Android)
 
-No native app – so no Apple developer account and no app store:
+No native app – so no Apple developer account and no app store. Step-by-step: [docs/apple-shortcuts.md](docs/apple-shortcuts.md).
 
 - **Web app:** the web UI can be added to the home screen ("Add to Home Screen") and then opens like an app. Within the home network plain HTTP is enough for controlling the light; push notifications need HTTPS (on iOS from 16.4, for web apps on the home screen).
 - **Apple Shortcuts:** a shortcut calls the hub API with the profile's token. That gives Siri ("traffic light red"), the Action Button and home-screen widgets – and automations such as "when the *Do Not Disturb* focus turns on → light red". The iPhone's focus mode then switches the light.
@@ -748,3 +760,4 @@ doormutex/
 | 2026-10-30 | Implemented the review rules in the hub (PR m1-rules). Fault is reported as status `away` with phase `fault`; calendar kind `meeting` became `video_call` | `away` keeps HA automations simple (nobody to disturb is known); the kind name matches the README table |
 | 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
 | 2026-10-30 | Google Calendar: own HTTP client against the Calendar API (no Google SDK), `x/oauth2` with PKCE; scope `calendar.events.readonly`; titles are not even requested; login via loopback or pasting the redirect address; accounts fail independently (last good events are kept) | small dependency footprint, testable with `httptest`; works when the hub runs in Docker on another machine |
+| 2026-10-30 | Web UI: plain HTML/CSS/JS embedded with `go:embed`, no npm, strict CSP, service worker never caches the API; runtime settings (light per event kind, phase timing) saved in the hub and override the config | nothing to build or install, nothing loaded from outside the hub; the settings belong where people change them |
