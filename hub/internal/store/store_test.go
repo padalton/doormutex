@@ -19,7 +19,7 @@ func TestTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(tok, "otl_") || len(tok) < 40 {
+	if !strings.HasPrefix(tok, "dm_") || len(tok) < 40 {
 		t.Fatalf("unexpected token format %q", tok)
 	}
 	if name, ok := s.Authenticate(tok); !ok || name != "companion" {

@@ -1,4 +1,4 @@
-module github.com/padalton/office-traffic-light/hub
+module github.com/padalton/doormutex/hub
 
 go 1.27
 

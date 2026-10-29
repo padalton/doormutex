@@ -3,15 +3,15 @@ version = 1
 
 [[annotations]]
 path = ["**"]
-SPDX-FileCopyrightText = "2026 The office-traffic-light contributors"
+SPDX-FileCopyrightText = "2026 The doormutex contributors"
 SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = ["hardware/**", "enclosure/**"]
-SPDX-FileCopyrightText = "2026 The office-traffic-light contributors"
+SPDX-FileCopyrightText = "2026 The doormutex contributors"
 SPDX-License-Identifier = "CERN-OHL-S-2.0"
 
 [[annotations]]
 path = ["**/*.md", "docs/**", "site/**/*.md"]
-SPDX-FileCopyrightText = "2026 The office-traffic-light contributors"
+SPDX-FileCopyrightText = "2026 The doormutex contributors"
 SPDX-License-Identifier = "CC-BY-SA-4.0"

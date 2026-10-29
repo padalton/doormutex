@@ -1,5 +1,5 @@
 <!--
-SPDX-FileCopyrightText: 2026 The office-traffic-light contributors
+SPDX-FileCopyrightText: 2026 The doormutex contributors
 SPDX-License-Identifier: CERN-OHL-S-2.0
 -->
 

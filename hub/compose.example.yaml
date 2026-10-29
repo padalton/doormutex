@@ -1,18 +1,18 @@
 # Example: run the hub next to an existing MQTT broker.
 #   cp config.example.yaml config.yaml   # adjust work hours and mqtt.url
 #   docker compose -f compose.example.yaml up -d
-#   docker compose -f compose.example.yaml exec hub otl-hub token create companion
+#   docker compose -f compose.example.yaml exec hub doormutex-hub token create companion
 services:
   hub:
-    image: ghcr.io/padalton/office-traffic-light-hub:latest
+    image: ghcr.io/padalton/doormutex-hub:latest
     build: .
     restart: unless-stopped
     ports:
       - "8080:8080"
     environment:
-      OTL_CONFIG: /config/config.yaml
-      # OTL_MQTT_PASSWORD: set via an .env file, never commit it
-      OTL_MQTT_PASSWORD: ${OTL_MQTT_PASSWORD:-}
+      DOORMUTEX_CONFIG: /config/config.yaml
+      # DOORMUTEX_MQTT_PASSWORD: set via an .env file, never commit it
+      DOORMUTEX_MQTT_PASSWORD: ${DOORMUTEX_MQTT_PASSWORD:-}
     volumes:
       - ./config.yaml:/config/config.yaml:ro
       - hub-data:/data

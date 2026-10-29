@@ -15,18 +15,18 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"github.com/padalton/office-traffic-light/hub/internal/engine"
-	"github.com/padalton/office-traffic-light/hub/internal/service"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/engine"
+	"github.com/padalton/doormutex/hub/internal/service"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 // startMosquitto runs a throwaway broker in Docker on a free local port.
 // It never touches a real broker: the container is bound to 127.0.0.1
-// and removed afterwards. Set OTL_INTEGRATION=1 to run it.
+// and removed afterwards. Set DOORMUTEX_INTEGRATION=1 to run it.
 func startMosquitto(t *testing.T) string {
 	t.Helper()
-	if os.Getenv("OTL_INTEGRATION") == "" {
-		t.Skip("set OTL_INTEGRATION=1 to run the MQTT integration test (needs Docker)")
+	if os.Getenv("DOORMUTEX_INTEGRATION") == "" {
+		t.Skip("set DOORMUTEX_INTEGRATION=1 to run the MQTT integration test (needs Docker)")
 	}
 	out, err := exec.Command("docker", "run", "-d", "--rm", "-p", "127.0.0.1::1883",
 		"eclipse-mosquitto:2", "mosquitto", "-c", "/mosquitto-no-auth.conf").CombinedOutput()
@@ -144,8 +144,8 @@ func TestIntegrationMosquitto(t *testing.T) {
 	}
 
 	cfg := Config{
-		URL: "tcp://" + px.ln.Addr().String(), ClientID: "otl-hub-test",
-		BaseTopic: "office-traffic-light", DiscoveryPrefix: "homeassistant", Discovery: true, Version: "test",
+		URL: "tcp://" + px.ln.Addr().String(), ClientID: "doormutex-hub-test",
+		BaseTopic: "doormutex", DiscoveryPrefix: "homeassistant", Discovery: true, Version: "test",
 	}
 	pub, err := Connect(cfg, slog.New(slog.DiscardHandler))
 	if err != nil {
@@ -157,13 +157,13 @@ func TestIntegrationMosquitto(t *testing.T) {
 		Reason: engine.ReasonCalendar, Since: until.Add(-30 * time.Minute), Until: &until, Updated: until.Add(-5 * time.Minute)})
 	pub.PublishChange(service.Change{From: status.Working, To: status.DND, Reason: engine.ReasonCalendar, At: until.Add(-30 * time.Minute)})
 
-	col.wait(t, "office-traffic-light/hub/online", func(b []byte) bool { return string(b) == "online" })
-	col.wait(t, "homeassistant/device/office_traffic_light_hub/config", func(b []byte) bool { return json.Valid(b) })
-	col.wait(t, "office-traffic-light/state", func(b []byte) bool {
+	col.wait(t, "doormutex/hub/online", func(b []byte) bool { return string(b) == "online" })
+	col.wait(t, "homeassistant/device/doormutex_hub/config", func(b []byte) bool { return json.Valid(b) })
+	col.wait(t, "doormutex/state", func(b []byte) bool {
 		var st engine.State
 		return json.Unmarshal(b, &st) == nil && st.Status == status.DND && st.Until != nil
 	})
-	col.wait(t, "office-traffic-light/event", func(b []byte) bool {
+	col.wait(t, "doormutex/event", func(b []byte) bool {
 		var ev ChangeEvent
 		return json.Unmarshal(b, &ev) == nil && ev.EventType == "status_changed" && ev.To == status.DND
 	})
@@ -175,12 +175,12 @@ func TestIntegrationMosquitto(t *testing.T) {
 		t.Fatal(tok.Error())
 	}
 	defer lc.Disconnect(0)
-	lc.Subscribe("office-traffic-light/state", 1, late.handler).WaitTimeout(5 * time.Second)
-	late.wait(t, "office-traffic-light/state", func(b []byte) bool { return strings.Contains(string(b), `"status":"dnd"`) })
+	lc.Subscribe("doormutex/state", 1, late.handler).WaitTimeout(5 * time.Second)
+	late.wait(t, "doormutex/state", func(b []byte) bool { return strings.Contains(string(b), `"status":"dnd"`) })
 
 	// Crash: cut the connection without DISCONNECT → broker sends the Last Will.
 	px.cut()
-	col.wait(t, "office-traffic-light/hub/online", func(b []byte) bool { return string(b) == "offline" })
+	col.wait(t, "doormutex/hub/online", func(b []byte) bool { return string(b) == "offline" })
 	pub.client.Disconnect(0)
 	fmt.Println("integration: online, discovery, retained state, event and Last Will verified against", broker)
 }

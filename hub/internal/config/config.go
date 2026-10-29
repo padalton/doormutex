@@ -8,11 +8,11 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/padalton/office-traffic-light/hub/internal/calendar"
-	"github.com/padalton/office-traffic-light/hub/internal/engine"
-	"github.com/padalton/office-traffic-light/hub/internal/holidays"
-	"github.com/padalton/office-traffic-light/hub/internal/schedule"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/engine"
+	"github.com/padalton/doormutex/hub/internal/holidays"
+	"github.com/padalton/doormutex/hub/internal/schedule"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 // Duration is a time.Duration written as "30s", "5m", "1h".
@@ -57,7 +57,7 @@ type Config struct {
 	MQTT struct {
 		URL             string `yaml:"url"`
 		Username        string `yaml:"username"`
-		Password        string `yaml:"-"` // only from OTL_MQTT_PASSWORD
+		Password        string `yaml:"-"` // only from DOORMUTEX_MQTT_PASSWORD
 		ClientID        string `yaml:"client_id"`
 		BaseTopic       string `yaml:"base_topic"`
 		DiscoveryPrefix string `yaml:"discovery_prefix"`
@@ -78,8 +78,8 @@ func Load(path string) (*Config, error) {
 		}
 	}
 	c.applyDefaults()
-	c.MQTT.Password = os.Getenv("OTL_MQTT_PASSWORD")
-	if v := os.Getenv("OTL_MQTT_URL"); v != "" {
+	c.MQTT.Password = os.Getenv("DOORMUTEX_MQTT_PASSWORD")
+	if v := os.Getenv("DOORMUTEX_MQTT_URL"); v != "" {
 		c.MQTT.URL = v
 	}
 	return c, nil
@@ -96,8 +96,8 @@ func (c *Config) applyDefaults() {
 	def(&c.Database, "/data/hub.db")
 	def(&c.Holidays.Country, "AT")
 	def(&c.Calendar.Provider, "none")
-	def(&c.MQTT.ClientID, "office-traffic-light-hub")
-	def(&c.MQTT.BaseTopic, "office-traffic-light")
+	def(&c.MQTT.ClientID, "doormutex-hub")
+	def(&c.MQTT.BaseTopic, "doormutex")
 	def(&c.MQTT.DiscoveryPrefix, "homeassistant")
 	if c.Calendar.PollInterval == 0 {
 		c.Calendar.PollInterval = Duration(2 * time.Minute)

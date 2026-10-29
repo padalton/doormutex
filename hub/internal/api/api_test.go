@@ -17,12 +17,12 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/padalton/office-traffic-light/hub/internal/calendar"
-	"github.com/padalton/office-traffic-light/hub/internal/engine"
-	"github.com/padalton/office-traffic-light/hub/internal/schedule"
-	"github.com/padalton/office-traffic-light/hub/internal/service"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
-	"github.com/padalton/office-traffic-light/hub/internal/store"
+	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/engine"
+	"github.com/padalton/doormutex/hub/internal/schedule"
+	"github.com/padalton/doormutex/hub/internal/service"
+	"github.com/padalton/doormutex/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/store"
 )
 
 type clock struct {
@@ -108,7 +108,7 @@ func TestAuth(t *testing.T) {
 		t.Fatalf("no token: %d", resp.StatusCode)
 	}
 	req, _ := http.NewRequest(http.MethodGet, f.srv.URL+"/api/v1/status", nil)
-	req.Header.Set("Authorization", "Bearer otl_wrong")
+	req.Header.Set("Authorization", "Bearer dm_wrong")
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

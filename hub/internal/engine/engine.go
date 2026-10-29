@@ -10,10 +10,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/padalton/office-traffic-light/hub/internal/calendar"
-	"github.com/padalton/office-traffic-light/hub/internal/holidays"
-	"github.com/padalton/office-traffic-light/hub/internal/schedule"
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/holidays"
+	"github.com/padalton/doormutex/hub/internal/schedule"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 // Priority of a claim; lower wins. Mirrors the table in the README.

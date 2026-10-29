@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/padalton/office-traffic-light/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/status"
 )
 
 // Claims collects the claims of all sources relevant for [from, to).
