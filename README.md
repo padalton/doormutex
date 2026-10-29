@@ -9,7 +9,7 @@ The state is detected automatically (microphone/camera, Google Calendar, working
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-29). The repo is public from day one so anyone can follow the project as it grows. The hub core (M0) is in [`hub/`](hub/).
 >
-> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
 
 ## Signals
 
@@ -247,7 +247,7 @@ Where room mode runs for people *without* a homelab (no Docker, no HA) is still 
 - **Calendar and microphone/camera complement each other:** a call known from the calendar gives the last call ahead of time; microphone/camera catch spontaneous calls and always win.
 - **Focus time and out of office only exist in Google Workspace accounts** and only on primary calendars – in a private Gmail calendar there are plain events only.
 - **Privacy:** location and description are only read to find video links; titles and contents are never stored or shown. Before connecting a work account, check the employer's IT policy.
-- **M0 status:** the hub has a calendar interface with a fake implementation; the Google provider comes next.
+- **Set-up:** [docs/google-calendar.md](docs/google-calendar.md) – OAuth client, `doormutex-hub google login <profile> <account>`, mirrored copies. `GET /api/v1/calendar` shows the health of every account.
 
 #### Google sign-in for self-hosters
 
@@ -260,7 +260,7 @@ Two separate problems:
 
 - **Project homepage with its own domain** (GitHub Pages + custom domain, verified in Search Console): description, logo, screenshots, privacy policy, terms of service, docs and web flasher.
 - **Stage 1 – for the reference build:** an own OAuth client whose branding points to the project homepage. It can then be published and the 7-day limit is gone. Until verification Google shows a warning at sign-in and caps unverified apps at 100 users.
-- **Stage 2 – for everyone else:** a **shared project OAuth client**, verified by Google. `calendar.readonly` is a "sensitive" scope, not a "restricted" one: it needs a justification and a demo video, but no paid security assessment. After that, nobody needs their own Google Cloud console.
+- **Stage 2 – for everyone else:** a **shared project OAuth client**, verified by Google. `calendar.events.readonly` is a "sensitive" scope, not a "restricted" one: it needs a justification and a demo video, but no paid security assessment. After that, nobody needs their own Google Cloud console.
   - **Sign-in via the companion:** client type "desktop app", loopback redirect to `127.0.0.1`. Google explicitly does not treat the client secret of installed apps as a secret, so it may live in open-source code.
   - **Sign-in via the web UI without companion:** a **redirect relay** on the homepage, modelled on `my.home-assistant.io`. Google redirects to `https://<homepage>/oauth/callback`, and the static page forwards code and `state` to the hub address this browser stored locally before. The target never comes from URL parameters, otherwise the relay would be an open redirect. Still open: web clients need the client secret for every token refresh in the hub. To be checked before stage 2 starts.
 - **Fallback without OAuth:** the calendar's secret iCal address – without `eventType` and attendees, and Google sometimes updates the feed with a long delay.
@@ -747,3 +747,4 @@ doormutex/
 | 2026-10-29 | Project renamed from the working title office-traffic-light to **doormutex** | the old name already existed on GitHub and was too narrow for room mode; a mutex lets only one into the critical section |
 | 2026-10-30 | Implemented the review rules in the hub (PR m1-rules). Fault is reported as status `away` with phase `fault`; calendar kind `meeting` became `video_call` | `away` keeps HA automations simple (nobody to disturb is known); the kind name matches the README table |
 | 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
+| 2026-10-30 | Google Calendar: own HTTP client against the Calendar API (no Google SDK), `x/oauth2` with PKCE; scope `calendar.events.readonly`; titles are not even requested; login via loopback or pasting the redirect address; accounts fail independently (last good events are kept) | small dependency footprint, testable with `httptest`; works when the hub runs in Docker on another machine |
