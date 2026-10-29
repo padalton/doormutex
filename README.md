@@ -303,6 +303,8 @@ Any tool can set a claim with a TTL via `POST /api/v1/signals/<name>`. Example o
 
 ### KDE Plasma widget
 
+Implemented in [`plasmoid/`](plasmoid/) – install with `kpackagetool6`, see its README.
+
 - **Panel:** a mini traffic light as icon (the active lamp lights up), tooltip with reason and "until".
 - **Right-click menu:** "open web UI", "auto", quick overrides.
 - **Popup:**
@@ -767,3 +769,4 @@ doormutex/
 | 2026-10-30 | Google Calendar: own HTTP client against the Calendar API (no Google SDK), `x/oauth2` with PKCE; scope `calendar.events.readonly`; titles are not even requested; login via loopback or pasting the redirect address; accounts fail independently (last good events are kept) | small dependency footprint, testable with `httptest`; works when the hub runs in Docker on another machine |
 | 2026-10-30 | Web UI: plain HTML/CSS/JS embedded with `go:embed`, no npm, strict CSP, service worker never caches the API; runtime settings (light per event kind, phase timing) saved in the hub and override the config | nothing to build or install, nothing loaded from outside the hub; the settings belong where people change them |
 | 2026-10-30 | Companion: separate Go module, polls `pw-dump` every 2 s instead of a PipeWire client library, camera also via `/proc/*/fd`, logind via D-Bus (`godbus`), heartbeat on change and every 30 s | no cgo, no PipeWire headers; `pw-dump` costs a few milliseconds; V4L2 apps (Zoom, Chrome) don't show up in PipeWire |
+| 2026-10-30 | Plasma widget: plain QML with `XMLHttpRequest`, reads the SSE stream from a streaming request and polls as a fallback; token in the Plasma config | no compiled plugin, installs with `kpackagetool6`; KWallet would be nicer (open question) |
