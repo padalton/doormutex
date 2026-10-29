@@ -3,7 +3,7 @@
 **A traffic light for my basement office.** From the hallway the family can see whether it's worth coming downstairs:
 🔴 **red** = meeting, please don't disturb · 🟡 **yellow** = working, come in if it's important · 🟢 **green** = come in · ⚫ **off** = not in the office.
 
-The state is detected automatically (microphone/camera, Google Calendar, working hours, screen lock) and can be overridden at any time from a KDE widget, a Stream Deck or the web UI. Everything is public: software, firmware, PCB (KiCad) and a 3D-printed enclosure (OpenSCAD) – the licence is still being decided.
+The state is detected automatically (microphone/camera, Google Calendar, working hours, screen lock) and can be overridden at any time from a KDE widget, a Stream Deck or the web UI. Open source & open hardware: software, firmware, PCB (KiCad) and a 3D-printed enclosure (OpenSCAD).
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-29). The repo is public from day one so anyone can follow the project as it grows. The hub core (M0) is in [`hub/`](hub/).
 >
@@ -211,7 +211,8 @@ Where room mode runs for people *without* a homelab (no Docker, no HA) is still 
 ### Google Calendar
 
 - **Connection:** Google Calendar API (recommended: near real time, provides `eventType`, attendees and conference links) or the secret iCal address (simpler, but sometimes heavily delayed).
-- **Several Google accounts per profile,** e.g. private and work: each account has its own sign-in and refresh token, and any number of calendars per account. In the reference setup this replaces the Apps Script that mirrored work events into the private calendar (and lost attendees and conference links on the way).
+- **Several Google accounts per profile,** e.g. private and work: each account has its own sign-in and refresh token, and any number of calendars per account.
+- **Mirrored blockers:** in the reference setup HubSpot's "book a meeting" page reads the private calendar, so an Apps Script copies work events into it as blockers (the day job comes first). With both accounts connected the hub would see every work meeting twice. The script therefore marks its copies (`extendedProperties.private`), and the hub ignores marked copies when the source account is connected. If the work account can't be connected (e.g. the employer blocks third-party apps), the script can write the event kind into the mark instead, and the hub reads the kind from the copy.
 - **Event kinds and default lights** – the light per kind can be changed in the web UI:
 
   | Kind | Detected via | Default |
@@ -223,6 +224,7 @@ Where room mode runs for people *without* a homelab (no Docker, no HA) is still 
   | Other event | – | 🟡 `working` – e.g. a phone call on the mobile, which the companion can't see |
   | Ignored | working location, birthdays, other all-day events, events marked "free", declined events | – |
 
+- **Overlapping events:** the strictest status wins (`dnd` before `working`), not the one that started last.
 - **Calendar and microphone/camera complement each other:** a call known from the calendar gives the last call ahead of time; microphone/camera catch spontaneous calls and always win.
 - **Focus time and out of office only exist in Google Workspace accounts** and only on primary calendars – in a private Gmail calendar there are plain events only.
 - **Privacy:** location and description are only read to find video links; titles and contents are never stored or shown. Before connecting a work account, check the employer's IT policy.
@@ -630,8 +632,12 @@ office-traffic-light/
   - firmware build with web flasher on GitHub Pages
   - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
   - OpenSCAD: STL/3MF with preview images
-- **Licences: not decided yet** (open question 6). The goal: others must not sell the project or modified versions of it. That rules out OSI open-source and OSHWA open-hardware licences, which all allow commercial use. Candidates: software under PolyForm Noncommercial 1.0.0 or Apache-2.0 + Commons Clause; hardware, enclosure and docs under CC BY-NC-SA 4.0. Until a `LICENSE` file exists, all rights are reserved.
-- **How it differs:** busylights (Luxafor, Kuando), PresenceLight and countless "on air" lamps mostly show "in a call yes/no" at the desk. This one is for the family: a traffic light you can see from a distance, with times, a rule engine with many sources and a failsafe, Linux first, and battery-capable hardware with public design files.
+- **Licences (proposal, open question 6)** – real open source, so that the hardware can be [OSHWA certified](https://certification.oshwa.org/):
+  - software and firmware: Apache-2.0
+  - hardware and enclosure: CERN-OHL-S-2.0
+  - docs and photos: CC BY-SA 4.0
+- **Third-party licences:** all dependencies so far are permissive (Go modules: BSD-3, MIT/Apache-2.0, Paho under EPL-2.0/EDL-1.0; ESP-IDF: Apache-2.0; BOSL2: BSD-2; KiCad libraries: CC BY-SA with an exception for designs). Shipping binaries or devices only requires including their notices. To keep it that way: no GPL e-paper drivers (e.g. GxEPD2) in the firmware, and fonts under the OFL.
+- **How it differs:** busylights (Luxafor, Kuando), PresenceLight and countless "on air" lamps mostly show "in a call yes/no" at the desk. This one is for the family: a traffic light you can see from a distance, with times, a rule engine with many sources and a failsafe, Linux first, and battery-capable open hardware.
 
 ## Roadmap
 
@@ -641,7 +647,7 @@ office-traffic-light/
 | **M1a – breadboard** | [Prototype from ready-made modules](docs/breadboard.md): firmware, LEDs + lens test, e-ink, current measurement, then battery operation. Runs in parallel to M0 |
 | **M1b – PCB + enclosure v1** | KiCad schematic + layout + review based on the measurements, JLCPCB order, tolerance test prints, enclosure v1 |
 | **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin, web flasher, OTA |
-| **M3 – release** | CI, KDE Store, Printables/MakerWorld, Docker image, optional OSHWA certification (only with an open-hardware licence) |
+| **M3 – release** | CI, KDE Store, Printables/MakerWorld, Docker image, OSHWA certification |
 
 ## Open questions
 
@@ -650,9 +656,9 @@ office-traffic-light/
 3. **Cells:** which 18650s are they (type, age)? Is there a charger with capacity test?
 4. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
 5. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but needed for push notifications to the web app.
-6. **Licences:** no commercial redistribution by others – PolyForm Noncommercial vs. Apache-2.0 + Commons Clause for the software, CC BY-NC-SA 4.0 for hardware and docs? A contributor licence agreement (CLA) keeps the option to sell it yourself. Until a `LICENSE` file is in the repo, nobody may legally reuse anything.
+6. **Licences:** confirm Apache-2.0 / CERN-OHL-S-2.0 / CC BY-SA 4.0. Until a `LICENSE` file is in the repo, nobody may legally reuse anything.
 7. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
-8. **Room mode without a homelab:** where does it run for people who install nothing – a web UI on the light itself (ESP32), a Home Assistant add-on, or a hosted service? Decide before the firmware architecture is fixed.
+8. **Room mode without a homelab:** proposal: a standalone mode in which the light hosts its own web UI and API (ESP-IDF HTTP server, setup via a Wi-Fi QR code on the e-ink). Alternatives: a Home Assistant add-on or a hosted service. Decide before the firmware architecture is fixed.
 9. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing are proposals – check on the breadboard whether they read well from the stairs.
 
 ## Risks
@@ -666,7 +672,8 @@ office-traffic-light/
 | Google OAuth is fiddly | step-by-step guide with screenshots; iCal address as fallback |
 | Parts not available at JLCPCB/LCSC | note alternatives in the schematic |
 | Plugin doesn't run cleanly in OpenDeck | test early; fallback: StreamController plugin |
-| Work Google Workspace blocks third-party OAuth apps | test sign-in early; fallback: Apps Script in the work account or the iCal address |
+| Work Google Workspace blocks third-party OAuth apps | not an issue in the reference setup (the owner is the Workspace admin); for others: mirroring script with kind marks (see Google Calendar) or the iCal address |
+| Selling hardware later (e.g. Kickstarter) | open licences allow it. The real effort is regulatory: CE (EMC, Radio Equipment Directive incl. its cybersecurity requirements for connected devices), RoHS, WEEE and battery registration, new certified cells (never reused ones), UN 38.3 for shipping. A USB-powered variant without battery avoids a large part of it |
 
 ## Decision log
 
@@ -705,10 +712,12 @@ office-traffic-light/
 | 2026-10-29 | Review: the companion signs off on shutdown/suspend/lock; silence without goodbye = fault (yellow blinks) until end of work day | blinking yellow means "out of order" in the StVO; a PC that is off is normal |
 | 2026-10-29 | Review: phases use StVO timing by default, a switch per phase gives a lead time (e.g. 3/5 min) | authentic by default, useful as a warning when wanted |
 | 2026-10-29 | Review: last call from yellow = red/yellow alternating | the StVO has nothing for it; blinking yellow is the fault |
-| 2026-10-29 | Review: several Google accounts per profile (private + work) instead of the mirroring script | conference data and event types arrive intact |
+| 2026-10-29 | Review: several Google accounts per profile (private + work); the HubSpot mirroring script stays and marks its copies, the hub ignores them | conference data and event types arrive intact; no double events |
 | 2026-10-29 | Review: event kinds → light, editable in the web UI. Defaults: video call (Meet, Zoom, Teams …) red, focus time yellow, timed OOO red, all-day OOO day off, other events yellow | private appointments are blocked as OOO in the work calendar; phone calls aren't visible to the companion |
 | 2026-10-29 | Review: holidays only remove working hours; calendar events still count | holiday workers and self-employed |
 | 2026-10-29 | Review: focus timer renamed to pomodoro, work phase red | avoids confusion with Google focus time (yellow) |
 | 2026-10-29 | Review: companion required by default; profiles can run without it, controlled via phone, web UI or HA | the office needs the companion; other rooms don't |
 | 2026-10-29 | Review: profiles and room mode (teenager, parents); phone via web app + Apple Shortcuts, no native app | no Apple developer account; voice via HA → Alexa/Google Home |
-| 2026-10-29 | Goal for the licence: no commercial redistribution by others (licence itself still open) | keeps the option to sell it later |
+| 2026-10-29 | Goal for the licence: no commercial redistribution by others (superseded below) | keeps the option to sell it later |
+| 2026-10-29 | Licence: real open source (OSI + OSHWA) after all; selling it yourself stays possible | OSHWA certification is worth more for marketing than a non-commercial clause |
+| 2026-10-29 | Overlapping calendar events: the strictest status wins | the M0 engine lets the latest start win, so a yellow event could interrupt a red meeting |
