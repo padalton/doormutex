@@ -1,0 +1,361 @@
+openapi: 3.1.0
+info:
+  title: office-traffic-light hub API
+  version: 0.1.0
+  summary: Contract between the hub, the desktop companion, the Plasma widget and the Stream Deck plugin.
+  description: |
+    The hub decides the traffic light state from manual overrides, the
+    desktop companion (microphone, camera, screen lock), the calendar,
+    working hours and webhook signals. Clients read the state, follow
+    changes via Server-Sent Events and set overrides.
+
+    All endpoints except `/healthz` require a bearer token. Create one per
+    client with `otl-hub token create <name>`.
+
+    Durations are Go-style strings such as `30s`, `25m` or `1h30m`.
+    Timestamps are RFC 3339.
+  license:
+    name: to be decided
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness check
+      operationId: healthz
+      security: []
+      responses:
+        "200":
+          description: The hub is running.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, const: ok }
+
+  /api/v1/status:
+    get:
+      summary: Current state
+      operationId: getStatus
+      responses:
+        "200":
+          description: Current state including reason, slot and next free slot.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/State" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/timeline:
+    get:
+      summary: Planned slots
+      description: |
+        Slots planned from calendar, working hours, focus timer and
+        overrides. Live signals (microphone, screen lock, webhooks) are not
+        part of the plan.
+      operationId: getTimeline
+      parameters:
+        - name: from
+          in: query
+          description: Start (default now).
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: End (default from + 24 h, at most 14 days after from).
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Planned slots.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Timeline" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/override:
+    put:
+      summary: Set a manual status
+      description: Replaces a running focus timer. Every override ends unless mode is `indefinite`.
+      operationId: setOverride
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OverrideRequest" }
+            examples:
+              thirtyMinutes: { value: { status: dnd, mode: duration, duration: 30m } }
+              untilEndOfWorkday: { value: { status: working, mode: end_of_workday } }
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: The mode does not apply right now (no running event, outside working hours).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+    delete:
+      summary: Back to automatic
+      operationId: clearOverride
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/focus:
+    put:
+      summary: Start a focus (pomodoro) timer
+      description: Replaces a running override. Work phases show `work_status`, breaks show `free`.
+      operationId: startFocus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FocusRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      summary: Stop the focus timer
+      operationId: stopFocus
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/signals/companion:
+    post:
+      summary: Companion heartbeat
+      description: |
+        Sent by the desktop companion every 30 s and on every change. If no
+        heartbeat arrives for 90 s the hub assumes the PC is off (`away`).
+        Microphone/camera count after 10 s of activity and hold for 2 min.
+      operationId: companionHeartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CompanionSignal" }
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/signals/{source}:
+    parameters:
+      - name: source
+        in: path
+        required: true
+        description: Signal name, e.g. `claude`. Lowercase, `[a-z0-9_-]`, up to 32 characters; `companion` is reserved.
+        schema: { type: string, pattern: "^[a-z0-9][a-z0-9_-]{0,31}$" }
+    post:
+      summary: Set a webhook signal
+      description: A claim with priority 6 that expires after `ttl`. Sending again refreshes it.
+      operationId: setSignal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignalRequest" }
+            example: { status: working, ttl: 30m }
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      summary: Remove a webhook signal
+      operationId: clearSignal
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/events:
+    get:
+      summary: Live state stream (Server-Sent Events)
+      description: |
+        Sends `event: state` with a State JSON on connect and on every
+        change, plus a keep-alive comment every 25 s. Browsers cannot set
+        headers on EventSource, so the token may also be passed as
+        `access_token` query parameter.
+      operationId: streamEvents
+      parameters:
+        - name: access_token
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Event stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+
+  responses:
+    State:
+      description: The state after the change.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/State" }
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unauthorized:
+      description: Missing or invalid token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Status:
+      type: string
+      enum: [free, working, dnd, away]
+      description: "free = green, working = yellow, dnd = red, away = off"
+    Phase:
+      type: string
+      enum: [normal, last_call, ending_soon]
+    Light:
+      type: string
+      enum: [off, red, yellow, green, green_blink, red_yellow, yellow_blink]
+      description: Lamp pattern. `yellow_blink` (failsafe) is decided by the device itself.
+    Reason:
+      type: string
+      enum: [override, focus, focus_break, microphone, camera, screen_locked, companion_offline, calendar, work_hours, signal, default]
+
+    State:
+      type: object
+      required: [status, phase, light, reason, since, until, next, next_free, updated]
+      properties:
+        status: { $ref: "#/components/schemas/Status" }
+        phase: { $ref: "#/components/schemas/Phase" }
+        light: { $ref: "#/components/schemas/Light" }
+        reason: { $ref: "#/components/schemas/Reason" }
+        detail:
+          type: string
+          description: Extra context, e.g. app names for microphone/camera, event kind for calendar, signal name. Never an event title.
+        since: { type: string, format: date-time, description: Start of the current slot. }
+        until:
+          type: [string, "null"]
+          format: date-time
+          description: End of the current slot; null if unknown (e.g. a call without calendar entry, a locked screen).
+        next:
+          oneOf:
+            - $ref: "#/components/schemas/Slot"
+            - type: "null"
+          description: The slot after the current one; null if the current end is unknown.
+        next_free:
+          oneOf:
+            - $ref: "#/components/schemas/FreeSlot"
+            - type: "null"
+          description: The current slot if it is free, otherwise the next free one; null if unknown.
+        updated: { type: string, format: date-time }
+      example:
+        status: dnd
+        phase: ending_soon
+        light: red_yellow
+        reason: calendar
+        detail: meeting
+        since: "2026-10-28T14:00:00+01:00"
+        until: "2026-10-28T14:30:00+01:00"
+        next: { status: working, reason: work_hours, since: "2026-10-28T14:30:00+01:00", until: "2026-10-28T17:00:00+01:00" }
+        next_free: { start: "2026-10-28T17:00:00+01:00", end: "2026-10-29T08:00:00+01:00" }
+        updated: "2026-10-28T14:25:03+01:00"
+
+    Slot:
+      type: object
+      required: [status, since, until]
+      properties:
+        status: { $ref: "#/components/schemas/Status" }
+        reason: { $ref: "#/components/schemas/Reason" }
+        since: { type: string, format: date-time }
+        until: { type: [string, "null"], format: date-time }
+
+    FreeSlot:
+      type: object
+      required: [start, end]
+      properties:
+        start: { type: string, format: date-time }
+        end: { type: [string, "null"], format: date-time }
+
+    Timeline:
+      type: object
+      required: [from, to, slots]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        slots:
+          type: array
+          items: { $ref: "#/components/schemas/Slot" }
+
+    OverrideRequest:
+      type: object
+      required: [status, mode]
+      additionalProperties: false
+      properties:
+        status: { $ref: "#/components/schemas/Status" }
+        mode:
+          type: string
+          enum: [duration, until, end_of_event, end_of_workday, indefinite]
+        duration:
+          type: string
+          description: Required for mode `duration`, 1s to 7 days.
+          examples: [15m, 1h]
+        until:
+          type: string
+          format: date-time
+          description: Required for mode `until`.
+
+    FocusRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        work: { type: string, default: 25m, description: "1m to 4h" }
+        break: { type: string, default: 5m, description: "0 to 1h" }
+        cycles: { type: integer, minimum: 0, maximum: 24, default: 4, description: "0 = until stopped" }
+        work_status:
+          type: string
+          enum: [working, dnd]
+          default: working
+
+    Media:
+      type: object
+      additionalProperties: false
+      properties:
+        active: { type: boolean }
+        apps:
+          type: array
+          maxItems: 8
+          items: { type: string, maxLength: 64 }
+          description: Apps using the device, e.g. `Firefox`. Shown in notifications and the state detail.
+
+    CompanionSignal:
+      type: object
+      additionalProperties: false
+      properties:
+        locked: { type: boolean }
+        microphone: { $ref: "#/components/schemas/Media" }
+        camera: { $ref: "#/components/schemas/Media" }
+
+    SignalRequest:
+      type: object
+      required: [status, ttl]
+      additionalProperties: false
+      properties:
+        status: { $ref: "#/components/schemas/Status" }
+        ttl: { type: string, description: "1s to 24h", examples: [30m] }
+        detail: { type: string, maxLength: 64 }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
