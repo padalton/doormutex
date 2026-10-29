@@ -165,7 +165,6 @@ type State struct {
 
 // SameAs reports whether two states differ only in the Updated timestamp.
 func (s State) SameAs(o State) bool {
-	s.Updated, o.Updated = time.Time{}, time.Time{}
 	return equalTimePtr(s.Until, o.Until) && equalSlot(s.Next, o.Next) && equalFree(s.NextFree, o.NextFree) &&
 		s.Status == o.Status && s.Phase == o.Phase && s.Light == o.Light && s.Reason == o.Reason &&
 		s.Detail == o.Detail && s.Since.Equal(o.Since)

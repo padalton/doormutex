@@ -1,0 +1,29 @@
+version: "2"
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - errorlint
+    - misspell
+    - nilerr
+    - unconvert
+    - usestdlibvars
+  settings:
+    misspell:
+      ignore-rules:
+        - mosquitto
+  exclusions:
+    rules:
+      # The test helper closes bodies itself.
+      - path: _test\.go
+        linters: [bodyclose]
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/padalton/office-traffic-light

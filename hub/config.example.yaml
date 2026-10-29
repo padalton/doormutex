@@ -1,0 +1,54 @@
+# office-traffic-light hub configuration. Copy to config.yaml and adjust.
+# Secrets never go into this file: the MQTT password comes from the
+# environment variable OTL_MQTT_PASSWORD.
+
+timezone: Europe/Vienna
+listen: ":8080"
+database: /data/hub.db
+
+holidays:
+  country: AT # Austrian public holidays; "" for none
+  extra: # additional days off (YYYY-MM-DD)
+    - "2026-12-24"
+    - "2026-12-31"
+
+# Working hours → yellow. Days without an entry are free.
+work_hours:
+  monday: ["08:00-12:00", "12:30-17:00"]
+  tuesday: ["08:00-12:00", "12:30-17:00"]
+  wednesday: ["08:00-12:00", "12:30-17:00"]
+  thursday: ["08:00-12:00", "12:30-17:00"]
+  friday: ["08:00-13:00"]
+
+rules:
+  # Status per calendar event kind: free, working, dnd, away or ignore.
+  calendar:
+    meeting: dnd
+    focus: working
+    out_of_office: away
+    other: dnd # events the provider cannot classify
+  last_call: 5m # green blinks before a meeting
+  ending_soon: 5m # red+yellow before a meeting ends
+  media_debounce: 10s # microphone/camera must be active this long
+  media_hold: 2m # stay red this long after the call
+
+presence:
+  require_companion: true # no heartbeat from the desktop companion → off
+  stale_after: 90s
+
+calendar:
+  provider: none # none | fake (Google Calendar follows)
+  poll_interval: 2m
+  # fake_events: # only for provider: fake – handy for demos
+  #   - id: demo
+  #     start: 2026-10-29T14:00:00+01:00
+  #     end: 2026-10-29T14:30:00+01:00
+  #     kind: meeting
+
+mqtt:
+  url: "" # e.g. tcp://mosquitto:1883 – empty disables MQTT
+  username: ""
+  client_id: office-traffic-light-hub
+  base_topic: office-traffic-light
+  discovery_prefix: homeassistant
+  discovery: true

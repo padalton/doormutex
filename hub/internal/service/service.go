@@ -71,7 +71,7 @@ type Options struct {
 	Base     engine.Inputs
 	Store    *store.Store
 	Calendar calendar.Provider // nil: no calendar
-	Now      func() time.Time  // nil: time.Now
+	Now      func() time.Time  // nil: wall clock in Base.Location
 	Logger   *slog.Logger
 }
 
@@ -87,7 +87,13 @@ func New(o Options) (*Service, error) {
 		subs:    map[chan engine.State]struct{}{},
 	}
 	if s.now == nil {
-		s.now = time.Now
+		// Whole seconds in the configured zone, so every timestamp in the
+		// state reads like "2026-10-28T14:30:00+01:00".
+		loc := o.Base.Location
+		if loc == nil {
+			loc = time.Local
+		}
+		s.now = func() time.Time { return time.Now().In(loc).Truncate(time.Second) }
 	}
 	if s.log == nil {
 		s.log = slog.Default()
@@ -283,7 +289,7 @@ type OverrideRequest struct {
 // SetOverride sets a manual status; it replaces a running focus timer.
 func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 	if _, err := status.Parse(string(r.Status)); err != nil {
-		return engine.State{}, fmt.Errorf("%w: %v", ErrInvalid, err)
+		return engine.State{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	s.mu.Lock()
 	now := s.now()
@@ -404,7 +410,7 @@ func (s *Service) SetSignal(name string, st status.Status, ttl time.Duration, de
 		return engine.State{}, fmt.Errorf("%w: source must match %s and must not be %q", ErrInvalid, signalName, ReservedSignal)
 	}
 	if _, err := status.Parse(string(st)); err != nil {
-		return engine.State{}, fmt.Errorf("%w: %v", ErrInvalid, err)
+		return engine.State{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	if ttl < time.Second || ttl > 24*time.Hour {
 		return engine.State{}, fmt.Errorf("%w: ttl must be between 1s and 24h", ErrInvalid)
