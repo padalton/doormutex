@@ -90,11 +90,15 @@ func TestPriorityTable(t *testing.T) {
 
 		// 4 – calendar
 		{"4 calendar meeting: dnd until meeting end", at(10, 10),
-			func(in *Inputs, _ time.Time) { in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))} },
+			func(in *Inputs, _ time.Time) {
+				in.Events = []calendar.Event{meeting(calendar.KindMeeting, at(10, 0), at(10, 30))}
+			},
 			want{status: status.DND, reason: ReasonCalendar, light: status.LightRed,
 				until: ptr(at(10, 30)), nextStat: status.Working, nextFree: ptr(at(17, 0))}},
 		{"4 calendar focus time: working", at(18, 30),
-			func(in *Inputs, _ time.Time) { in.Events = []calendar.Event{meeting(calendar.KindFocus, at(18, 0), at(19, 0))} },
+			func(in *Inputs, _ time.Time) {
+				in.Events = []calendar.Event{meeting(calendar.KindFocus, at(18, 0), at(19, 0))}
+			},
 			want{status: status.Working, reason: ReasonCalendar, until: ptr(at(19, 0)), nextStat: status.Free, nextFree: ptr(at(19, 0))}},
 		{"4 calendar out of office: away", at(10, 0),
 			func(in *Inputs, _ time.Time) {
@@ -111,7 +115,9 @@ func TestPriorityTable(t *testing.T) {
 			},
 			want{status: status.Working, reason: ReasonWorkHours, noCheck: true}},
 		{"4 calendar: unclassified event counts as meeting by default", at(10, 5),
-			func(in *Inputs, _ time.Time) { in.Events = []calendar.Event{meeting(calendar.KindOther, at(10, 0), at(11, 0))} },
+			func(in *Inputs, _ time.Time) {
+				in.Events = []calendar.Event{meeting(calendar.KindOther, at(10, 0), at(11, 0))}
+			},
 			want{status: status.DND, reason: ReasonCalendar, noCheck: true}},
 
 		// 3 – presence

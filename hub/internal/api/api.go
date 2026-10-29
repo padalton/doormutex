@@ -1,0 +1,327 @@
+// Package api serves the REST and SSE API described in api/openapi.yaml.
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/padalton/office-traffic-light/hub/internal/engine"
+	"github.com/padalton/office-traffic-light/hub/internal/service"
+	"github.com/padalton/office-traffic-light/hub/internal/status"
+)
+
+// Authenticator maps a bearer token to a client name.
+type Authenticator interface {
+	Authenticate(token string) (string, bool)
+}
+
+// Server is the HTTP API.
+type Server struct {
+	svc       *service.Service
+	auth      Authenticator
+	log       *slog.Logger
+	keepalive time.Duration
+	mux       *http.ServeMux
+}
+
+// New builds the API handler.
+func New(svc *service.Service, auth Authenticator, log *slog.Logger) *Server {
+	if log == nil {
+		log = slog.Default()
+	}
+	s := &Server{svc: svc, auth: auth, log: log, keepalive: 25 * time.Second, mux: http.NewServeMux()}
+	s.mux.HandleFunc("GET /healthz", s.healthz)
+	s.handle("GET /api/v1/status", s.getStatus)
+	s.handle("GET /api/v1/timeline", s.getTimeline)
+	s.handle("PUT /api/v1/override", s.putOverride)
+	s.handle("DELETE /api/v1/override", s.deleteOverride)
+	s.handle("PUT /api/v1/focus", s.putFocus)
+	s.handle("DELETE /api/v1/focus", s.deleteFocus)
+	s.handle("POST /api/v1/signals/companion", s.postCompanion)
+	s.handle("POST /api/v1/signals/{source}", s.postSignal)
+	s.handle("DELETE /api/v1/signals/{source}", s.deleteSignal)
+	s.handle("GET /api/v1/events", s.events)
+	return s
+}
+
+// ServeHTTP implements http.Handler.
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
+
+type ctxKey struct{}
+
+// Client returns the authenticated client name of a request.
+func Client(r *http.Request) string {
+	name, _ := r.Context().Value(ctxKey{}).(string)
+	return name
+}
+
+func (s *Server) handle(pattern string, h http.HandlerFunc) {
+	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if tok == r.Header.Get("Authorization") {
+			tok = ""
+		}
+		// Browsers' EventSource cannot set headers, so the event stream
+		// also accepts the token as a query parameter.
+		if tok == "" && r.URL.Path == "/api/v1/events" {
+			tok = r.URL.Query().Get("access_token")
+		}
+		name, ok := s.auth.Authenticate(tok)
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="office-traffic-light"`)
+			writeError(w, http.StatusUnauthorized, "missing or invalid token")
+			return
+		}
+		h(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, name)))
+	})
+}
+
+func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) getStatus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.svc.State())
+}
+
+// TimelineResponse is the body of GET /api/v1/timeline.
+type TimelineResponse struct {
+	From  time.Time     `json:"from"`
+	To    time.Time     `json:"to"`
+	Slots []engine.Slot `json:"slots"`
+}
+
+func (s *Server) getTimeline(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	from, to := now, now.Add(24*time.Hour)
+	var err error
+	if v := r.URL.Query().Get("from"); v != "" {
+		if from, err = time.Parse(time.RFC3339, v); err != nil {
+			writeError(w, http.StatusBadRequest, "from: want RFC 3339 timestamp")
+			return
+		}
+	}
+	if v := r.URL.Query().Get("to"); v != "" {
+		if to, err = time.Parse(time.RFC3339, v); err != nil {
+			writeError(w, http.StatusBadRequest, "to: want RFC 3339 timestamp")
+			return
+		}
+	}
+	if !to.After(from) || to.Sub(from) > 14*24*time.Hour {
+		writeError(w, http.StatusBadRequest, "to must be after from, at most 14 days")
+		return
+	}
+	writeJSON(w, http.StatusOK, TimelineResponse{From: from, To: to, Slots: s.svc.Timeline(from, to)})
+}
+
+// OverrideBody is the body of PUT /api/v1/override.
+type OverrideBody struct {
+	Status   string     `json:"status"`
+	Mode     string     `json:"mode"`
+	Duration string     `json:"duration,omitempty"`
+	Until    *time.Time `json:"until,omitempty"`
+}
+
+func (s *Server) putOverride(w http.ResponseWriter, r *http.Request) {
+	var b OverrideBody
+	if !decode(w, r, &b) {
+		return
+	}
+	req := service.OverrideRequest{Status: status.Status(b.Status), Mode: b.Mode}
+	if b.Mode == service.ModeDuration {
+		d, err := time.ParseDuration(b.Duration)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "duration: want e.g. \"30m\" or \"1h30m\"")
+			return
+		}
+		req.Duration = d
+	}
+	if b.Mode == service.ModeUntil {
+		if b.Until == nil {
+			writeError(w, http.StatusBadRequest, "until is required for mode until")
+			return
+		}
+		req.Until = *b.Until
+	}
+	st, err := s.svc.SetOverride(req)
+	s.respond(w, r, st, err)
+}
+
+func (s *Server) deleteOverride(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.svc.ClearOverride())
+}
+
+// FocusBody is the body of PUT /api/v1/focus.
+type FocusBody struct {
+	Work       string `json:"work,omitempty"`
+	Break      string `json:"break,omitempty"`
+	Cycles     *int   `json:"cycles,omitempty"`
+	WorkStatus string `json:"work_status,omitempty"`
+}
+
+func (s *Server) putFocus(w http.ResponseWriter, r *http.Request) {
+	b := FocusBody{Work: "25m", Break: "5m"}
+	if !decode(w, r, &b) {
+		return
+	}
+	work, err1 := time.ParseDuration(b.Work)
+	brk, err2 := time.ParseDuration(b.Break)
+	if err := errors.Join(err1, err2); err != nil {
+		writeError(w, http.StatusBadRequest, "work/break: want durations like \"25m\"")
+		return
+	}
+	cycles := 4
+	if b.Cycles != nil {
+		cycles = *b.Cycles
+	}
+	st, err := s.svc.SetFocus(service.FocusRequest{Work: work, Break: brk, Cycles: cycles, WorkStatus: status.Status(b.WorkStatus)})
+	s.respond(w, r, st, err)
+}
+
+func (s *Server) deleteFocus(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, s.svc.ClearFocus())
+}
+
+// MediaBody describes one media device in a companion heartbeat.
+type MediaBody struct {
+	Active bool     `json:"active"`
+	Apps   []string `json:"apps,omitempty"`
+}
+
+// CompanionBody is the body of POST /api/v1/signals/companion.
+type CompanionBody struct {
+	Locked     bool      `json:"locked"`
+	Microphone MediaBody `json:"microphone"`
+	Camera     MediaBody `json:"camera"`
+}
+
+func (s *Server) postCompanion(w http.ResponseWriter, r *http.Request) {
+	var b CompanionBody
+	if !decode(w, r, &b) {
+		return
+	}
+	st := s.svc.CompanionReport(engine.Report{
+		Locked:     b.Locked,
+		Microphone: b.Microphone.Active, MicApps: limitApps(b.Microphone.Apps),
+		Camera: b.Camera.Active, CamApps: limitApps(b.Camera.Apps),
+	})
+	writeJSON(w, http.StatusOK, st)
+}
+
+func limitApps(apps []string) []string {
+	if len(apps) > 8 {
+		apps = apps[:8]
+	}
+	out := make([]string, 0, len(apps))
+	for _, a := range apps {
+		if len(a) > 64 {
+			a = a[:64]
+		}
+		out = append(out, a)
+	}
+	return out
+}
+
+// SignalBody is the body of POST /api/v1/signals/{source}.
+type SignalBody struct {
+	Status string `json:"status"`
+	TTL    string `json:"ttl"`
+	Detail string `json:"detail,omitempty"`
+}
+
+func (s *Server) postSignal(w http.ResponseWriter, r *http.Request) {
+	var b SignalBody
+	if !decode(w, r, &b) {
+		return
+	}
+	ttl, err := time.ParseDuration(b.TTL)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "ttl: want a duration like \"30m\"")
+		return
+	}
+	st, err := s.svc.SetSignal(r.PathValue("source"), status.Status(b.Status), ttl, b.Detail)
+	s.respond(w, r, st, err)
+}
+
+func (s *Server) deleteSignal(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.svc.ClearSignal(r.PathValue("source")))
+}
+
+// events streams the state as Server-Sent Events: one "state" event on
+// connect and one per change, plus keep-alive comments.
+func (s *Server) events(w http.ResponseWriter, r *http.Request) {
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no") // nginx: don't buffer
+	ch, cancel := s.svc.Subscribe()
+	defer cancel()
+	ka := time.NewTicker(s.keepalive)
+	defer ka.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case st := <-ch:
+			b, _ := json.Marshal(st)
+			if _, err := fmt.Fprintf(w, "event: state\ndata: %s\n\n", b); err != nil {
+				return
+			}
+			fl.Flush()
+		case <-ka.C:
+			if _, err := fmt.Fprint(w, ": keep-alive\n\n"); err != nil {
+				return
+			}
+			fl.Flush()
+		}
+	}
+}
+
+func (s *Server) respond(w http.ResponseWriter, r *http.Request, st engine.State, err error) {
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, st)
+	case errors.Is(err, service.ErrInvalid):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, service.ErrConflict):
+		writeError(w, http.StatusConflict, err.Error())
+	default:
+		s.log.Error("request failed", "path", r.URL.Path, "client", Client(r), "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+	}
+}
+
+func decode(w http.ResponseWriter, r *http.Request, v any) bool {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
+		return false
+	}
+	return true
+}
+
+// ErrorBody is returned for every error.
+type ErrorBody struct {
+	Error string `json:"error"`
+}
+
+func writeJSON(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, code int, msg string) {
+	writeJSON(w, code, ErrorBody{Error: msg})
+}
