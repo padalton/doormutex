@@ -12,39 +12,54 @@ holidays:
   country: AT # Austrian public holidays; "" for none
   extra: [] # additional days off (YYYY-MM-DD), e.g. ["2026-12-24", "2026-12-31"]
 
-# Working hours → yellow. Days without an entry are free.
-work_hours:
-  monday: ["08:00-12:00", "12:30-17:00"]
-  tuesday: ["08:00-12:00", "12:30-17:00"]
-  wednesday: ["08:00-12:00", "12:30-17:00"]
-  thursday: ["08:00-12:00", "12:30-17:00"]
-  friday: ["08:00-13:00"]
+calendar_poll: 2m # how often calendars are read
 
-rules:
-  # Status per calendar event kind: free, working, dnd, away or ignore.
-  calendar:
-    video_call: dnd # Google Meet, Zoom, Teams, Webex, Jitsi
-    focus: working # Google focus time
-    out_of_office: dnd # timed; all-day out of office is a day off
-    other: working # e.g. a phone call on the mobile
-  # Warning phases: "stvo" (seconds, like on the road) or a lead time.
-  last_call: stvo # green blinks (red/yellow alternate when yellow) before a meeting
-  ending_soon: stvo # red+yellow before a meeting ends
-  media_debounce: 10s # microphone/camera must be active this long
-  media_hold: 2m # stay red this long after the call
+# One profile per person and light. "office" uses the desktop companion,
+# calendar and working hours; "room" (teenager, parents) is controlled by
+# phone, web UI or Home Assistant only and is off when nothing is set.
+# Without a profiles list, work_hours/rules/presence/calendar at the top
+# level form a single profile "office".
+profiles:
+  - id: office # used in the API (?profile=), MQTT topics and HA entity IDs
+    name: Office
+    mode: office
 
-presence:
-  require_companion: true # no heartbeat from the desktop companion → off
-  stale_after: 90s
+    # Working hours → yellow. Days without an entry are free.
+    work_hours:
+      monday: ["08:00-12:00", "12:30-17:00"]
+      tuesday: ["08:00-12:00", "12:30-17:00"]
+      wednesday: ["08:00-12:00", "12:30-17:00"]
+      thursday: ["08:00-12:00", "12:30-17:00"]
+      friday: ["08:00-13:00"]
 
-calendar:
-  provider: none # none | fake (Google Calendar follows)
-  poll_interval: 2m
-  # fake_events: # only for provider: fake – handy for demos
-  #   - id: demo
-  #     start: 2026-10-29T14:00:00+01:00
-  #     end: 2026-10-29T14:30:00+01:00
-  #     kind: video_call
+    rules:
+      # Status per calendar event kind: free, working, dnd, away or ignore.
+      calendar:
+        video_call: dnd # Google Meet, Zoom, Teams, Webex, Jitsi
+        focus: working # Google focus time
+        out_of_office: dnd # timed; all-day out of office is a day off
+        other: working # e.g. a phone call on the mobile
+      # Warning phases: "stvo" (seconds, like on the road) or a lead time.
+      last_call: stvo # green blinks (red/yellow alternate when yellow) before a meeting
+      ending_soon: stvo # red+yellow before a meeting ends
+      media_debounce: 10s # microphone/camera must be active this long
+      media_hold: 2m # stay red this long after the call
+
+    presence:
+      require_companion: true # no heartbeat from the desktop companion → off
+      stale_after: 90s
+
+    calendar:
+      provider: none # none | fake (Google Calendar follows)
+      # fake_events: # only for provider: fake – handy for demos
+      #   - id: demo
+      #     start: 2026-10-29T14:00:00+01:00
+      #     end: 2026-10-29T14:30:00+01:00
+      #     kind: video_call
+
+  # - id: teen
+  #   name: Teen room
+  #   mode: room # no companion, no working hours, off by default
 
 mqtt:
   url: "" # e.g. tcp://mosquitto:1883 – empty disables MQTT

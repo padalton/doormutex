@@ -39,10 +39,13 @@ func (c *clock) add(d time.Duration) {
 
 type fixture struct {
 	srv   *httptest.Server
-	svc   *service.Service
+	api   *Server
+	svc   *service.Service // profile "office"
+	teen  *service.Service // profile "teen" (room mode)
+	store *store.Store
 	clk   *clock
 	cal   *calendar.Fake
-	token string
+	token string // unscoped
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -59,19 +62,34 @@ func newFixture(t *testing.T) *fixture {
 	rules.RequireCompanion = false
 	cal := calendar.NewFake()
 	svc, err := service.New(service.Options{
-		Base:  engine.Inputs{Location: vienna, Rules: rules, WorkWeek: week},
-		Store: st, Calendar: cal, Now: clk.now, Logger: slog.New(slog.DiscardHandler),
+		Profile: "office",
+		Base:    engine.Inputs{Location: vienna, Rules: rules, WorkWeek: week},
+		Store:   st, Calendar: cal, Now: clk.now, Logger: slog.New(slog.DiscardHandler),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	tok, err := st.CreateToken("test")
+	roomRules := engine.DefaultRules()
+	roomRules.RequireCompanion, roomRules.Default = false, status.Away
+	teen, err := service.New(service.Options{
+		Profile: "teen",
+		Base:    engine.Inputs{Location: vienna, Rules: roomRules},
+		Store:   st, Now: clk.now, Logger: slog.New(slog.DiscardHandler),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(New(svc, st, slog.New(slog.DiscardHandler)))
+	tok, err := st.CreateToken("test", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := New([]Profile{
+		{ID: "office", Name: "Office", Mode: "office", Svc: svc},
+		{ID: "teen", Name: "Teen room", Mode: "room", Svc: teen},
+	}, st, slog.New(slog.DiscardHandler))
+	srv := httptest.NewServer(a)
 	t.Cleanup(srv.Close)
-	return &fixture{srv: srv, svc: svc, clk: clk, cal: cal, token: tok}
+	return &fixture{srv: srv, api: a, svc: svc, teen: teen, store: st, clk: clk, cal: cal, token: tok}
 }
 
 func (f *fixture) do(t *testing.T, method, path, body string) (*http.Response, []byte) {
@@ -368,14 +386,93 @@ func TestSpecMatchesRoutes(t *testing.T) {
 			}
 		}
 	}
-	for _, route := range []string{
-		"GET /healthz", "GET /api/v1/status", "GET /api/v1/timeline", "PUT /api/v1/override",
-		"DELETE /api/v1/override", "PUT /api/v1/pomodoro", "DELETE /api/v1/pomodoro",
-		"POST /api/v1/signals/companion", "POST /api/v1/signals/{source}",
-		"DELETE /api/v1/signals/{source}", "GET /api/v1/events",
-	} {
+	for _, route := range append(f.api.Routes(), "GET /healthz") {
 		if !documented[route] {
 			t.Errorf("%s served but not documented in openapi.yaml", route)
 		}
+	}
+}
+
+func TestProfiles(t *testing.T) {
+	f := newFixture(t)
+	scoped, err := f.store.CreateToken("teen-phone", "teen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	asTeen := func(method, path, body string) (*http.Response, []byte) {
+		req, _ := http.NewRequest(method, f.srv.URL+path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+scoped)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+		b, _ := io.ReadAll(resp.Body)
+		return resp, b
+	}
+
+	// Room mode: off by default, the phone sets red with a message.
+	_, b := asTeen(http.MethodGet, "/api/v1/status", "")
+	if st := decodeState(t, b); st.Status != status.Away {
+		t.Fatalf("teen default: %+v", st)
+	}
+	asTeen(http.MethodPut, "/api/v1/override", `{"status":"dnd","mode":"indefinite"}`)
+	_, b = asTeen(http.MethodPut, "/api/v1/message", `{"text":"Gaming until 21:00"}`)
+	if st := decodeState(t, b); st.Status != status.DND || st.Message != "Gaming until 21:00" || st.Override == nil {
+		t.Fatalf("teen after override: %+v", st)
+	}
+	// The scoped token cannot reach the office profile …
+	if resp, _ := asTeen(http.MethodPut, "/api/v1/override?profile=office", `{"status":"free","mode":"indefinite"}`); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("scoped token reached another profile: %d", resp.StatusCode)
+	}
+	// … and only sees its own profile in the list.
+	_, b = asTeen(http.MethodGet, "/api/v1/profiles", "")
+	var list []ProfileInfo
+	if err := json.Unmarshal(b, &list); err != nil || len(list) != 1 || list[0].ID != "teen" {
+		t.Fatalf("teen profiles: %s", b)
+	}
+	// The office is untouched; an unscoped token picks profiles with ?profile=.
+	if st := f.svc.State(); st.Message != "" || st.Override != nil {
+		t.Fatalf("office changed: %+v", st)
+	}
+	_, b = f.do(t, http.MethodGet, "/api/v1/profiles", "")
+	if err := json.Unmarshal(b, &list); err != nil || len(list) != 2 || list[1].State.Status != status.DND {
+		t.Fatalf("all profiles: %s", b)
+	}
+	_, b = f.do(t, http.MethodDelete, "/api/v1/message?profile=teen", "")
+	if st := decodeState(t, b); st.Message != "" {
+		t.Fatalf("message not cleared: %+v", st)
+	}
+	if resp, _ := f.do(t, http.MethodGet, "/api/v1/status?profile=garage", ""); resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown profile: %d", resp.StatusCode)
+	}
+	// History is per profile.
+	_, b = f.do(t, http.MethodGet, "/api/v1/history?profile=teen", "")
+	var hist []store.HistoryEntry
+	if err := json.Unmarshal(b, &hist); err != nil || len(hist) == 0 || hist[0].Status != "dnd" {
+		t.Fatalf("teen history: %s", b)
+	}
+}
+
+func TestMessageValidation(t *testing.T) {
+	f := newFixture(t)
+	for _, body := range []string{
+		`{"text":"` + strings.Repeat("x", 65) + `"}`,
+		`{"text":"two\nlines"}`,
+		`{"text":"hi","ttl":"forever"}`,
+		`{"text":"hi","ttl":"200h"}`,
+	} {
+		if resp, _ := f.do(t, http.MethodPut, "/api/v1/message", body); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s: %d", body, resp.StatusCode)
+		}
+	}
+	_, b := f.do(t, http.MethodPut, "/api/v1/message", `{"text":"Back at 3","ttl":"30m"}`)
+	if st := decodeState(t, b); st.Message != "Back at 3" {
+		t.Fatalf("message: %+v", st)
+	}
+	f.clk.add(31 * time.Minute)
+	f.svc.Evaluate()
+	if st := f.svc.State(); st.Message != "" {
+		t.Fatalf("message did not expire: %+v", st)
 	}
 }

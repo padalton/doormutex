@@ -64,5 +64,7 @@ jobs:
       - name: Smoke test
         run: |
           docker run -d --name hub -p 127.0.0.1:8080:8080 doormutex-hub:ci
-          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8080/healthz && exit 0; sleep 1; done
-          docker logs hub; exit 1
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
+          TOKEN=$(docker exec hub doormutex-hub token create ci)
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/profiles | tee /dev/stderr | grep -q '"id":"office"' \
+            || { docker logs hub; exit 1; }

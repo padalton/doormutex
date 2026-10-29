@@ -9,10 +9,10 @@ See the [project README](../README.md) for the full concept and the [OpenAPI spe
 ```bash
 cp config.example.yaml config.yaml      # adjust work hours, mqtt.url
 docker compose -f compose.example.yaml up -d
-docker compose -f compose.example.yaml exec hub doormutex-hub token create companion
+docker compose -f compose.example.yaml exec hub doormutex-hub token create companion office
 ```
 
-The token is printed once; store it in the client (companion, widget, Stream Deck, webhook). Tokens are stored as SHA-256 hashes.
+The token is printed once; store it in the client (companion, widget, Stream Deck, webhook). Tokens are stored as SHA-256 hashes. A hub serves several profiles (office, teen room, …); a token without a profile picks one with `?profile=`.
 
 ```bash
 TOKEN=dm_…
@@ -33,7 +33,7 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -d '{"locked":false}' localhos
 | Command | Purpose |
 |---|---|
 | `doormutex-hub serve [-config path]` | run the hub (default; config from `DOORMUTEX_CONFIG`, default `/config/config.yaml`) |
-| `doormutex-hub token create NAME` | create an API token for a client |
+| `doormutex-hub token create NAME [PROFILE]` | create an API token for a client; with a profile it only works for that profile |
 | `doormutex-hub token list` / `token revoke NAME` | list / revoke tokens |
 | `doormutex-hub healthcheck` | used by the Docker `HEALTHCHECK` |
 | `doormutex-hub version` | print the version |
@@ -48,10 +48,10 @@ Environment: `DOORMUTEX_CONFIG`, `DOORMUTEX_MQTT_URL`, `DOORMUTEX_MQTT_PASSWORD`
 | `internal/holidays` | Austrian public holidays (Easter-based ones computed) + extra days off |
 | `internal/schedule` | weekly working hours, DST-safe |
 | `internal/calendar` | calendar provider interface + in-memory fake (Google follows) |
-| `internal/service` | live state: inputs, expiry, change fan-out to SSE and MQTT |
+| `internal/service` | live state of one profile: inputs, expiry, message, change fan-out to SSE and MQTT |
 | `internal/api` | REST + SSE handlers, bearer-token auth |
 | `internal/store` | SQLite (pure Go): tokens, override/pomodoro, history |
-| `internal/mqttpub` | MQTT publisher with Last Will, HA device discovery |
+| `internal/mqttpub` | MQTT publisher with Last Will, HA device discovery per profile, HA commands (select/text) |
 | `internal/config` | YAML config |
 | `cmd/doormutex-hub` | the binary |
 

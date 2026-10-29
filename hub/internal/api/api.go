@@ -8,36 +8,52 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/status"
+	"github.com/padalton/doormutex/hub/internal/store"
 )
 
-// Authenticator maps a bearer token to a client name.
+// Authenticator maps a bearer token to a client.
 type Authenticator interface {
-	Authenticate(token string) (string, bool)
+	Authenticate(token string) (store.Client, bool)
+}
+
+// Profile is one person and light served by the API.
+type Profile struct {
+	ID   string
+	Name string
+	Mode string
+	Svc  *service.Service
 }
 
 // Server is the HTTP API.
 type Server struct {
-	svc       *service.Service
+	profiles  []Profile // the first one is the default for unscoped tokens
 	auth      Authenticator
 	log       *slog.Logger
 	keepalive time.Duration
 	mux       *http.ServeMux
+	routes    []string
 }
 
-// New builds the API handler.
-func New(svc *service.Service, auth Authenticator, log *slog.Logger) *Server {
+// New builds the API handler. profiles must not be empty.
+func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	s := &Server{svc: svc, auth: auth, log: log, keepalive: 25 * time.Second, mux: http.NewServeMux()}
+	s := &Server{profiles: profiles, auth: auth, log: log, keepalive: 25 * time.Second, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /healthz", s.healthz)
+	s.handle("GET /api/v1/profiles", s.getProfiles)
 	s.handle("GET /api/v1/status", s.getStatus)
+	s.handle("GET /api/v1/history", s.getHistory)
+	s.handle("PUT /api/v1/message", s.putMessage)
+	s.handle("DELETE /api/v1/message", s.deleteMessage)
 	s.handle("GET /api/v1/timeline", s.getTimeline)
 	s.handle("PUT /api/v1/override", s.putOverride)
 	s.handle("DELETE /api/v1/override", s.deleteOverride)
@@ -53,15 +69,47 @@ func New(svc *service.Service, auth Authenticator, log *slog.Logger) *Server {
 // ServeHTTP implements http.Handler.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
 
-type ctxKey struct{}
+type (
+	clientKey  struct{}
+	profileKey struct{}
+)
 
-// Client returns the authenticated client name of a request.
-func Client(r *http.Request) string {
-	name, _ := r.Context().Value(ctxKey{}).(string)
-	return name
+// Client returns the authenticated client of a request.
+func Client(r *http.Request) store.Client {
+	c, _ := r.Context().Value(clientKey{}).(store.Client)
+	return c
 }
 
+// svc returns the profile's service the request is about.
+func svc(r *http.Request) *service.Service {
+	return r.Context().Value(profileKey{}).(*Profile).Svc
+}
+
+// resolve picks the profile of a request: a scoped token always gets its
+// own profile, other tokens choose with ?profile= (default: the first).
+func (s *Server) resolve(c store.Client, want string) (*Profile, int, string) {
+	if c.Profile != "" {
+		if want != "" && want != c.Profile {
+			return nil, http.StatusForbidden, "this token is limited to profile " + c.Profile
+		}
+		want = c.Profile
+	}
+	if want == "" {
+		return &s.profiles[0], 0, ""
+	}
+	for i := range s.profiles {
+		if s.profiles[i].ID == want {
+			return &s.profiles[i], 0, ""
+		}
+	}
+	return nil, http.StatusNotFound, "unknown profile " + want
+}
+
+// Routes lists the authenticated routes (for the spec test).
+func (s *Server) Routes() []string { return slices.Clone(s.routes) }
+
 func (s *Server) handle(pattern string, h http.HandlerFunc) {
+	s.routes = append(s.routes, pattern)
 	s.mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if tok == r.Header.Get("Authorization") {
@@ -72,13 +120,19 @@ func (s *Server) handle(pattern string, h http.HandlerFunc) {
 		if tok == "" && r.URL.Path == "/api/v1/events" {
 			tok = r.URL.Query().Get("access_token")
 		}
-		name, ok := s.auth.Authenticate(tok)
+		c, ok := s.auth.Authenticate(tok)
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="doormutex"`)
 			writeError(w, http.StatusUnauthorized, "missing or invalid token")
 			return
 		}
-		h(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, name)))
+		p, code, msg := s.resolve(c, r.URL.Query().Get("profile"))
+		if p == nil {
+			writeError(w, code, msg)
+			return
+		}
+		ctx := context.WithValue(context.WithValue(r.Context(), clientKey{}, c), profileKey{}, p)
+		h(w, r.WithContext(ctx))
 	})
 }
 
@@ -86,8 +140,76 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (s *Server) getStatus(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.svc.State())
+// ProfileInfo is one entry of GET /api/v1/profiles.
+type ProfileInfo struct {
+	ID    string       `json:"id"`
+	Name  string       `json:"name"`
+	Mode  string       `json:"mode"`
+	State engine.State `json:"state"`
+}
+
+func (s *Server) getProfiles(w http.ResponseWriter, r *http.Request) {
+	c := Client(r)
+	out := []ProfileInfo{}
+	for _, p := range s.profiles {
+		if c.Profile == "" || c.Profile == p.ID {
+			out = append(out, ProfileInfo{ID: p.ID, Name: p.Name, Mode: p.Mode, State: p.Svc.State()})
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) getStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, svc(r).State())
+}
+
+func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 500 {
+			writeError(w, http.StatusBadRequest, "limit: 1 to 500")
+			return
+		}
+		limit = n
+	}
+	h, err := svc(r).History(limit)
+	if err != nil {
+		s.respond(w, r, engine.State{}, err)
+		return
+	}
+	if h == nil {
+		h = []store.HistoryEntry{}
+	}
+	writeJSON(w, http.StatusOK, h)
+}
+
+// MessageBody is the body of PUT /api/v1/message.
+type MessageBody struct {
+	Text string `json:"text"`
+	TTL  string `json:"ttl,omitempty"`
+}
+
+func (s *Server) putMessage(w http.ResponseWriter, r *http.Request) {
+	var b MessageBody
+	if !decode(w, r, &b) {
+		return
+	}
+	var ttl time.Duration
+	if b.TTL != "" {
+		var err error
+		if ttl, err = time.ParseDuration(b.TTL); err != nil {
+			writeError(w, http.StatusBadRequest, "ttl: want a duration like \"2h\"")
+			return
+		}
+	}
+	st, err := svc(r).SetMessage(b.Text, ttl)
+	s.respond(w, r, st, err)
+}
+
+func (s *Server) deleteMessage(w http.ResponseWriter, r *http.Request) {
+	st, err := svc(r).SetMessage("", 0)
+	s.respond(w, r, st, err)
 }
 
 // TimelineResponse is the body of GET /api/v1/timeline.
@@ -117,7 +239,7 @@ func (s *Server) getTimeline(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "to must be after from, at most 14 days")
 		return
 	}
-	writeJSON(w, http.StatusOK, TimelineResponse{From: from, To: to, Slots: s.svc.Timeline(from, to)})
+	writeJSON(w, http.StatusOK, TimelineResponse{From: from, To: to, Slots: svc(r).Timeline(from, to)})
 }
 
 // OverrideBody is the body of PUT /api/v1/override.
@@ -149,12 +271,12 @@ func (s *Server) putOverride(w http.ResponseWriter, r *http.Request) {
 		}
 		req.Until = *b.Until
 	}
-	st, err := s.svc.SetOverride(req)
+	st, err := svc(r).SetOverride(req)
 	s.respond(w, r, st, err)
 }
 
-func (s *Server) deleteOverride(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.svc.ClearOverride())
+func (s *Server) deleteOverride(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, svc(r).ClearOverride())
 }
 
 // PomodoroBody is the body of PUT /api/v1/pomodoro.
@@ -180,12 +302,12 @@ func (s *Server) putPomodoro(w http.ResponseWriter, r *http.Request) {
 	if b.Cycles != nil {
 		cycles = *b.Cycles
 	}
-	st, err := s.svc.SetPomodoro(service.PomodoroRequest{Work: work, Break: brk, Cycles: cycles, WorkStatus: status.Status(b.WorkStatus)})
+	st, err := svc(r).SetPomodoro(service.PomodoroRequest{Work: work, Break: brk, Cycles: cycles, WorkStatus: status.Status(b.WorkStatus)})
 	s.respond(w, r, st, err)
 }
 
-func (s *Server) deletePomodoro(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.svc.ClearPomodoro())
+func (s *Server) deletePomodoro(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, svc(r).ClearPomodoro())
 }
 
 // MediaBody describes one media device in a companion heartbeat.
@@ -213,7 +335,7 @@ func (s *Server) postCompanion(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "goodbye must be shutdown or suspend")
 		return
 	}
-	st := s.svc.CompanionReport(engine.Report{
+	st := svc(r).CompanionReport(engine.Report{
 		Locked:     b.Locked,
 		Microphone: b.Microphone.Active, MicApps: limitApps(b.Microphone.Apps),
 		Camera: b.Camera.Active, CamApps: limitApps(b.Camera.Apps),
@@ -253,12 +375,12 @@ func (s *Server) postSignal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "ttl: want a duration like \"30m\"")
 		return
 	}
-	st, err := s.svc.SetSignal(r.PathValue("source"), status.Status(b.Status), ttl, b.Detail)
+	st, err := svc(r).SetSignal(r.PathValue("source"), status.Status(b.Status), ttl, b.Detail)
 	s.respond(w, r, st, err)
 }
 
 func (s *Server) deleteSignal(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, s.svc.ClearSignal(r.PathValue("source")))
+	writeJSON(w, http.StatusOK, svc(r).ClearSignal(r.PathValue("source")))
 }
 
 // events streams the state as Server-Sent Events: one "state" event on
@@ -272,7 +394,7 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no") // nginx: don't buffer
-	ch, cancel := s.svc.Subscribe()
+	ch, cancel := svc(r).Subscribe()
 	defer cancel()
 	ka := time.NewTicker(s.keepalive)
 	defer ka.Stop()
@@ -304,7 +426,7 @@ func (s *Server) respond(w http.ResponseWriter, r *http.Request, st engine.State
 	case errors.Is(err, service.ErrConflict):
 		writeError(w, http.StatusConflict, err.Error())
 	default:
-		s.log.Error("request failed", "path", r.URL.Path, "client", Client(r), "err", err)
+		s.log.Error("request failed", "path", r.URL.Path, "client", Client(r).Name, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
 }

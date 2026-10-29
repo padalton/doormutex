@@ -10,12 +10,19 @@ info:
     changes via Server-Sent Events and set overrides.
 
     All endpoints except `/healthz` require a bearer token. Create one per
-    client with `doormutex-hub token create <name>`.
+    client with `doormutex-hub token create <name> [<profile>]`.
+
+    **Profiles:** one hub serves several people and lights (e.g. the
+    office and a teenager's room). A token created for a profile only
+    works for that profile and needs no further parameter. A token without
+    a profile chooses one with the `profile` query parameter; without it,
+    the first profile of the configuration is used.
 
     Durations are Go-style strings such as `30s`, `25m` or `1h30m`.
     Timestamps are RFC 3339.
   license:
-    name: to be decided
+    name: Apache-2.0
+    identifier: Apache-2.0
 servers:
   - url: http://localhost:8080
 security:
@@ -37,7 +44,69 @@ paths:
                 properties:
                   status: { type: string, const: ok }
 
+  /api/v1/profiles:
+    get:
+      summary: Profiles and their current state
+      description: All profiles for an unscoped token, only its own profile for a scoped one.
+      operationId: listProfiles
+      responses:
+        "200":
+          description: Profiles in configuration order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProfileInfo" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/history:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
+    get:
+      summary: Recent status changes
+      operationId: getHistory
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/HistoryEntry" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/UnknownProfile" }
+
+  /api/v1/message:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
+    put:
+      summary: Set the e-ink message
+      description: One line, at most 64 characters. An empty text clears it. Without `ttl` it stays until changed.
+      operationId: setMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessageRequest" }
+            examples:
+              gaming: { value: { text: "Gaming until 21:00", ttl: 3h } }
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      summary: Clear the e-ink message
+      operationId: clearMessage
+      responses:
+        "200": { $ref: "#/components/responses/State" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/status:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
     get:
       summary: Current state
       operationId: getStatus
@@ -50,6 +119,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/timeline:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
     get:
       summary: Planned slots
       description: |
@@ -76,6 +146,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/override:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
     put:
       summary: Set a manual status
       description: |
@@ -108,6 +179,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/pomodoro:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
     put:
       summary: Start a pomodoro timer
       description: Replaces a running override. Work phases show `work_status` (default `dnd`), breaks show `free`.
@@ -129,6 +201,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/signals/companion:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
     post:
       summary: Companion heartbeat
       description: |
@@ -151,6 +224,7 @@ paths:
 
   /api/v1/signals/{source}:
     parameters:
+      - $ref: "#/components/parameters/Profile"
       - name: source
         in: path
         required: true
@@ -178,6 +252,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/events:
+    parameters: [{ $ref: "#/components/parameters/Profile" }]
     get:
       summary: Live state stream (Server-Sent Events)
       description: |
@@ -220,6 +295,23 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: The token is limited to another profile.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    UnknownProfile:
+      description: No profile with this id.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  parameters:
+    Profile:
+      name: profile
+      in: query
+      description: Profile id. Ignored for profile-scoped tokens unless it names another profile (then 403).
+      schema: { type: string, pattern: "^[a-z0-9][a-z0-9-]{0,31}$" }
 
   schemas:
     Status:
@@ -269,6 +361,19 @@ components:
             - $ref: "#/components/schemas/FreeSlot"
             - type: "null"
           description: The current slot if it is free, otherwise the next free one; null if unknown.
+        override:
+          oneOf:
+            - $ref: "#/components/schemas/Override"
+            - type: "null"
+          description: The active manual status; null in automatic mode.
+        pomodoro:
+          oneOf:
+            - $ref: "#/components/schemas/Pomodoro"
+            - type: "null"
+          description: The running pomodoro timer; null if none.
+        message:
+          type: string
+          description: Short text for the e-ink, set by people (web UI, HA). Omitted when empty.
         updated: { type: string, format: date-time }
       example:
         status: dnd
@@ -280,7 +385,54 @@ components:
         until: "2026-10-28T14:30:00+01:00"
         next: { status: working, reason: work_hours, since: "2026-10-28T14:30:00+01:00", until: "2026-10-28T17:00:00+01:00" }
         next_free: { start: "2026-10-28T17:00:00+01:00", end: "2026-10-29T08:00:00+01:00" }
+        override: null
+        pomodoro: null
         updated: "2026-10-28T14:25:03+01:00"
+
+    Override:
+      type: object
+      required: [status, start]
+      properties:
+        status: { $ref: "#/components/schemas/Status" }
+        start: { type: string, format: date-time }
+        until: { type: string, format: date-time, description: Omitted if indefinite. }
+
+    Pomodoro:
+      type: object
+      required: [start, work, break, cycles, work_status, end]
+      properties:
+        start: { type: string, format: date-time }
+        work: { type: string, examples: [25m0s] }
+        break: { type: string, examples: [5m0s] }
+        cycles: { type: integer, description: "0 = until stopped" }
+        work_status: { type: string, enum: [working, dnd] }
+        end: { type: [string, "null"], format: date-time }
+
+    ProfileInfo:
+      type: object
+      required: [id, name, mode, state]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        mode: { type: string, enum: [office, room] }
+        state: { $ref: "#/components/schemas/State" }
+
+    HistoryEntry:
+      type: object
+      required: [at, status, reason]
+      properties:
+        at: { type: string, format: date-time }
+        status: { $ref: "#/components/schemas/Status" }
+        reason: { $ref: "#/components/schemas/Reason" }
+        detail: { type: string }
+
+    MessageRequest:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text: { type: string, maxLength: 64 }
+        ttl: { type: string, description: "0 to 7 days; omitted = until changed", examples: [3h] }
 
     Slot:
       type: object
