@@ -1,0 +1,11 @@
+# doormutex companion – copy to ~/.config/doormutex/companion.yaml (chmod 600).
+hub: http://hub.lan:8080
+# A token for your office profile: doormutex-hub token create companion office
+# Either here, in a file, or in the environment variable DOORMUTEX_TOKEN.
+token_file: ~/.config/doormutex/token
+# Apps that never count as "microphone/camera in use" (binary or app name).
+# Effects processors and level meters keep the microphone open all the time.
+ignore: [easyeffects, pavucontrol, pwvucontrol, plasmashell]
+notify: true # desktop notification on every change of the light
+poll: 2s # how often microphone, camera and lock are checked
+interval: 30s # heartbeat at least this often
