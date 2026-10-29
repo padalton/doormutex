@@ -36,15 +36,18 @@ Eine Ampel, drei Kammern, wie im Straßenverkehr: oben Rot, in der Mitte Gelb, u
 Unter der Ampel sitzt ein kleines E-Ink-Display. Es zeigt **absolute Zeiten statt Countdown** („bis 14:30" statt „noch 23 min"). Dadurch ändert sich der Inhalt nur bei Statuswechseln: kein Bewegungssensor nötig, kein Strom im Stand.
 
 ```
-┌──────────────────────────────────────┐
-│ BITTE NICHT STÖREN                   │
-│ Meeting bis 14:30 · Kamera an        │
-│ danach: Arbeit bis 17:00             │
-│ Akku 72 %                Stand 14:02 │
-└──────────────────────────────────────┘
+┌────────────────────┐
+│ MEETING            │
+│ bis 14:30          │  ← große Schrift
+│ Kamera an          │
+│ dann Arbeit → 17:00│
+│ ▮▮▮▯ 72 %    14:02 │
+└────────────────────┘
 ```
 
-Inhalt: Status, bis wann, was danach kommt, Grund (z. B. „Kamera an" – nicht durchs Bild laufen), Akkustand und Stand-Zeit. Die Stand-Zeit wird alle 15 min per Teil-Refresh aktualisiert, damit eine eingefrorene Anzeige auffällt. Termintitel werden nie angezeigt.
+1,54″, 200 × 200 Pixel. Die Farbe sagt schon die Ampel, die Tafel liefert nur das Kleingedruckte. „bis 14:30" ist ~5 mm hoch, der Rest ~2 mm: Das liest man, wenn man oben an der Stiege steht.
+
+Inhalt: Grund, bis wann, was danach kommt, Hinweise wie „Kamera an" (nicht durchs Bild laufen), Akkustand und Stand-Zeit. Die Stand-Zeit wird alle 15 min per Teil-Refresh aktualisiert, damit eine eingefrorene Anzeige auffällt. Termintitel werden nie angezeigt.
 
 ## Feature-Set
 
@@ -359,8 +362,8 @@ flowchart LR
   reg --> mcu["ESP32-C6-MINI-1"]
   uvlo --> led["LED-Treiber<br/>3 × MOSFET"]
   mcu -->|PWM| led
-  led --> lamps["🔴 🟡 🟢<br/>LED-Ring 6–8 LEDs je Kammer"]
-  mcu -->|SPI| epd["E-Ink 2,9″"]
+  led --> lamps["🔴 🟡 🟢<br/>1–2 LEDs je Kammer"]
+  mcu -->|SPI| epd["E-Ink 1,54″"]
   mcu -->|I²C| gauge["Fuel Gauge"]
   mcu -->|I²C| als["Lichtsensor"]
   usb -->|USB-Serial/JTAG| mcu
@@ -376,9 +379,9 @@ flowchart LR
 | 3,3 V | Buck-Boost, z. B. TPS63802 | stabile 3,3 V über den ganzen Akkubereich, auch bei WLAN-Stromspitzen |
 | Fuel Gauge | MAX17048 | Akkustand in % + Entladerate → Restlaufzeit in HA |
 | Lichtsensor | VEML7700 | Helligkeitsautomatik, Nachtabsenkung |
-| LED-Treiber | 3 × N-MOSFET, PWM per LEDC | je Kammer eine kleine LED-Platine mit einem Ring aus 6–8 SMD-LEDs. Die LEDs hängen an LP-GPIOs, damit notfalls der LP-Core im Deep Sleep blinken kann |
+| LED-Treiber | 3 × N-MOSFET, PWM per LEDC | 1–2 SMD-LEDs pro Kammer, direkt auf der Platine. Die LEDs hängen an LP-GPIOs, damit notfalls der LP-Core im Deep Sleep blinken kann |
 | LEDs | Rot ~625 nm, Gelb/Amber ~590 nm, Grün ~520 nm (oder Signalgrün ~505 nm) | Einzelfarben wie bei der echten Ampel; ausgelegt auf 20 mA, im Betrieb gedimmt |
-| E-Ink | 2,9″ s/w, 296 × 128, SSD1680 (z. B. GDEY029T94) | Teil-Refresh; die Treiberschaltung sitzt auf unserer Platine, das Panel wird per FPC eingesteckt |
+| E-Ink | 1,54″ s/w, 200 × 200, SSD1681 (z. B. GDEY0154D67, ca. 32 × 37 mm) | Teil-Refresh; die Treiberschaltung sitzt auf unserer Platine, das Panel wird per FPC eingesteckt |
 | USB-C | CC-Widerstände 5,1 kΩ, ESD-Schutz (USBLC6) | Laden, Dauerstrom, Flashen |
 | Taster | Boot, Reset, Info | Info zeigt Akku/IP an; lang drücken = Setup-Modus |
 
@@ -444,7 +447,7 @@ Grobe Schätzung vor dem Schaltplan, Stand 2026-10-29, inkl. Versand und 20 % US
 
 | Posten | ca. € |
 |---|---|
-| Breadboard Stufe 1 (inkl. transparentem PETG) | 85–110 |
+| Breadboard Stufe 1 (inkl. transparentem PETG) | 80–105 |
 | Breadboard Stufe 2 (Akku) | 40–55 |
 | Versand (BerryBase; DigiKey ab 50 € frei) | 5–10 |
 | Gehäuse-Filament dunkelgrau/schwarz, falls nicht vorhanden | 20–25 |
@@ -456,9 +459,9 @@ Grobe Schätzung vor dem Schaltplan, Stand 2026-10-29, inkl. Versand und 20 % US
 
 | Bestellmenge bei JLCPCB | Platine pro Stück | Ampel gesamt |
 |---|---|---|
-| 2 bestückt (Einzel-Nachbau) | ~45–50 € | **~70–85 €** |
-| 5 bestückt (mit Freunden) | ~25 € | **~50–60 €** |
-| 30+ (Sammelbestellung/Kit) | ~13–15 € | **~35–45 €** |
+| 2 bestückt (Einzel-Nachbau) | ~45–50 € | **~60–75 €** |
+| 5 bestückt (mit Freunden) | ~25 € | **~40–50 €** |
+| 30+ (Sammelbestellung/Kit) | ~13–15 € | **~25–35 €** |
 
 Bei kleinen Mengen dominieren die Fixkosten pro Bestellung: Rüstgebühr, ~3 $ je „Extended Part", Versand, Einfuhr. Die Bauteile selbst kosten nur ~10–14 $ pro Platine.
 
@@ -508,22 +511,24 @@ Bei kleinen Mengen dominieren die Fixkosten pro Bestellung: Rüstgebühr, ~3 $ j
 ```
 
 - **Bauform:** Ampel-Miniatur mit drei Kammern und Schuten (Blendschirmen), darunter die E-Ink-Zusatztafel. Dunkelgrau oder schwarz wie das Original.
-- **Große Ampel mit klassischen Proportionen.** Die Breite bestimmt das quer liegende E-Ink-Panel: 2,9″ sind ca. 79 × 37 mm, mit Halterung ergibt das **100 mm**. Daraus folgt (alle Maße ca.):
+- **Anforderung:** Die Ampelfarbe muss bei gedämpftem Tageslicht (innen, kein Fenster in der Nähe) über **5 m** erkennbar sein.
+- **Kompakt mit klassischen Proportionen.** Die Breite bestimmt das E-Ink-Panel: 1,54″ sind ca. 32 × 37 mm, mit Rahmen ergibt das **~45 mm**. Jede Kammer ist quadratisch, die Zusatztafel auch, so wie beim echten Signalgeber mit Zusatzschild. Alle Maße ca.:
 
   | Teil | Maße (B × H × T) | Anmerkung |
   |---|---|---|
-  | Kammer (3×) | 100 × 100 × 45 mm | Linse Ø ~72 mm – wie beim Original ~¾ der Breite |
-  | Schute (3×) | ~45 mm auskragend | eigenes Teil, wird aufgesteckt |
-  | Dach | 100 × ~10 mm | |
-  | Zusatztafel | 100 × ~55 × 45 mm | E-Ink, Hauptplatine, 18650 quer dahinter (65 mm passen in 100 mm) |
-  | **Gesamt** | **~100 × 365 × 45 mm** (mit Schuten ~90 mm tief) | ~400 g PETG + 45 g Zelle |
+  | Kammer (3×) | 45 × 45 mm | Linse Ø ~30 mm, 1–2 LEDs dahinter |
+  | Zusatztafel | 45 × ~50 mm | E-Ink 1,54″ |
+  | Dach | 45 × ~5 mm | |
+  | **Gehäuse gesamt** | **~45 × 190 × 38 mm**, mit Schuten ~60 mm tief | eine Platine als Rückwand, 18650 stehend dahinter; ~150 g PETG + 45 g Zelle |
 
-- **Modular wie das Original:** Echte Signalgeber sind aus einzelnen Kammern zusammengeschraubt, und genau so passt die Ampel auch auf den Prusa MK3S. Dessen Druckfläche ist 250 × 210 mm, an einem Stück wären 365 mm zu lang. Eine Kammer liegt mit 100 × 100 mm bequem auf dem Bett, zwei passen gleichzeitig drauf. Alle drei Kammern sind dasselbe STL. Nachbauten mit nur einer oder zwei Kammern („On Air", Rot/Grün) fallen dabei nebenbei ab.
-- **Folgen für die Elektronik:**
-  - **Größere Linsen brauchen mehr Licht.** Damit eine 72-mm-Linse gleich hell wirkt wie eine kleine, braucht sie ein Vielfaches an Lichtstrom. Echte LED-Ampeln zeigen deshalb sichtbare Lichtpunkte statt einer gleichmäßig leuchtenden Scheibe. Das machen wir auch: ein Ring aus 6–8 LEDs hinter einer klaren, strukturierten Linse. Das sieht echt aus und ist sparsamer als volle Streuung. Wie viel Strom das braucht, klärt der Breadboard-Test. Notfalls wird Plan B (USB-Kabel) wahrscheinlicher.
-  - **Hauptplatine ≤ 100 × 100 mm** in der Zusatztafel – das ist bei JLCPCB die günstigste Preisstufe. Die drei LED-Platinen hängen als Ausbrech-Nutzen (Mouse Bites) an derselben Platine. Das ergibt ein Design und eine Bestückungsgebühr. Verbunden wird per JST-Kabel.
-- **Montage:** Bei ~450 g und Kindern auf der Stiege besser Schrauben oder Kabelbinder als Klebestreifen. Klebestreifen bleiben als Option.
-- **Andere Displays:** Mit 2,13″ (ca. 59 × 29 mm) wird die Ampel ~75 mm breit und ~280 mm hoch. Mit 4,2″ (ca. 91 × 77 mm, 400 × 300 Pixel) wird sie ~110 mm breit und ~440 mm hoch, ist dafür aus der Entfernung lesbar.
+- **Sichtbarkeit nachgerechnet:**
+  - **Größe:** Eine 30-mm-Linse erscheint auf 5 m unter ~21 Bogenminuten. Eine echte 200-mm-Ampel auf 100 m sind nur ~7. Unsere Ampel wirkt also dreimal so groß wie eine echte Ampel auf 100 Meter.
+  - **Helligkeit:** Eine LED mit 5 mA (~0,3–0,5 lm) hinter 7 cm² Streuscheibe ergibt grob 100–150 cd/m². Das hebt sich im Innenraum klar ab, bei 20 mA wird es etwa viermal heller. Eine LED pro Kammer reicht also rechnerisch, den Rest regelt der Lichtsensor.
+  - **Nachmessen:** Der Breadboard-Test mit 5-mm-LEDs und Linsen-Testdrucken bestätigt das.
+- **Druck:** Das Gehäuse passt mit ~190 mm am Stück auf den MK3S (250 × 210 mm). Schuten, Linsen, Rückdeckel und Wandhalter sind eigene Teile.
+- **Platine als Rückwand:** ~40 × 175 mm, die LEDs sitzen direkt hinter den Kammern. Es braucht keine Kabel und keine Zusatzplatinen. Größer als 100 × 100 mm kostet bei JLCPCB nur ein paar Dollar mehr.
+- **Montage:** Bei ~200 g halten auch Klebestreifen. Auf der Stiege mit Kindern bleiben Schrauben oder Kabelbinder trotzdem die robustere Wahl.
+- **Größere Varianten** lassen sich über Parameter einstellen. Mit 2,13″ (ca. 59 × 29 mm) wird das Gehäuse ~70 mm breit und ~240 mm hoch, das ist auf dem MK3S knapp. Mit 2,9″ (ca. 79 × 37 mm) wird es ~100 mm breit und ~365 mm hoch. Das muss man in Kammern teilen, und Linsen mit 72 mm brauchen LED-Ringe.
 - **Linsen aus transparentem PETG**, als eigene flache Teile gedruckt, 0,8–1,2 mm dick, mit Streuscheiben-Struktur auf der Innenseite. Dazu:
   - ein weißer Reflektor-Trichter hinter der Linse
   - lichtdichte Trennwände, damit Rot nicht ins Gelb leuchtet
@@ -537,7 +542,7 @@ Bei kleinen Mengen dominieren die Fixkosten pro Bestellung: Rüstgebühr, ~3 $ j
   - Toleranzen als Parameter, kalibriert per Testdruck: ~0,2 mm für Schiebe-, ~0,1 mm für Presspassungen
   - Schrauben (M2,5/M3) in gedruckte Dome oder Gewindeeinsätze, ansonsten Rastnasen
   - ein Extruder: Linsen sind eigene Teile, Schrift und Logo kommen per Farbwechsel am Layer (M600)
-- **Platinen:** Die Hauptplatine sitzt in der Zusatztafel, mit Akkufach dahinter, USB-C unten (Laden am Platz per Powerbank geht auch), Fenster für den Lichtsensor und Taster hinter Pin-Löchern. In jeder Kammer sitzt eine LED-Platine hinter dem Reflektor.
+- **Rückseite:** Akkufach hinter der Platine, USB-C unten (Laden am Platz per Powerbank geht auch), Fenster für den Lichtsensor, Taster hinter Pin-Löchern. Die Antenne des ESP32-C6-Moduls sitzt am oberen Platinenrand, ohne Zelle dahinter.
 - **Wandhalter, abnehmbar** – eine eigene Platte mit
   - Schlüssellöchern für Schrauben,
   - glatter Fläche für ablösbare Klebestreifen (tesa Powerstrips, Command),
@@ -604,7 +609,7 @@ office-traffic-light/
 2. **Kalender:** Kann das Spiegel-Script Meetings markieren? Welche Kalender soll der Hub lesen?
 3. **Fokus:** Ist die Pomodoro-Arbeitsphase Gelb oder Rot?
 4. **Sperre vs. Override:** Soll das Sperren des PCs einen laufenden manuellen Override beenden? Vorschlag: nein, Overrides laufen ohnehin ab.
-5. **E-Ink:** 2,9″ (Vorschlag) oder 4,2″ für mehr Text?
+5. **E-Ink:** 1,54″ (entschieden 2026-10-29). Am Breadboard prüfen, ob der Text oben an der Stiege gut lesbar ist.
 6. **Zellen:** Welche 18650er sind es (Typ, Alter)? Gibt's ein Ladegerät mit Kapazitätstest?
 7. **Router:** Kann er WLAN 6 mit TWT (Hersteller/Modell)?
 8. **Homelab:** Gibt's einen Reverse Proxy mit HTTPS-Domain? Für OAuth nicht mehr nötig (Desktop-Client + Loopback), aber angenehm für Web-UI und PWA.
@@ -643,6 +648,5 @@ office-traffic-light/
 | 2026-10-29 | Erster Prototyp auf dem Breadboard, Platine danach | Module sind in Tagen da, die Platine in Wochen; Messwerte fließen in den Schaltplan |
 | 2026-10-29 | Google: Projekt-Homepage mit eigener Domain; zuerst eigener Client, später gemeinsamer verifizierter Projekt-Client (Companion-Loopback + Redirect-Weiche à la Home Assistant) | Google verlangt fürs Veröffentlichen Homepage, Datenschutz und Nutzungsbedingungen; im Testing laufen Tokens nach 7 Tagen ab |
 | 2026-10-29 | Projekt-Homepage auf GitHub Pages, ohne Backend | OAuth-Branding, Doku, Web-Flasher, Redirect-Weiche |
-| 2026-10-29 | Große Ampel (~100 × 365 mm), Breite = E-Ink 2,9″, modulare Kammern | klassische Proportionen; passt kammerweise auf den MK3S |
-| 2026-10-29 | Hauptplatine ≤ 100 × 100 mm, LED-Platinen als Ausbrech-Nutzen | günstigste JLCPCB-Stufe, eine Bestückungsgebühr |
+| 2026-10-29 | E-Ink 1,54″ statt 2,9″, kompakte Ampel ~45 × 190 mm | 5 m Erkennbarkeit reichen mit 30-mm-Linsen; druckt am Stück, eine LED pro Kammer, eine Platine; billiger. (Kurz verworfen: große Ampel 100 × 365 mm mit 2,9″ – drei Druckteile, LED-Ringe, mehr Strom) |
 | 2026-10-29 | Repo öffentlich ab Tag 1 | man soll dem Projekt beim Entstehen zusehen können |

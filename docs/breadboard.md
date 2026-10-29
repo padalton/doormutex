@@ -8,7 +8,7 @@ Der erste Hardware-Prototyp entsteht aus fertigen Modulen auf dem Breadboard –
 
 | Stufe | Versorgung | Ziel |
 |---|---|---|
-| **1 – Firmware & Optik** | USB-C vom PC | WLAN + MQTT, LEDs per LEDC-PWM (auch im Light Sleep – das größte technische Risiko), E-Ink mit Teil-Refresh, Lichtsensor, Linsen-Testdrucke, Strommessung am Modul |
+| **1 – Firmware & Optik** | USB-C vom PC | Sichtbarkeit auf 5 m (eine LED hinter 30-mm-Linse), WLAN + MQTT, LEDs per LEDC-PWM (auch im Light Sleep – das größte technische Risiko), E-Ink mit Teil-Refresh, Lichtsensor, Linsen-Testdrucke, Strommessung am Modul |
 | **2 – Akku** | 18650 über Lader + Schutz | Power-Path (USB rein/raus im Betrieb), Fuel Gauge, Tiefentladeschutz, echte Laufzeit, Grün bei niedriger Akkuspannung |
 
 **Messung:** Das ESP32-C6-DevKitC-1 hat den Jumper **J5**. Zieht man ihn ab und hängt ein Amperemeter dazwischen, misst man nur den Strom des Moduls, ohne USB-Chip und Power-LED des Boards.
@@ -22,10 +22,10 @@ Der erste Hardware-Prototyp entsteht aus fertigen Modulen auf dem Breadboard –
 | # | Teil | Menge | Hersteller-Nr. / Hinweis | ca. € |
 |---|---|---|---|---|
 | 1 | **ESP32-C6-DevKitC-1** (8 MB Flash) | 2 | Espressif `ESP32-C6-DEVKITC-1-N8` – eins als Ersatz bzw. für Tests mit Netzteil | 2 × 10 |
-| 2 | **2,9″-E-Paper-Modul** s/w, 296 × 128, SPI, mit Treiberplatine | 1 | Waveshare `12956` („2.9inch e-Paper Module"), am besten V2 (Controller SSD1680, wie auf der späteren Platine) | 15–20 |
+| 2 | **1,54″-E-Paper-Modul** s/w, 200 × 200, SPI, mit Treiberplatine | 1 | Waveshare „1.54inch e-Paper Module", Version **V2** (Controller SSD1681, wie auf der späteren Platine) | 12–15 |
 | 3 | **Lichtsensor VEML7700**, STEMMA QT | 1 | Adafruit `4162` | 5 |
 | 4 | **N-MOSFET**, Logic-Level, THT | 3 (+2) | Infineon `IRLB8721PBF` (schaltet sicher mit 3,3 V am Gate) | 5 |
-| 5 | **LEDs 5 mm**, hell, breiter Abstrahlwinkel | je 20 | Rot ~625 nm, Gelb/Amber ~590 nm, Grün ~520 nm – genug für einen Ring aus 6–8 LEDs pro Kammer hinter der 72-mm-Linse | 6–8 |
+| 5 | **LEDs 5 mm**, hell, breiter Abstrahlwinkel | je 10 | Rot ~625 nm, Gelb/Amber ~590 nm, Grün ~520 nm – eine pro Kammer, der Rest für Helligkeits- und Linsenvergleiche | 5 |
 | 6 | **Widerstands-Sortiment** E12, ¼ W | 1 | für LED-Vorwiderstände (47–330 Ω) und Gate-Pulldowns (10 kΩ) | 5–10 |
 | 7 | **Taster** 6 × 6 mm | 5 | Info-Taster, Experimente | 1 |
 | 8 | **Breadboard** 830 Kontakte | 2 | Das DevKit ist breit – mit zwei Boards nebeneinander bleiben auf beiden Seiten Kontakte frei | 2 × 5 |
@@ -52,7 +52,7 @@ Der erste Hardware-Prototyp entsteht aus fertigen Modulen auf dem Breadboard –
 | **INA226-Modul** mit 0,1-Ω-Shunt – die Sparvariante | Hängt zwischen Versorgung und Prototyp. Das zweite DevKit liest den Strom ein paar hundert Mal pro Sekunde aus und schickt ihn per MQTT ins Homelab, z. B. nach Grafana. Einzelne WLAN-Beacons sieht man damit nicht, aber Mittelwerte im mA-Bereich und mAh pro Tag – und das reicht fürs Energiebudget. Nebenbei entsteht ein eigenes kleines Open-Source-Werkzeug | ~5 |
 | **Nordic Power Profiler Kit II** (`NRF-PPK2`) – die Luxusvariante | Misst von µA bis 1 A mit hoher Abtastrate. Damit sieht man jeden WLAN-Beacon, jeden Light-Sleep-Zyklus und jeden E-Ink-Refresh einzeln | ~100 |
 
-**Summe:** Stufe 1 ca. 85–110 € (inkl. Filament), Stufe 2 ca. 40–55 €, ohne PPK2.
+**Summe:** Stufe 1 ca. 80–105 € (inkl. Filament), Stufe 2 ca. 40–55 €, ohne PPK2.
 
 ## Wo bestellen (Lieferung nach Österreich)
 
