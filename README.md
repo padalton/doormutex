@@ -222,12 +222,15 @@ Where room mode runs for people *without* a homelab (no Docker, no HA) is still 
 
 ### Companion (Linux)
 
+Implemented in [`companion/`](companion/) – install as a systemd user service, see its README.
+
 - **Microphone:** PipeWire capture streams (`media.class = Stream/Input/Audio`) in state "running". Ignored:
   - level meters (pavucontrol, the Plasma volume applet)
   - recordings of outputs (monitor sources, e.g. screen recording)
   - apps on a configurable ignore list
 - **Camera:** open `/dev/video*` devices and PipeWire video streams.
-- **Screen lock:** logind `LockedHint` or `org.freedesktop.ScreenSaver`.
+- **Screen lock:** logind `LockedHint` of the user's graphical session (a systemd user service has no session of its own).
+- **Goodbye:** before suspend and shutdown (logind delay inhibitor) and when the service stops; silence without a goodbye is a fault.
 - **Notifications** on every state change, with the reason ("🔴 microphone in use – Firefox") and quick actions ("wrong detection", "clear override").
 - **Reference setup:** CachyOS, KDE Plasma 6 (Wayland), PipeWire.
 
@@ -763,3 +766,4 @@ doormutex/
 | 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
 | 2026-10-30 | Google Calendar: own HTTP client against the Calendar API (no Google SDK), `x/oauth2` with PKCE; scope `calendar.events.readonly`; titles are not even requested; login via loopback or pasting the redirect address; accounts fail independently (last good events are kept) | small dependency footprint, testable with `httptest`; works when the hub runs in Docker on another machine |
 | 2026-10-30 | Web UI: plain HTML/CSS/JS embedded with `go:embed`, no npm, strict CSP, service worker never caches the API; runtime settings (light per event kind, phase timing) saved in the hub and override the config | nothing to build or install, nothing loaded from outside the hub; the settings belong where people change them |
+| 2026-10-30 | Companion: separate Go module, polls `pw-dump` every 2 s instead of a PipeWire client library, camera also via `/proc/*/fd`, logind via D-Bus (`godbus`), heartbeat on change and every 30 s | no cgo, no PipeWire headers; `pw-dump` costs a few milliseconds; V4L2 apps (Zoom, Chrome) don't show up in PipeWire |

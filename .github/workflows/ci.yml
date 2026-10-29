@@ -54,6 +54,27 @@ jobs:
           version: v2.15.0
           working-directory: hub
 
+  companion:
+    name: Companion · test + lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        run: go build -o /dev/null ./cmd/doormutex-companion
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15.0
+          working-directory: companion
+
   hub-docker:
     name: Hub · docker build
     runs-on: ubuntu-latest
