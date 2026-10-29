@@ -1,13 +1,13 @@
-# Entwicklungsumgebung
+# Development setup
 
-Alle Werkzeuge, die für Software, Firmware, Platine und Gehäuse gebraucht werden. Referenz-System ist **CachyOS/Arch mit KDE Plasma 6**. Für andere Distributionen gelten dieselben Pakete unter ähnlichen Namen.
+All tools needed for software, firmware, PCB and enclosure. The reference system is **CachyOS/Arch with KDE Plasma 6**; other distributions have the same packages under similar names.
 
-> Stand 2026-10-29. Was schon installiert ist, überspringt `--needed` automatisch.
+> As of 2026-10-29. `--needed` skips whatever is already installed.
 
-## Auf einen Blick
+## At a glance
 
 ```bash
-# 1. Pakete aus den offiziellen Repos
+# 1. Packages from the official repos
 sudo pacman -S --needed \
   go golangci-lint sqlite mosquitto jq github-cli pre-commit \
   docker docker-buildx docker-compose nodejs npm \
@@ -16,14 +16,14 @@ sudo pacman -S --needed \
   kicad kicad-library kicad-library-3d \
   prusa-slicer
 
-# 2. Serielle Schnittstelle ohne sudo (ESP32 über USB) – danach ab- und wieder anmelden
+# 2. Serial port without sudo (ESP32 over USB) – log out and back in afterwards
 sudo usermod -aG uucp "$USER"
 
-# 3. ESP-IDF (fest auf ein Release, nicht master)
+# 3. ESP-IDF (pinned to a release, not master)
 mkdir -p ~/esp && git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf
 ~/esp/esp-idf/install.sh esp32c6
 
-# 4. OpenSCAD-Entwicklerversion (Manifold-Backend) + BOSL2
+# 4. OpenSCAD development version (Manifold backend) + BOSL2
 paru -S openscad-git
 git clone https://github.com/BelfrySCAD/BOSL2.git ~/.local/share/OpenSCAD/libraries/BOSL2
 
@@ -31,85 +31,92 @@ git clone https://github.com/BelfrySCAD/BOSL2.git ~/.local/share/OpenSCAD/librar
 flatpak install flathub me.amankhanna.opendeck
 npm install -g @elgato/cli
 
-# 6. Go-Werkzeuge (landen in ~/go/bin – das muss im PATH sein)
-go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+# 6. Go tools end up in ~/go/bin – put it on the PATH
 echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
 ```
 
-## Im Detail
+## In detail
 
-### Hub & Companion (Go)
+### Hub & companion (Go)
 
-| Werkzeug | Installation | Wofür |
+| Tool | Install | For |
 |---|---|---|
-| Go | `sudo pacman -S go` | Hub und Companion |
-| golangci-lint | `sudo pacman -S golangci-lint` | Linter, läuft auch in der CI |
-| oapi-codegen | `go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest` | Server- und Client-Code aus der OpenAPI-Spec in `api/` |
-| SQLite | `sudo pacman -S sqlite` | `sqlite3`-CLI zum Reinschauen in die Hub-Datenbank |
-| Docker + Buildx + Compose | `sudo pacman -S docker docker-buildx docker-compose` | Hub-Image bauen und lokal starten |
-| Mosquitto | `sudo pacman -S mosquitto` | `mosquitto_sub`/`mosquitto_pub` zum Debuggen. Den Broker selbst nicht aktivieren – der läuft im Homelab |
-| jq | `sudo pacman -S jq` | API- und MQTT-JSON lesen |
+| Go | `sudo pacman -S go` | hub and companion |
+| golangci-lint | `sudo pacman -S golangci-lint` | linter, also runs in CI (config in `hub/.golangci.yml`) |
+| SQLite | `sudo pacman -S sqlite` | `sqlite3` CLI to look into the hub database |
+| Docker + Buildx + Compose | `sudo pacman -S docker docker-buildx docker-compose` | build and run the hub image; the MQTT integration test starts a throwaway Mosquitto container |
+| Mosquitto | `sudo pacman -S mosquitto` | `mosquitto_sub`/`mosquitto_pub` for debugging. Don't enable the broker itself – it runs in the homelab |
+| jq | `sudo pacman -S jq` | read API and MQTT JSON |
+| oapi-codegen (optional) | `go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest` | generate clients from `api/openapi.yaml`; the hub itself uses hand-written handlers plus a spec/router sync test |
 
-Arm64-Images (z. B. für einen Raspberry Pi im Homelab) baut die CI. Wer sie lokal bauen will, braucht zusätzlich `qemu-user-static-binfmt`.
+Arm64 images (e.g. for a Raspberry Pi in the homelab) are built by CI. To build them locally you also need `qemu-user-static-binfmt`.
 
-### Plasma-Widget (QML)
+Run the hub tests including the MQTT integration test:
 
-| Werkzeug | Installation | Wofür |
+```bash
+cd hub
+OTL_INTEGRATION=1 go test -race ./...
+golangci-lint run
+```
+
+### Plasma widget (QML)
+
+| Tool | Install | For |
 |---|---|---|
-| plasma-sdk | `sudo pacman -S plasma-sdk` | `plasmoidviewer` – Widget im eigenen Fenster testen, ohne das Panel neu zu starten |
-| kpackagetool6 | ist bei Plasma dabei | Widget installieren/aktualisieren: `kpackagetool6 -t Plasma/Applet -u plasmoid/package` |
+| plasma-sdk | `sudo pacman -S plasma-sdk` | `plasmoidviewer` – test the widget in its own window without restarting the panel |
+| kpackagetool6 | ships with Plasma | install/update the widget: `kpackagetool6 -t Plasma/Applet -u plasmoid/package` |
 
-### Stream-Deck-Plugin (TypeScript)
+### Stream Deck plugin (TypeScript)
 
-| Werkzeug | Installation | Wofür |
+| Tool | Install | For |
 |---|---|---|
-| Node.js + npm | `sudo pacman -S nodejs npm` | Plugin bauen |
+| Node.js + npm | `sudo pacman -S nodejs npm` | build the plugin |
 | Elgato CLI | `npm install -g @elgato/cli` | `streamdeck create`, `streamdeck link`, `streamdeck pack` |
-| OpenDeck | `flatpak install flathub me.amankhanna.opendeck` | Stream-Deck-Software für Linux, führt Elgato-Plugins aus |
+| OpenDeck | `flatpak install flathub me.amankhanna.opendeck` | Stream Deck software for Linux, runs Elgato plugins |
 
-Damit das Stream Deck ohne Root erreichbar ist, braucht es eine udev-Regel. Die passende Datei und Anleitung stehen im [OpenDeck-README](https://github.com/nekename/OpenDeck). Ein Flatpak kann udev-Regeln nicht selbst installieren.
+The Stream Deck needs a udev rule to be accessible without root. The file and instructions are in the [OpenDeck README](https://github.com/nekename/OpenDeck); a Flatpak cannot install udev rules itself.
 
 ### Firmware (ESP-IDF, C)
 
-| Werkzeug | Installation | Wofür |
+| Tool | Install | For |
 |---|---|---|
-| Build-Abhängigkeiten | `sudo pacman -S --needed git cmake ninja ccache gperf flex bison dfu-util libusb python` | laut Espressif-Anleitung für Arch |
-| ESP-IDF v6.1 | `git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf && ~/esp/esp-idf/install.sh esp32c6` | Toolchain, `idf.py` |
-| esptool | `sudo pacman -S esptool` | Flashen/Auslesen ohne IDF-Umgebung |
-| Gruppe `uucp` | `sudo usermod -aG uucp "$USER"` | Zugriff auf `/dev/ttyACM*` ohne sudo |
+| Build dependencies | `sudo pacman -S --needed git cmake ninja ccache gperf flex bison dfu-util libusb python` | per Espressif's instructions for Arch |
+| ESP-IDF v6.1 | `git clone -b v6.1 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf && ~/esp/esp-idf/install.sh esp32c6` | toolchain, `idf.py` |
+| esptool | `sudo pacman -S esptool` | flash/read without the IDF environment |
+| group `uucp` | `sudo usermod -aG uucp "$USER"` | access to `/dev/ttyACM*` without sudo |
 
-Pro Shell aktivieren: `. ~/esp/esp-idf/export.sh`. Bequemer ist ein Alias in der `~/.zshrc`, z. B. `alias get_idf='. ~/esp/esp-idf/export.sh'`.
+Activate per shell: `. ~/esp/esp-idf/export.sh`. More convenient: an alias in `~/.zshrc`, e.g. `alias get_idf='. ~/esp/esp-idf/export.sh'`.
 
-Das AUR-Paket `esp-idf` ist derzeit als veraltet markiert, deshalb der direkte Git-Clone. Alternative: Espressifs Installations-Manager (`paru -S eim-cli`).
+The AUR package `esp-idf` is currently flagged out of date, hence the direct git clone. Alternative: Espressif's installation manager (`paru -S eim-cli`).
 
-Wer das Nordic PPK2 zum Strommessen nutzt (siehe [Teileliste](breadboard.md)), braucht noch *nRF Connect for Desktop* mit der App *Power Profiler*. Das gibt es als AppImage bei Nordic.
+If you measure current with the Nordic PPK2 (see [parts list](breadboard.md)), you also need *nRF Connect for Desktop* with the *Power Profiler* app, available as an AppImage from Nordic.
 
-### Platine (KiCad)
+### PCB (KiCad)
 
-| Werkzeug | Installation | Wofür |
+| Tool | Install | For |
 |---|---|---|
-| KiCad 10 | `sudo pacman -S kicad kicad-library kicad-library-3d` | Schaltplan, Layout, 3D-Ansicht |
-| Plugins | im KiCad *Plugin and Content Manager*: **Interactive HTML BOM**, **JLCPCB Tools** (o. ä.) | iBOM, LCSC-Teilenummern, Fertigungsdaten |
-| KiBot | in der CI per Docker-Image; lokal optional `paru -S kibot` | Gerber, BOM/CPL, Schaltplan-PDF, Renders – automatisch |
+| KiCad 10 | `sudo pacman -S kicad kicad-library kicad-library-3d` | schematic, layout, 3D view |
+| Plugins | in KiCad's *Plugin and Content Manager*: **Interactive HTML BOM**, **JLCPCB Tools** (or similar) | iBOM, LCSC part numbers, production files |
+| KiBot | in CI via Docker image; locally optional `paru -S kibot` | Gerbers, BOM/CPL, schematic PDF, renders – automated |
 
-### Gehäuse (OpenSCAD)
+### Enclosure (OpenSCAD)
 
-| Werkzeug | Installation | Wofür |
+| Tool | Install | For |
 |---|---|---|
-| OpenSCAD (Entwicklerversion) | `paru -S openscad-git` (kompiliert eine Weile) oder das Nightly-AppImage von [openscad.org/downloads](https://openscad.org/downloads.html#snapshots) | Die Version 2021.01 aus den Repos und vom Flathub ist zu alt: ohne Manifold-Backend rendert sie um Größenordnungen langsamer |
-| BOSL2 | `git clone https://github.com/BelfrySCAD/BOSL2.git ~/.local/share/OpenSCAD/libraries/BOSL2` | Bibliothek für Fasen, Rundungen, Schwalbenschwänze, Gewinde, Textur |
-| PrusaSlicer | `sudo pacman -S prusa-slicer` | Slicen für den MK3S, M600-Farbwechsel |
+| OpenSCAD (development version) | `paru -S openscad-git` (compiles for a while) or the nightly AppImage from [openscad.org/downloads](https://openscad.org/downloads.html#snapshots) | version 2021.01 from the repos and Flathub is too old: without the Manifold backend it renders orders of magnitude slower |
+| BOSL2 | `git clone https://github.com/BelfrySCAD/BOSL2.git ~/.local/share/OpenSCAD/libraries/BOSL2` | library for chamfers, fillets, dovetails, threads, textures |
+| PrusaSlicer | `sudo pacman -S prusa-slicer` | slicing for the MK3S, M600 colour changes |
 
-In OpenSCAD unter *Einstellungen → Erweitert* das Backend auf **Manifold** stellen. Die CI rendert STL/3MF kopflos per `openscad -o …` mit demselben Backend.
+In OpenSCAD set *Preferences → Advanced* backend to **Manifold**. CI renders STL/3MF headless via `openscad -o …` with the same backend.
 
-### Repo & Qualität
+### Repo & quality
 
-| Werkzeug | Installation | Wofür |
+| Tool | Install | For |
 |---|---|---|
-| GitHub CLI | `sudo pacman -S github-cli` | Issues, PRs, Releases, Actions-Logs |
-| pre-commit | `sudo pacman -S pre-commit` | Formatierung und Linter vor jedem Commit (`pre-commit install` im Repo) |
+| GitHub CLI | `sudo pacman -S github-cli` | issues, PRs, releases, Actions logs |
+| pre-commit | `sudo pacman -S pre-commit` | formatting and linters before every commit (`pre-commit install` in the repo) |
 
-## Prüfen, ob alles da ist
+## Check that everything is there
 
 ```bash
 go version && golangci-lint version
@@ -117,7 +124,7 @@ plasmoidviewer --version
 . ~/esp/esp-idf/export.sh >/dev/null && idf.py --version
 kicad-cli version
 openscad --version
-streamdeck --version
+npm ls -g @elgato/cli
 flatpak info me.amankhanna.opendeck | grep -i version
-id -nG | grep -qw uucp && echo "uucp ok" || echo "uucp fehlt – neu anmelden?"
+id -nG | grep -qw uucp && echo "uucp ok" || echo "uucp missing – log in again?"
 ```

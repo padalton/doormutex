@@ -1,224 +1,229 @@
 # office-traffic-light 🚦
 
-**Eine Ampel fürs Büro im Keller.** Sie zeigt der Familie schon vom Gang aus, ob sich der Weg nach unten lohnt:
-🔴 **Rot** = Meeting, bitte nicht stören · 🟡 **Gelb** = ich arbeite, komm rein, wenn's wichtig ist · 🟢 **Grün** = komm rein · ⚫ **aus** = ich bin nicht im Büro.
+**A traffic light for my basement office.** From the hallway the family can see whether it's worth coming downstairs:
+🔴 **red** = meeting, please don't disturb · 🟡 **yellow** = working, come in if it's important · 🟢 **green** = come in · ⚫ **off** = not in the office.
 
-Der Status wird automatisch erkannt (Mikrofon/Kamera, Google-Kalender, Arbeitszeiten, Bildschirmsperre) und lässt sich jederzeit per KDE-Widget, Stream Deck oder Web-UI übersteuern. Open Source & Open Hardware: Software, Firmware, Platine (KiCad) und 3D-gedrucktes Gehäuse (OpenSCAD).
+The state is detected automatically (microphone/camera, Google Calendar, working hours, screen lock) and can be overridden at any time from a KDE widget, a Stream Deck or the web UI. Open source & open hardware: software, firmware, PCB (KiCad) and a 3D-printed enclosure (OpenSCAD).
 
-> **Status: Konzeptphase.** Dieses README ist die Projektdefinition und das Feature-Set (Stand 2026-10-29). Das Repo ist von Anfang an öffentlich, damit man dem Projekt beim Entstehen zusehen kann. Vor dem ersten Release wird alles ins Englische übersetzt.
+> **Status: early development.** This README is the project definition and feature set (as of 2026-10-29). The repo is public from day one so anyone can follow the project as it grows. The hub core (M0) is in [`hub/`](hub/).
 >
-> Weitere Dokumente: [Breadboard-Prototyp & Teileliste](docs/breadboard.md) · [Entwicklungsumgebung](docs/dev-setup.md)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
 
-## Signalbild
+## Signals
 
-Eine Ampel, drei Kammern, wie im Straßenverkehr: oben Rot, in der Mitte Gelb, unten Grün. Die Position verrät die Bedeutung – auch ohne Farben unterscheiden zu können.
+One traffic light, three chambers, just like on the road: red on top, yellow in the middle, green at the bottom. The position tells the meaning, even without telling the colours apart.
 
-| Ampel | Zustand | Bedeutung | E-Ink-Zusatztafel (Beispiel) |
+| Light | State | Meaning | E-ink sign (example) |
 |---|---|---|---|
-| 🔴 Rot | `dnd` | Meeting – bitte nicht reinkommen | „Bitte nicht stören · Meeting bis 14:30" |
-| 🟡 Gelb | `working` | Ich arbeite – nur wenn's wichtig ist | „Arbeit · nächstes Meeting 15:00" |
-| 🟢 Grün | `free` | Komm rein! | „Frei · nächster Termin morgen 09:00" |
-| ⚫ aus | `away` | Nicht im Büro (PC gesperrt oder aus) | „Nicht im Büro" |
+| 🔴 red | `dnd` | Meeting – please don't come in | "Meeting · until 14:30" |
+| 🟡 yellow | `working` | Working – only if it's important | "Working · next meeting 15:00" |
+| 🟢 green | `free` | Come in! | "Free · next appointment tomorrow 09:00" |
+| ⚫ off | `away` | Not in the office (PC locked or off) | "Not in the office" |
 
-**Phasen**, angelehnt an die österreichische StVO (§ 38):
+**Phases**, modelled on the Austrian road traffic regulations (StVO § 38):
 
-| Ampel | Phase | Wann |
+| Light | Phase | When |
 |---|---|---|
-| 🟢 blinkt | **Last Call** | N Minuten (Standard: 5) vor einem Termin – „jetzt noch schnell, gleich bin ich im Meeting" |
-| 🔴 + 🟡 | **Gleich frei** | letzte N Minuten eines Termins. Rot+Gelb heißt laut StVO: Halt, gleich kommt Grün |
-| 🟡 blinkt | **Störung** | Hub oder WLAN weg, Daten zu alt. Gelbblinken heißt in der StVO „Vorsicht" |
-| aus + „Akku leer" | **Akku leer** | Abschaltschwelle erreicht |
+| 🟢 blinking | **Last call** | N minutes (default 5) before a meeting – "quick, I'm in a meeting soon" |
+| 🔴 + 🟡 | **Ending soon** | the last N minutes of a meeting. In the StVO, red+yellow means: stop, green is coming |
+| 🟡 blinking | **Fault** | hub or Wi-Fi gone, data too old. Blinking yellow means "caution" in the StVO |
+| off + "battery empty" | **Battery empty** | cut-off threshold reached |
 
-Übergänge wie bei der echten Ampel: Vor Rot leuchtet kurz Gelb (≈ 3 s).
+Transitions work like on a real traffic light: yellow shows briefly (≈ 3 s) before red.
 
-### E-Ink-Zusatztafel
+### E-ink sign
 
-Unter der Ampel sitzt ein kleines E-Ink-Display. Es zeigt **absolute Zeiten statt Countdown** („bis 14:30" statt „noch 23 min"). Dadurch ändert sich der Inhalt nur bei Statuswechseln: kein Bewegungssensor nötig, kein Strom im Stand.
+A small e-ink display sits below the light. It shows **absolute times instead of a countdown** ("until 14:30" rather than "23 min left"). So the content only changes when the state changes: no motion sensor needed, no power while idle.
 
 ```
 ┌────────────────────┐
 │ MEETING            │
-│ bis 14:30          │  ← große Schrift
-│ Kamera an          │
-│ dann Arbeit → 17:00│
+│ until 14:30        │  ← large font
+│ camera on          │
+│ then work → 17:00  │
 │ ▮▮▮▯ 72 %    14:02 │
 └────────────────────┘
 ```
 
-1,54″, 200 × 200 Pixel. Die Farbe sagt schon die Ampel, die Tafel liefert nur das Kleingedruckte. „bis 14:30" ist ~5 mm hoch, der Rest ~2 mm: Das liest man, wenn man oben an der Stiege steht.
+1.54″, 200 × 200 pixels. The light already shows the colour; the sign adds the small print. "until 14:30" is ~5 mm tall, the rest ~2 mm: readable when you stand at the top of the stairs.
 
-Inhalt: Grund, bis wann, was danach kommt, Hinweise wie „Kamera an" (nicht durchs Bild laufen), Akkustand und Stand-Zeit. Die Stand-Zeit wird alle 15 min per Teil-Refresh aktualisiert, damit eine eingefrorene Anzeige auffällt. Termintitel werden nie angezeigt.
+Content: reason, until when, what comes next, hints such as "camera on" (don't walk through the picture), battery level and a "last updated" time. That time is refreshed every 15 min with a partial refresh so a frozen display stands out. Event titles are never shown.
 
-## Feature-Set
+## Feature set
 
 ### Must – v1
 
-- **Ampel-Hardware:** drei Kammern (Rot/Gelb/Grün), ESP32-C6, WLAN + MQTT, 18650-Akku mit sicherer Ladeelektronik, USB-C für Laden *und* Dauerbetrieb
-- **E-Ink-Zusatztafel:** bis wann, was danach kommt, Grund, Akku
-- **Gehäuse als Ampel-Miniatur** (OpenSCAD) mit abnehmbarer Wandmontage
-- **Automatik:**
-  - Mikrofon oder Kamera aktiv → Rot
-  - Google-Kalender → Rot oder Gelb, nach Regeln
-  - Arbeitszeiten (inkl. österreichischer Feiertage) → Gelb
-  - PC gesperrt → aus
-  - sonst → Grün
-- **Manueller Override mit Dauer:** von 15 min bis „bis Feierabend" oder unbegrenzt; „Auto" setzt zurück
-- **KDE-Plasma-Widget** (Panel und Desktop): erkannten Status samt Grund sehen, mit Zeit übersteuern, Fokus/Pomodoro
-- **Desktop-Notification** bei jeder Statusänderung
-- **Last Call** und **Failsafe** (siehe Signalbild)
-- **Home Assistant per MQTT-Discovery:** Status, Statuswechsel-Event, aktueller Zeitraum, nächster freier Zeitraum, Akku
-- **Hub als Docker-Container** im Homelab
+- **Traffic light hardware:** three chambers (red/yellow/green), ESP32-C6, Wi-Fi + MQTT, 18650 cell with safe charging electronics, USB-C for charging *and* permanent power
+- **E-ink sign:** until when, what's next, reason, battery
+- **Enclosure as a miniature traffic light** (OpenSCAD) with a removable wall mount
+- **Automatic detection:**
+  - microphone or camera in use → red
+  - Google Calendar → red or yellow, by rules
+  - working hours (incl. Austrian public holidays) → yellow
+  - PC locked → off
+  - otherwise → green
+- **Manual override with duration:** from 15 min to "until end of work day" or indefinite; "auto" resets
+- **KDE Plasma widget** (panel and desktop): see the detected state and its reason, override with a time, focus/pomodoro
+- **Desktop notification** on every state change
+- **Last call** and **failsafe** (see Signals)
+- **Home Assistant via MQTT discovery:** state, state-change event, current slot, next free slot, battery
+- **Hub as a Docker container** in the homelab
 
 ### Should
 
-- Phase **„Gleich frei"** (Rot+Gelb)
-- **Stream Deck XL** als Bedienpult
-- **Flashen und WLAN-Einrichtung im Browser** (ESP Web Tools + Improv), OTA-Updates
-- **Helligkeitsautomatik** per Lichtsensor, Nachtabsenkung
-- **Restlaufzeit-Schätzung** des Akkus in HA
+- **Ending soon** phase (red+yellow)
+- **Stream Deck XL** as a control panel
+- **Flashing and Wi-Fi setup in the browser** (ESP Web Tools + Improv), OTA updates
+- **Automatic brightness** via light sensor, night dimming
+- **Battery runtime estimate** in HA
 
 ### Could
 
-- Generische **Webhook-Signale**, z. B. für Claude Code (siehe unten)
-- **ESPHome-Beispielconfig** für Nachbauten mit Netzteil („Bring your own lamp")
-- **Prometheus-Metriken** und Grafana-Dashboard (Meeting-Statistik)
-- **WLAN-6-TWT** auf dem ESP32-C6 für längere Akkulaufzeit, falls der Router es kann
-- Companion für Windows/macOS, GNOME-Extension
-- Mehrere Personen bzw. Ampeln
-- Push „Sag mir, wenn frei" (ntfy) – für Familien, die nicht eh per WhatsApp schreiben
+- Generic **webhook signals**, e.g. for Claude Code (see below)
+- **ESPHome example config** for builds on mains power ("bring your own lamp")
+- **Prometheus metrics** and a Grafana dashboard (meeting statistics)
+- **Wi-Fi 6 TWT** on the ESP32-C6 for longer battery life, if the router supports it
+- Companion for Windows/macOS, GNOME extension
+- Several people or traffic lights
+- "Tell me when free" push (ntfy) – for families who don't just text anyway
 
-### Won't – bewusst nicht
+### Won't – on purpose
 
-| Idee | Warum nicht |
+| Idea | Why not |
 |---|---|
-| Zweite Ampel an der Kellertür | Am Kellerabgang fällt die Entscheidung – eine Ampel reicht |
-| Klopf-Knopf / Rückkanal | Die Familie schreibt eh per WhatsApp |
-| Eigenes Bedienpult („Stellwerk") | Stream Deck XL + Widget übernehmen das |
-| Bewegungsmelder / mmWave am Gerät | Die LEDs leuchten dauerhaft (Fernsicht vom Gang), das E-Ink ändert sich nur bei Statuswechseln. Ein mmWave-Sensor (~70–80 mA) würde den Akku in 1–2 Tagen leeren |
-| ESP-NOW / Thread / Zigbee | WLAN ist überall gut, MQTT-Broker und HA sind vorhanden – WLAN ist einfacher |
-| Countdown per LED | zu viel Strom – das E-Ink zeigt absolute Zeiten |
-| Arbeit/Privat-Erkennung über Ordnerpfade, VPN o. ä. | passt nicht: alles läuft auf einem Rechner, Pfade sind individuell |
-| Fertige HA-Automationen | nur Entities + Trigger; Automationen baut man sich selbst |
-| RGB-LEDs (WS2812) | echte Einzelfarben, die Position codiert die Bedeutung; WS2812 ziehen auch „aus" Strom |
+| A second light at the basement door | The decision is made at the top of the stairs – one light is enough |
+| Knock button / back channel | The family texts on WhatsApp anyway |
+| Dedicated control desk ("signal box") | Stream Deck XL + widget cover it |
+| Motion / mmWave sensor on the device | The LEDs stay on (visible from the hallway) and the e-ink only changes with the state. An mmWave sensor (~70–80 mA) would drain the battery in 1–2 days |
+| ESP-NOW / Thread / Zigbee | Wi-Fi is good everywhere, MQTT broker and HA exist – Wi-Fi is simpler |
+| Countdown on LEDs | too much power – the e-ink shows absolute times |
+| Work/private detection via folder paths, VPN etc. | doesn't fit: everything runs on one machine, paths are personal |
+| Ready-made HA automations | entities + triggers only; everyone builds their own automations |
+| RGB LEDs (WS2812) | real single colours, position encodes meaning; WS2812 draw current even when "off" |
 
-## Architektur
+## Architecture
 
 ```mermaid
 flowchart LR
-  subgraph desk["Schreibtisch (KDE Plasma)"]
-    comp["Companion<br/>Mikro · Kamera · Sperre<br/>Notifications"]
-    widget["Plasma-Widget<br/>Status · Override · Fokus"]
-    deck["Stream Deck XL<br/>OpenDeck-Plugin"]
+  subgraph desk["Desk (KDE Plasma)"]
+    comp["Companion<br/>mic · camera · lock<br/>notifications"]
+    widget["Plasma widget<br/>state · override · focus"]
+    deck["Stream Deck XL<br/>OpenDeck plugin"]
   end
   subgraph lab["Homelab (Docker)"]
-    hub["Hub<br/>Regel-Engine · API · Web-UI<br/>E-Ink-Rendering"]
-    mqtt[("MQTT-Broker")]
+    hub["Hub<br/>rule engine · API · web UI<br/>e-ink rendering"]
+    mqtt[("MQTT broker")]
     ha["Home Assistant"]
   end
-  gcal["Google-Kalender"] --> hub
-  comp -->|Signale + Heartbeat| hub
-  hub -->|Statuswechsel| comp
+  gcal["Google Calendar"] --> hub
+  comp -->|signals + heartbeat| hub
+  hub -->|state changes| comp
   widget <--> hub
   deck <--> hub
   hub <--> mqtt
   mqtt <--> ha
-  mqtt <-->|WLAN| ampel["🚦 Ampel am Kellerabgang<br/>ESP32-C6 · E-Ink · 18650"]
-  ha -.->|eigene Automation| hue["Hue-Stiegenlicht"]
+  mqtt <-->|Wi-Fi| light["🚦 Traffic light at the stairs<br/>ESP32-C6 · e-ink · 18650"]
+  ha -.->|your own automation| hue["Hue stair light"]
 ```
 
-**Grundprinzip: schlauer Hub, dumme Ampel.** Der Hub entscheidet alles – Status, Phase, Blinkmuster, E-Ink-Inhalt – und publiziert es per MQTT. Die Ampel zeigt nur an, meldet Telemetrie und schaltet bei Funkstille selbstständig auf „Störung".
+**Principle: smart hub, dumb light.** The hub decides everything – state, phase, blink pattern, e-ink content – and publishes it via MQTT. The light only displays, reports telemetry and switches to "fault" by itself when the hub goes quiet.
 
-| Komponente | Technik | Aufgabe |
+| Component | Tech | Job |
 |---|---|---|
-| Hub | Go, Docker, SQLite | Regel-Engine, Kalender, Arbeitszeiten, REST/WebSocket-API, Web-UI, MQTT + HA-Discovery, E-Ink-Rendering |
-| Companion | Go, systemd-User-Service | Mikro/Kamera (PipeWire), Bildschirmsperre, Desktop-Notifications, OAuth-Helfer |
-| Plasma-Widget | QML (Plasma 6) | Status, Override, Fokus/Pomodoro |
-| Stream-Deck-Plugin | TypeScript (Elgato-SDK) | Bedienpult auf dem Stream Deck XL |
-| Firmware | C, ESP-IDF | WLAN-Stromsparen, MQTT, LEDs, E-Ink, Akku |
-| Projekt-Homepage | GitHub Pages (statisch) + eigene Domain | Pflicht für Googles OAuth-Branding (Beschreibung, Datenschutz, Nutzungsbedingungen), dazu Doku, Web-Flasher (ESP Web Tools braucht HTTPS) und die OAuth-Redirect-Weiche. Kein Backend, keine Nutzerdaten |
-| Platine | KiCad | ESP32-C6, Ladeelektronik, LED- und E-Ink-Treiber – bestückt von JLCPCB |
-| Gehäuse | OpenSCAD + BOSL2 | Ampel-Miniatur + abnehmbarer Wandhalter |
+| Hub | Go, Docker, SQLite | Rule engine, calendar, working hours, REST/SSE API, web UI, MQTT + HA discovery, e-ink rendering |
+| Companion | Go, systemd user service | Microphone/camera (PipeWire), screen lock, desktop notifications, OAuth helper |
+| Plasma widget | QML (Plasma 6) | State, override, focus/pomodoro |
+| Stream Deck plugin | TypeScript (Elgato SDK) | Control panel on the Stream Deck XL |
+| Firmware | C, ESP-IDF | Wi-Fi power saving, MQTT, LEDs, e-ink, battery |
+| Project homepage | GitHub Pages (static) + own domain | Required for Google's OAuth branding (description, privacy policy, terms), plus docs, web flasher (ESP Web Tools needs HTTPS) and the OAuth redirect relay. No backend, no user data |
+| PCB | KiCad | ESP32-C6, charging, LED and e-ink drivers – assembled by JLCPCB |
+| Enclosure | OpenSCAD + BOSL2 | Miniature traffic light + removable wall mount |
 
-Home Assistant ist keine eigene Komponente: Der Hub meldet seine Entities per MQTT-Discovery an, HA findet sie selbst.
+Home Assistant is not a separate component: the hub announces its entities via MQTT discovery and HA picks them up.
 
-**Warum Go?** Ein statisches Binary pro Komponente, winzige Docker-Images, gute Bibliotheken für MQTT, D-Bus und Google-APIs – und der Companion lässt sich später für Windows/macOS cross-kompilieren.
+**Why Go?** One static binary per component, tiny Docker images, good libraries for MQTT, D-Bus and Google APIs – and the companion can later be cross-compiled for Windows/macOS.
 
-**API-first:** Eine OpenAPI-Spec in `api/` ist der Vertrag zwischen Hub, Companion, Widget und Stream-Deck-Plugin.
+**API first:** the OpenAPI spec in [`api/openapi.yaml`](api/openapi.yaml) is the contract between hub, companion, widget and Stream Deck plugin. A test keeps spec and router in sync.
 
-| Endpoint | Zweck |
+| Endpoint | Purpose |
 |---|---|
-| `GET /api/v1/status` | aktueller Status inkl. Grund, Zeitraum, nächster freier Zeitraum |
-| `GET /api/v1/timeline?from=…&to=…` | geplante Zeiträume aus Kalender + Arbeitszeiten |
-| `PUT` / `DELETE /api/v1/override` | Override setzen (Status + Dauer oder Ende) / aufheben |
-| `PUT` / `DELETE /api/v1/focus` | Fokus/Pomodoro starten / stoppen |
-| `POST /api/v1/signals/{quelle}` | Signale von Companion und Webhooks (mit TTL) |
-| `GET /api/v1/events` | Live-Updates (WebSocket/SSE) |
+| `GET /api/v1/status` | current state incl. reason, slot, next free slot |
+| `GET /api/v1/timeline?from=…&to=…` | planned slots from calendar, working hours and timers |
+| `PUT` / `DELETE /api/v1/override` | set an override (status + duration or end) / clear it |
+| `PUT` / `DELETE /api/v1/focus` | start / stop a focus (pomodoro) timer |
+| `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) |
+| `POST` / `DELETE /api/v1/signals/{source}` | webhook signals with TTL |
+| `GET /api/v1/events` | live updates (Server-Sent Events) |
 
-## Zustandslogik
+## State logic
 
-Jede Quelle meldet einen *Claim*: Status, Priorität und Ablaufzeit. Der höchste gültige Claim gewinnt.
+Every source contributes a *claim*: status, priority and validity. The best valid claim wins.
 
-| Prio | Quelle | Ergebnis | Details |
+| Prio | Source | Result | Details |
 |---|---|---|---|
-| 1 | Manueller Override (Widget, Stream Deck, Web-UI, Fokus-Timer) | beliebig | läuft immer ab: nach Dauer, „bis Termin-Ende", „bis Feierabend" – oder explizit unbegrenzt |
-| 2 | Mikrofon oder Kamera aktiv | `dnd` | greift nach ≥ 10 s (Entprellung), hält 2 min nach (Wiederverbinden, Nachbesprechung) |
-| 3 | PC gesperrt oder Companion stumm | `away` | nur wenn Mikro und Kamera aus sind |
-| 4 | Kalender-Termin | `dnd` / `working` / `away` | Regeln pro Kalender |
-| 5 | Arbeitszeiten | `working` | Wochenplan, Feiertage, Urlaub aus dem Kalender |
-| 6 | Webhook-Signale (optional) | meist `working` | mit TTL |
-| 7 | Standard | `free` | – |
+| 1 | Manual override (widget, Stream Deck, web UI, focus timer) | any | always ends: after a duration, "until the event ends", "until end of work day" – or explicitly indefinite |
+| 2 | Microphone or camera in use | `dnd` | counts after ≥ 10 s (debounce), holds for 2 min (reconnects, chat after the call) |
+| 3 | PC locked or companion silent | `away` | only if microphone and camera are off |
+| 4 | Calendar event | `dnd` / `working` / `away` | rules per event kind |
+| 5 | Working hours | `working` | weekly plan, public holidays, extra days off |
+| 6 | Webhook signals (optional) | usually `working` | with TTL |
+| 7 | Default | `free` | – |
 
-- **Mikro/Kamera schlägt Sperre:** Von Hand sperrt man während eines Calls nicht. Aber in einem Meeting, in dem man nur zuhört, rührt man die Maus nicht an, und nach ein paar Minuten sperrt sich der Bildschirm von selbst. Dann bleibt es trotzdem Rot.
-- **Konflikt-Hinweis:** Läuft ein manueller Override (z. B. Grün) und das Mikro geht an, fragt die Notification: „Auf Rot schalten?"
-- **Heartbeats:** Der Companion meldet sich alle 30 s. Ist er 90 s still (PC aus, Standby), gilt das wie „gesperrt".
-- **Failsafe an der Ampel:** Hub offline (MQTT Last Will) oder Status zu alt → Gelb blinkt.
-- **Vorausplanung:** Der Hub kennt die Zukunft (Kalender + Arbeitszeiten). Daraus berechnet er den aktuellen Zeitraum, den nächsten Wechsel und den nächsten freien Zeitraum – für E-Ink, Widget und HA.
+- **Microphone/camera beat the lock screen:** nobody locks the PC by hand during a call. But in a meeting where you only listen, you don't touch the mouse, and after a few minutes the screen locks itself. It stays red anyway.
+- **Conflict hint:** if a manual override (e.g. green) is running and the microphone goes on, the notification asks "switch to red?"
+- **Heartbeats:** the companion reports every 30 s. If it is silent for 90 s (PC off, standby), that counts as "locked".
+- **Failsafe on the light:** hub offline (MQTT Last Will) or state too old → yellow blinks.
+- **Planning ahead:** the hub knows the future (calendar + working hours). From it, it computes the current slot, the next change and the next free slot – for the e-ink, the widget and HA.
+- **Unknown end:** a call without a calendar entry or a locked screen has no known end. Then `until` and `next_free` are `null` instead of a guess. If a calendar meeting is running during a call, the call is assumed to end with the meeting.
 
-## Signalquellen
+## Signal sources
 
 ### Companion (Linux)
 
-- **Mikrofon:** PipeWire-Capture-Streams (`media.class = Stream/Input/Audio`) im Zustand „running". Ignoriert werden:
-  - Pegelanzeigen (pavucontrol, Plasma-Lautstärke-Applet)
-  - Aufnahmen vom Ausgang (Monitor-Quellen, z. B. Bildschirmaufnahme)
-  - Apps auf einer konfigurierbaren Ignore-Liste
-- **Kamera:** geöffnete `/dev/video*`-Geräte und PipeWire-Video-Streams.
-- **Bildschirmsperre:** logind `LockedHint` bzw. `org.freedesktop.ScreenSaver`.
-- **Notifications** bei jedem Statuswechsel, mit Grund („🔴 Mikrofon aktiv – Firefox") und Schnellaktionen („Falsch erkannt", „Override aufheben").
-- **Referenz-Setup:** CachyOS, KDE Plasma 6 (Wayland), PipeWire.
+- **Microphone:** PipeWire capture streams (`media.class = Stream/Input/Audio`) in state "running". Ignored:
+  - level meters (pavucontrol, the Plasma volume applet)
+  - recordings of outputs (monitor sources, e.g. screen recording)
+  - apps on a configurable ignore list
+- **Camera:** open `/dev/video*` devices and PipeWire video streams.
+- **Screen lock:** logind `LockedHint` or `org.freedesktop.ScreenSaver`.
+- **Notifications** on every state change, with the reason ("🔴 microphone in use – Firefox") and quick actions ("wrong detection", "clear override").
+- **Reference setup:** CachyOS, KDE Plasma 6 (Wayland), PipeWire.
 
-### Google-Kalender
+### Google Calendar
 
-- **Anbindung:** Google Calendar API (empfohlen: nahezu Echtzeit, liefert `eventType`, Teilnehmer und Konferenz-Links) oder die geheime iCal-Adresse (einfacher, aber teils stark verzögert).
-- **Regeln pro Kalender**, zum Beispiel:
-  - Termin mit Teilnehmern oder Video-Link → `dnd`
-  - `focusTime` oder Titel wie „Fokus|Blocker" → `working`
-  - `outOfOffice` oder „Urlaub" → `away`
-  - ganztägige und als „frei" markierte Termine → ignorieren
-- **Gespiegelte Termine:** Im Referenz-Setup kopiert ein Apps Script die Arbeitstermine in den privaten Kalender. Dabei gehen Teilnehmer oft verloren. Tipp: Das Script markiert Meetings (Farbe, Präfix oder `extendedProperties`), der Hub liest die Markierung.
-#### Google-Login für Selbst-Hoster
+- **Connection:** Google Calendar API (recommended: near real time, provides `eventType`, attendees and conference links) or the secret iCal address (simpler, but sometimes heavily delayed).
+- **Rules per event kind** (configurable), for example:
+  - event with attendees or a video link → `dnd`
+  - `focusTime` or titles like "Focus|Blocker" → `working`
+  - `outOfOffice` or "vacation" → `away`
+  - all-day events and events marked "free" → ignored
+  - events the provider can't classify → `dnd` by default
+- **Mirrored events:** in the reference setup an Apps Script copies work events into the private calendar, and attendees often get lost. Tip: let the script mark meetings (colour, prefix or `extendedProperties`) and the hub reads the mark.
+- **M0 status:** the hub has a calendar interface with a fake implementation; the Google provider comes next.
 
-Zwei getrennte Probleme:
+#### Google sign-in for self-hosters
 
-1. **Dauerhafte Tokens.** Solange eine OAuth-App auf „Testing" steht, laufen die Refresh-Tokens nach 7 Tagen ab. Zum **Veröffentlichen** verlangt die Google Auth Platform eine vollständige Branding-Seite: Homepage, Datenschutzerklärung, Nutzungsbedingungen und eine autorisierte Domain. Die Homepage muss die App beschreiben, eine reine Login-Seite reicht nicht. Für die Verifizierung durch Google muss die Domain außerdem nachweislich dir gehören (Search Console). → **Ohne echte Projekt-Homepage gibt es keinen Dauerbetrieb.**
-2. **Redirect.** Jeder Nachbau hat seinen Hub unter einer anderen Adresse, meist ohne öffentliches HTTPS. Web-Clients brauchen aber einen HTTPS-Redirect auf eine öffentliche Domain. Ausnahme sind Desktop-Clients: Sie dürfen auf Loopback (`127.0.0.1`) zurückleiten. Den Device-Flow („Code auf einem anderen Gerät eingeben") lässt Google für Kalender-Scopes nicht zu.
+Two separate problems:
+
+1. **Long-lived tokens.** While an OAuth app is in "Testing", refresh tokens expire after 7 days. To **publish** the app, the Google Auth Platform requires a complete branding page: homepage, privacy policy, terms of service and an authorized domain. The homepage must describe the app; a bare login page is not enough. For verification by Google you must also prove that you own the domain (Search Console). → **Without a real project homepage there is no long-term operation.**
+2. **Redirect.** Every installation runs its hub under a different address, usually without public HTTPS. Web clients need an HTTPS redirect to a public domain. Desktop clients are the exception: they may redirect to loopback (`127.0.0.1`). Google does not allow the device flow ("enter a code on another device") for calendar scopes.
 
 **Plan:**
 
-- **Projekt-Homepage mit eigener Domain** (GitHub Pages + Custom Domain, in der Search Console verifiziert). Darauf: Beschreibung, Logo, Screenshots, Datenschutzerklärung, Nutzungsbedingungen, Doku und Web-Flasher.
-- **Stufe 1 – für den Referenz-Aufbau:** ein eigener OAuth-Client, dessen Branding auf die Projekt-Homepage zeigt. Damit lässt er sich veröffentlichen, und die 7-Tage-Grenze fällt weg. Bis zur Verifizierung zeigt Google beim Login einen Warnhinweis, und es gilt eine Obergrenze von 100 Nutzern.
-- **Stufe 2 – für Nachbauten:** ein **gemeinsamer OAuth-Client des Projekts**, den Google prüft. `calendar.readonly` gilt als „sensitive", nicht als „restricted". Es braucht also eine Begründung und ein Demo-Video, aber keine kostenpflichtige Sicherheitsprüfung. Danach braucht kein Nachbauer eine eigene Google Cloud Console.
-  - **Login per Companion:** Client-Typ „Desktop-App", Loopback-Redirect auf `127.0.0.1`. Bei installierten Apps behandelt Google das Client-Secret ausdrücklich nicht als Geheimnis, es darf also im Open-Source-Code stehen.
-  - **Login per Web-UI ohne Companion:** eine **Redirect-Weiche** auf der Homepage, nach dem Vorbild von `my.home-assistant.io`. Google leitet auf `https://<homepage>/oauth/callback`, und die statische Seite reicht Code und `state` an die Hub-Adresse weiter, die dieser Browser vorher lokal gespeichert hat. Die Zieladresse kommt nie aus URL-Parametern, sonst wäre die Weiche ein offener Redirect. Offen ist das Client-Secret: Web-Clients brauchen es bei jedem Token-Refresh im Hub. Das prüfen wir, bevor Stufe 2 startet.
-- **Fallback ohne OAuth:** die geheime iCal-Adresse des Kalenders. Dabei fehlen aber `eventType` und Teilnehmer, und Google aktualisiert den Feed teils stark verzögert.
+- **Project homepage with its own domain** (GitHub Pages + custom domain, verified in Search Console): description, logo, screenshots, privacy policy, terms of service, docs and web flasher.
+- **Stage 1 – for the reference build:** an own OAuth client whose branding points to the project homepage. It can then be published and the 7-day limit is gone. Until verification Google shows a warning at sign-in and caps unverified apps at 100 users.
+- **Stage 2 – for everyone else:** a **shared project OAuth client**, verified by Google. `calendar.readonly` is a "sensitive" scope, not a "restricted" one: it needs a justification and a demo video, but no paid security assessment. After that, nobody needs their own Google Cloud console.
+  - **Sign-in via the companion:** client type "desktop app", loopback redirect to `127.0.0.1`. Google explicitly does not treat the client secret of installed apps as a secret, so it may live in open-source code.
+  - **Sign-in via the web UI without companion:** a **redirect relay** on the homepage, modelled on `my.home-assistant.io`. Google redirects to `https://<homepage>/oauth/callback`, and the static page forwards code and `state` to the hub address this browser stored locally before. The target never comes from URL parameters, otherwise the relay would be an open redirect. Still open: web clients need the client secret for every token refresh in the hub. To be checked before stage 2 starts.
+- **Fallback without OAuth:** the calendar's secret iCal address – without `eventType` and attendees, and Google sometimes updates the feed with a long delay.
 
-### Arbeitszeiten
+### Working hours
 
-Wochenplan (z. B. Mo–Fr 08:00–17:00), Feiertage pro Land (AT voreingestellt), Urlaub und Abwesenheit aus dem Kalender.
+Weekly plan (e.g. Mon–Fri 08:00–17:00), public holidays per country (Austria built in), extra days off from the config, vacation and absence from the calendar.
 
-### Webhooks (optional) – z. B. Claude Code
+### Webhooks (optional) – e.g. Claude Code
 
-Jedes Tool kann per `POST /api/v1/signals/<name>` einen Claim mit TTL setzen. Beispiel für einen Claude-Code-Hook in `~/.claude/settings.json`:
+Any tool can set a claim with a TTL via `POST /api/v1/signals/<name>`. Example of a Claude Code hook in `~/.claude/settings.json`:
 
 ```json
 {
@@ -237,91 +242,93 @@ Jedes Tool kann per `POST /api/v1/signals/<name>` einen Claim mit TTL setzen. Be
 }
 ```
 
-> Als Arbeits-Signal nur bedingt zuverlässig: Sessions bleiben oft tagelang offen, laufen per SSH auf Servern, und lange Outputs liest man ohne neuen Prompt. Darum optional.
+> Only a partly reliable work signal: sessions often stay open for days, run over SSH on servers, and long output gets read without a new prompt. Hence optional.
 
-## Bedienung
+## Controls
 
-### KDE-Plasma-Widget
+### KDE Plasma widget
 
-- **Panel:** Mini-Ampel als Icon (die aktive Lampe leuchtet), Tooltip mit Grund und „bis".
-- **Rechtsklick-Menü:** „Web-UI öffnen", „Auto", Schnell-Overrides.
+- **Panel:** a mini traffic light as icon (the active lamp lights up), tooltip with reason and "until".
+- **Right-click menu:** "open web UI", "auto", quick overrides.
 - **Popup:**
-  - erkannter Status mit Quelle („Mikrofon aktiv", „Kalender: Meeting bis 14:30")
-  - Override: Rot / Gelb / Grün / Aus für 15 min, 30 min, 1 h, 2 h, bis Termin-Ende, bis Feierabend oder unbegrenzt
-  - „Auto" setzt den Override zurück
-  - Fokus/Pomodoro, z. B. 25/5 oder 50/10 (Arbeitsphase Gelb, Pause Grün – konfigurierbar)
-  - Tagesleiste: die heutigen Zeiträume als farbiger Balken
-- Läuft im Panel und auf dem Desktop; Verteilung über den KDE Store („Neue Widgets holen").
-- **Andere Desktops:** Die Web-UI ist als PWA installierbar; eine GNOME-Extension wäre ein schönes Community-Projekt.
+  - detected state with source ("microphone in use", "calendar: meeting until 14:30")
+  - override: red / yellow / green / off for 15 min, 30 min, 1 h, 2 h, until the event ends, until end of work day, or indefinite
+  - "auto" clears the override
+  - focus/pomodoro, e.g. 25/5 or 50/10 (work phase yellow, break green – configurable)
+  - day bar: today's slots as a coloured bar
+- Works in the panel and on the desktop; distributed via the KDE Store ("Get New Widgets").
+- **Other desktops:** the web UI can be installed as a PWA; a GNOME extension would be a nice community project.
 
 ### Stream Deck XL
 
-Plugin auf Basis des offiziellen Elgato-SDK. Unter Linux läuft es in [OpenDeck](https://github.com/nekename/OpenDeck), das Elgato-SDK-Plugins unterstützt, unter Windows/macOS in der Elgato-App. Alternative: ein Plugin für [StreamController](https://github.com/StreamController/StreamController).
+A plugin based on the official Elgato SDK. On Linux it runs in [OpenDeck](https://github.com/nekename/OpenDeck), which supports Elgato SDK plugins; on Windows/macOS in the Elgato app. Alternative: a plugin for [StreamController](https://github.com/StreamController/StreamController).
 
-Layout-Vorschlag (8 × 4) – **die linke Spalte ist die Ampel:**
+Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 | | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
 |---|---|---|---|---|---|---|---|---|
-| **A** | 🔴 Rot | Status | bis 14:30 | nächst frei | 15 min | 30 min | 1 h | ∞ |
-| **B** | 🟡 Gelb | Grund | 🎙 Mikro | 📷 Kamera | Fokus 25 | Fokus 50 | Pause 5 | ⏱ 12:34 |
-| **C** | 🟢 Grün | 🔋 72 % | | | | | | |
-| **D** | Auto | | | | | | | |
+| **A** | 🔴 red | state | until 14:30 | next free | 15 min | 30 min | 1 h | ∞ |
+| **B** | 🟡 yellow | reason | 🎙 mic | 📷 camera | focus 25 | focus 50 | break 5 | ⏱ 12:34 |
+| **C** | 🟢 green | 🔋 72 % | | | | | | |
+| **D** | auto | | | | | | | |
 
-- Die Lampen-Tasten zeigen live, welche Lampe leuchtet. Drücken setzt einen Override (Dauer per Dauer-Taste oder langem Druck).
-- Freie Tasten bleiben für andere Aufgaben.
+- The lamp keys show live which lamp is on. Pressing one sets an override (duration via a duration key or long press).
+- Free keys stay available for other things.
 
-### Web-UI
+### Web UI
 
-Status und Override, Tagesansicht, Regeln, Kalender-Verbindung, Arbeitszeiten, Gerätezustand (Akku, WLAN, Firmware), Verlauf.
+State and override, day view, rules, calendar connection, working hours, device health (battery, Wi-Fi, firmware), history.
 
 ## Home Assistant & MQTT
 
-Der Hub legt per MQTT-Discovery nur Entities an – Automationen baut man sich selbst.
+The hub only creates entities via MQTT discovery (one device, device-based discovery) – everyone builds their own automations.
 
-| Entity | Typ | Inhalt |
+| Entity | Type | Content |
 |---|---|---|
-| `sensor.office_traffic_light_status` | Enum | `free`, `working`, `dnd`, `away` – Attribute: Grund, Quelle, seit, bis, Phase |
-| `event.office_traffic_light_status_changed` | Event | jeder Statuswechsel (von → nach, Grund) – der Trigger für eigene Automationen |
-| `sensor.office_traffic_light_slot_start` / `…_slot_end` | Zeitstempel | aktueller Zeitraum |
-| `sensor.office_traffic_light_next_free_start` / `…_next_free_end` | Zeitstempel | nächster freier Zeitraum |
-| `sensor.office_traffic_light_battery` | % | Akkustand, dazu Spannung und Restlaufzeit-Schätzung |
-| `binary_sensor.office_traffic_light_charging` | binär | lädt / hängt am USB |
-| Diagnose | – | WLAN-Signal, Firmware-Version, online |
+| `sensor.office_traffic_light_status` | enum | `free`, `working`, `dnd`, `away` – attributes: reason, detail, phase, light, since, until |
+| `event.office_traffic_light_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
+| `sensor.office_traffic_light_slot_start` / `…_slot_end` | timestamp | current slot |
+| `sensor.office_traffic_light_next_free_start` / `…_next_free_end` | timestamp | next free slot |
+| `sensor.office_traffic_light_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
+| `binary_sensor.office_traffic_light_charging` | binary | charging / on USB (announced by the light itself) |
+| diagnostics | – | Wi-Fi signal, firmware version, online |
 
-| Topic | Inhalt |
+| Topic | Content |
 |---|---|
-| `office-traffic-light/state` | retained JSON (siehe unten) |
-| `office-traffic-light/display` | retained Bitmap fürs E-Ink, vom Hub gerendert |
-| `office-traffic-light/hub/online` | Last Will des Hubs → Failsafe an der Ampel |
-| `office-traffic-light/device/<id>/telemetry` | Akku, Ladezustand, RSSI, Firmware |
-| `office-traffic-light/device/<id>/cmd` | OTA, Neustart, Identify |
+| `office-traffic-light/state` | retained JSON (see below), same document as `GET /api/v1/status` |
+| `office-traffic-light/event` | `status_changed` events for the HA event entity (not retained) |
+| `office-traffic-light/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
+| `office-traffic-light/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
+| `office-traffic-light/device/<id>/telemetry` | battery, charging, RSSI, firmware |
+| `office-traffic-light/device/<id>/cmd` | OTA, restart, identify |
 
 ```json
 {
   "status": "dnd",
   "phase": "ending_soon",
+  "light": "red_yellow",
   "reason": "calendar",
+  "detail": "meeting",
   "since": "2026-10-28T14:00:00+01:00",
   "until": "2026-10-28T14:30:00+01:00",
-  "next": { "status": "working", "until": "2026-10-28T17:00:00+01:00" },
-  "next_free": { "start": "2026-10-28T17:00:00+01:00", "end": null },
-  "light": "red_yellow",
+  "next": { "status": "working", "reason": "work_hours", "since": "2026-10-28T14:30:00+01:00", "until": "2026-10-28T17:00:00+01:00" },
+  "next_free": { "start": "2026-10-28T17:00:00+01:00", "end": "2026-10-29T08:00:00+01:00" },
   "updated": "2026-10-28T14:25:03+01:00"
 }
 ```
 
-`light` ist eines von `off`, `red`, `yellow`, `green`, `green_blink`, `red_yellow`, `yellow_blink`.
+`light` is one of `off`, `red`, `yellow`, `green`, `green_blink`, `red_yellow`, `yellow_blink`.
 
-### Bring your own lamp – Beispiel
+### Bring your own lamp – example
 
-Der Hue-Bewegungsmelder am Kellerabgang löst aus, während die Ampel Rot oder Gelb zeigt → das Stiegenlicht blinkt viermal in der passenden Farbe:
+The Hue motion sensor at the top of the stairs triggers while the traffic light shows red or yellow → the stair light blinks four times in the matching colour:
 
 ```yaml
-alias: Kellerabgang – Ampel-Warnung über Hue
+alias: Stairs – traffic light warning via Hue
 mode: single
 triggers:
   - trigger: state
-    entity_id: binary_sensor.kellerabgang_bewegung
+    entity_id: binary_sensor.stairs_motion
     to: "on"
 conditions:
   - condition: state
@@ -329,324 +336,336 @@ conditions:
     state: ["dnd", "working"]
 actions:
   - variables:
-      # Hue-Gelb wirkt grünlich – Orange liest sich als Ampel-Gelb
-      farbe: "{{ 'red' if is_state('sensor.office_traffic_light_status', 'dnd') else 'orange' }}"
+      # Hue yellow looks greenish – orange reads as traffic-light yellow
+      colour: "{{ 'red' if is_state('sensor.office_traffic_light_status', 'dnd') else 'orange' }}"
   - action: scene.create
     data:
-      scene_id: kellerabgang_vorher
-      snapshot_entities: [light.stiegenlicht]
+      scene_id: stairs_before
+      snapshot_entities: [light.stair_light]
   - repeat:
       count: 4
       sequence:
         - action: light.turn_on
-          target: { entity_id: light.stiegenlicht }
-          data: { color_name: "{{ farbe }}", brightness_pct: 100, transition: 0 }
+          target: { entity_id: light.stair_light }
+          data: { color_name: "{{ colour }}", brightness_pct: 100, transition: 0 }
         - delay: { milliseconds: 600 }
         - action: light.turn_off
-          target: { entity_id: light.stiegenlicht }
+          target: { entity_id: light.stair_light }
           data: { transition: 0 }
         - delay: { milliseconds: 400 }
   - action: scene.turn_on
-    target: { entity_id: scene.kellerabgang_vorher }
+    target: { entity_id: scene.stairs_before }
 ```
 
 ## Hardware
 
 ```mermaid
 flowchart LR
-  usb["USB-C 5 V"] --> chg["Lader mit Power-Path<br/>NTC · Safety-Timer"]
-  cell["18650 · 1S1P<br/>tauschbar"] --- prot["Akkuschutz<br/>Über-/Tiefentladung · Kurzschluss<br/>Verpolschutz · PTC"]
+  usb["USB-C 5 V"] --> chg["Charger with power path<br/>NTC · safety timer"]
+  cell["18650 · 1S1P<br/>replaceable"] --- prot["Cell protection<br/>over-charge/-discharge · short<br/>reverse polarity · PTC"]
   prot --- chg
-  chg -->|SYS| uvlo["Unterspannungs-<br/>Abschaltung"]
-  uvlo --> reg["Buck-Boost 3,3 V"]
+  chg -->|SYS| uvlo["Under-voltage<br/>cut-off"]
+  uvlo --> reg["Buck-boost 3.3 V"]
   reg --> mcu["ESP32-C6-MINI-1"]
-  uvlo --> led["LED-Treiber<br/>3 × MOSFET"]
+  uvlo --> led["LED driver<br/>3 × MOSFET"]
   mcu -->|PWM| led
-  led --> lamps["🔴 🟡 🟢<br/>1–2 LEDs je Kammer"]
-  mcu -->|SPI| epd["E-Ink 1,54″"]
-  mcu -->|I²C| gauge["Fuel Gauge"]
-  mcu -->|I²C| als["Lichtsensor"]
-  usb -->|USB-Serial/JTAG| mcu
+  led --> lamps["🔴 🟡 🟢<br/>1–2 LEDs per chamber"]
+  mcu -->|SPI| epd["E-ink 1.54″"]
+  mcu -->|I²C| gauge["Fuel gauge"]
+  mcu -->|I²C| als["Light sensor"]
+  usb -->|USB Serial/JTAG| mcu
 ```
 
-| Block | Kandidat | Warum |
+| Block | Candidate | Why |
 |---|---|---|
-| MCU | ESP32-C6-MINI-1 | WLAN 6 (TWT), BLE, natives USB zum Flashen, LP-Core |
-| Lader | BQ24074 (alternativ MCP73871) | Power-Path: Am USB läuft das System direkt vom Netzteil, der Akku wird zur USV. Dazu NTC-Eingang, Safety-Timer, Eingangs-Überspannungsschutz |
-| Akkuschutz | DW01A + FS8205A | Überladung, Tiefentladung, Überstrom/Kurzschluss |
-| Verpolschutz | P-MOSFET | falls die Zelle verkehrt eingelegt wird |
-| Unterspannungs-Abschaltung | Spannungswächter + Load-Switch | trennt bei ~3,0 V, schützt die Zelle bei langer Lagerung |
-| 3,3 V | Buck-Boost, z. B. TPS63802 | stabile 3,3 V über den ganzen Akkubereich, auch bei WLAN-Stromspitzen |
-| Fuel Gauge | MAX17048 | Akkustand in % + Entladerate → Restlaufzeit in HA |
-| Lichtsensor | VEML7700 | Helligkeitsautomatik, Nachtabsenkung |
-| LED-Treiber | 3 × N-MOSFET, PWM per LEDC | 1–2 SMD-LEDs pro Kammer, direkt auf der Platine. Die LEDs hängen an LP-GPIOs, damit notfalls der LP-Core im Deep Sleep blinken kann |
-| LEDs | Rot ~625 nm, Gelb/Amber ~590 nm, Grün ~520 nm (oder Signalgrün ~505 nm) | Einzelfarben wie bei der echten Ampel; ausgelegt auf 20 mA, im Betrieb gedimmt |
-| E-Ink | 1,54″ s/w, 200 × 200, SSD1681 (z. B. GDEY0154D67, ca. 32 × 37 mm) | Teil-Refresh; die Treiberschaltung sitzt auf unserer Platine, das Panel wird per FPC eingesteckt |
-| USB-C | CC-Widerstände 5,1 kΩ, ESD-Schutz (USBLC6) | Laden, Dauerstrom, Flashen |
-| Taster | Boot, Reset, Info | Info zeigt Akku/IP an; lang drücken = Setup-Modus |
+| MCU | ESP32-C6-MINI-1 | Wi-Fi 6 (TWT), BLE, native USB for flashing, LP core |
+| Charger | BQ24074 (alternatively MCP73871) | Power path: on USB the system runs directly from the supply and the cell becomes a UPS. Plus NTC input, safety timer, input over-voltage protection |
+| Cell protection | DW01A + FS8205A | over-charge, over-discharge, over-current/short |
+| Reverse polarity | P-MOSFET | in case the cell is inserted the wrong way |
+| Under-voltage cut-off | voltage supervisor + load switch | disconnects at ~3.0 V, protects the cell during long storage |
+| 3.3 V | buck-boost, e.g. TPS63802 | stable 3.3 V over the whole cell range, also during Wi-Fi current peaks |
+| Fuel gauge | MAX17048 | state of charge in % + discharge rate → runtime in HA |
+| Light sensor | VEML7700 | automatic brightness, night dimming |
+| LED driver | 3 × N-MOSFET, PWM via LEDC | 1–2 SMD LEDs per chamber, directly on the PCB. The LEDs sit on LP GPIOs so the LP core could blink them in deep sleep |
+| LEDs | red ~625 nm, yellow/amber ~590 nm, green ~520 nm (or signal green ~505 nm) | single colours like a real traffic light; rated for 20 mA, dimmed in operation |
+| E-ink | 1.54″ b/w, 200 × 200, SSD1681 (e.g. GDEY0154D67, approx. 32 × 37 mm) | partial refresh; the driver circuit sits on our PCB, the panel plugs into an FPC connector |
+| USB-C | 5.1 kΩ CC resistors, ESD protection (USBLC6) | charging, permanent power, flashing |
+| Buttons | boot, reset, info | info shows battery/IP; long press = setup mode |
 
-### Akku & Sicherheit
+### Battery & safety
 
-Gespeist wird aus vorhandenen 18650ern aus alten Vapes. Darum ist die Schutzbeschaltung Pflicht, nicht Kür:
+The light runs on used 18650 cells from old vapes. That makes the protection circuitry mandatory, not optional:
 
-| Schutz gegen | Umsetzung |
+| Protection against | Implementation |
 |---|---|
-| Überladung | Lader-IC mit sauberem CC/CV-Verfahren (4,2 V), dazu das Schutz-IC als zweite Instanz (~4,3 V) |
-| Tiefentladung | dreistufig: Firmware schaltet bei ~3,3 V ab und zeigt „Akku leer" am E-Ink → Hardware-Abschaltung bei ~3,0 V → Schutz-IC bei ~2,4 V |
-| Überstrom / Kurzschluss | Schutz-IC + rückstellende Sicherung (PTC) |
-| Temperatur | NTC an der Zelle – geladen wird nur zwischen 0 und 45 °C |
-| Verpolung | P-MOSFET |
-| Endlos-Laden | Safety-Timer im Lader-IC |
+| Over-charge | charger IC with proper CC/CV (4.2 V), plus the protection IC as a second line (~4.3 V) |
+| Over-discharge | three stages: firmware shuts down at ~3.3 V and shows "battery empty" on the e-ink → hardware cut-off at ~3.0 V → protection IC at ~2.4 V |
+| Over-current / short | protection IC + resettable fuse (PTC) |
+| Temperature | NTC at the cell – charging only between 0 and 45 °C |
+| Reverse polarity | P-MOSFET |
+| Endless charging | safety timer in the charger IC |
 
-**Zellen-Check vor dem Einsatz:**
+**Cell check before use:**
 
-- Wrap prüfen: Vape-Zellen haben oft Risse am Pluspol, das ist Kurzschlussgefahr. Neu wrappen kostet Cents.
-- Keine Dellen, Beulen oder Korrosion.
-- Zellen, die unter ~2 V gefallen sind, nicht mehr laden.
-- Kapazität und Innenwiderstand mit einem Analyse-Ladegerät messen, schwache Zellen aussortieren und beschriften.
-- Nur eine Zelle pro Gerät (1S1P). Parallele Zellen mit unterschiedlichem Ladezustand gibt's nicht.
+- Check the wrap: vape cells often have cracks at the positive terminal – a short-circuit risk. Re-wrapping costs cents.
+- No dents, bulges or corrosion.
+- Don't charge cells that fell below ~2 V.
+- Measure capacity and internal resistance with an analysing charger, sort out and label weak cells.
+- Only one cell per device (1S1P). No parallel cells with different states of charge.
 
-### Energiebudget
+### Energy budget
 
-Eine Schätzung – gemessen wird am Prototyp:
+An estimate – measured on the prototype:
 
-| Verbraucher | Annahme | mAh/Tag |
+| Consumer | Assumption | mAh/day |
 |---|---|---|
-| WLAN verbunden + Light Sleep, solange du im Büro bist | 2–5 mA × 10 h | 20–50 |
-| LEDs (eine Kammer, per Lichtsensor gedimmt) | 2–8 mA × 10 h | 20–80 |
-| Away-Modus: Deep Sleep, Abfrage alle 2 min | 14 h | 5–20 |
-| E-Ink, Sensoren, Ruheströme | – | 1–3 |
-| **Summe** | | **≈ 45–150** |
+| Wi-Fi connected + light sleep while you're in the office | 2–5 mA × 10 h | 20–50 |
+| LEDs (one chamber, dimmed via light sensor) | 2–8 mA × 10 h | 20–80 |
+| Away mode: deep sleep, poll every 2 min | 14 h | 5–20 |
+| E-ink, sensors, quiescent currents | – | 1–3 |
+| **Total** | | **≈ 45–150** |
 
-Bei ~2.000 mAh nutzbarer Kapazität einer gebrauchten 18650 ergibt das **≈ 2–6 Wochen** pro Ladung. Mit zwei Zellen im Wechsel (eine in der Ampel, eine im Ladegerät) dauert ein Tausch 30 Sekunden.
+With ~2,000 mAh usable capacity of a used 18650 that's **≈ 2–6 weeks** per charge. With two cells in rotation (one in the light, one in the charger) a swap takes 30 seconds.
 
-Die WLAN-Werte stützen sich auf [Espressifs Messungen](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32/api-guides/low-power-mode/low-power-mode-wifi.html): rund 2–3 mA im Light Sleep, gemessen am klassischen ESP32 im geschirmten Raum. Im echten Heimnetz ist es eher mehr.
+The Wi-Fi figures are based on [Espressif's measurements](https://docs.espressif.com/projects/esp-idf/en/v6.0/esp32/api-guides/low-power-mode/low-power-mode-wifi.html): around 2–3 mA in light sleep, measured on the classic ESP32 in a shielded room. A real home network will be worse.
 
-**Hebel, falls das nicht reicht:**
+**Levers if that's not enough:**
 
-- **LED-Helligkeit** ist der größte Einzelposten; im dunklen Gang reicht wenig.
-- **WLAN 6 mit TWT**, wenn der Router es kann.
-- **Längeres Abfrageintervall** im Away-Modus.
-- **Plan B: USB-Kabel aus dem Keller.** Dank Power-Path läuft die Ampel dann am Netzteil, und der Akku wird zur USV – ohne Umbau.
+- **LED brightness** is the biggest single item; a dark hallway needs little.
+- **Wi-Fi 6 with TWT**, if the router supports it.
+- **Longer poll interval** in away mode.
+- **Plan B: a USB cable from the basement.** Thanks to the power path the light then runs on the power supply and the cell becomes a UPS – no redesign.
 
-### Fertigung
+### Manufacturing
 
-- **KiCad**, 2 Lagen (4 Lagen optional für saubere Masse und HF).
-- **JLCPCB mit Bestückung:** Bauteile aus dem LCSC-Katalog, möglichst „Basic Parts" (Extended Parts kosten Rüstgebühr). Alternativen gleich im Schaltplan vermerken.
-- **Fertigungsdaten aus der CI** per KiBot: Gerber, Bohrdaten, BOM und Bestückungsliste im JLCPCB-Format, Schaltplan-PDF, iBOM.
-- **Handarbeit danach:** E-Ink-Panel ins FPC einstecken, Zelle einlegen. Eventuell den 18650-Halter anlöten – zwei THT-Lötstellen schafft jeder Lötkolben.
-- **Antenne:** Den Bereich des ESP32-C6-Moduls freihalten, also keine Masse und kein Akku darunter.
-- **Grobe Kosten:** siehe [Kosten](#kosten).
-- **Vorher kommt der Breadboard-Prototyp** aus fertigen Modulen ([Teileliste](docs/breadboard.md)). Die Teile sind in ein paar Tagen da, die Platine braucht Wochen. Die Firmware läuft so schon, bevor die Platine da ist, und die Strommessung hilft beim Schaltplan.
+- **KiCad**, 2 layers (4 layers optional for a clean ground and RF).
+- **JLCPCB with assembly:** parts from the LCSC catalogue, "basic parts" where possible (extended parts cost a setup fee). Note alternatives in the schematic right away.
+- **Production files from CI** via KiBot: Gerbers, drill files, BOM and placement file in JLCPCB format, schematic PDF, iBOM.
+- **Manual work afterwards:** plug the e-ink panel into the FPC, insert the cell. Maybe solder the 18650 holder – two THT joints any soldering iron can do.
+- **Antenna:** keep the ESP32-C6 module area clear: no ground and no cell underneath.
+- **Rough costs:** see [Costs](#costs).
+- **First comes the breadboard prototype** from ready-made modules ([parts list](docs/breadboard.md)). The parts arrive in a few days, the PCB takes weeks. The firmware runs before the PCB exists, and the current measurements inform the schematic.
 
-### Kosten
+### Costs
 
-Grobe Schätzung vor dem Schaltplan, Stand 2026-10-29, inkl. Versand und 20 % USt. Belastbar wird das erst mit fertiger BOM.
+Rough estimate before the schematic, as of 2026-10-29, incl. shipping and 20 % VAT. Reliable only with a finished BOM.
 
-**Entwicklung bis zur ersten Platine:**
+**Development up to the first PCB:**
 
-| Posten | ca. € |
+| Item | approx. € |
 |---|---|
-| Breadboard Stufe 1 (inkl. transparentem PETG) | 80–105 |
-| Breadboard Stufe 2 (Akku) | 40–55 |
-| Versand (BerryBase; DigiKey ab 50 € frei) | 5–10 |
-| Gehäuse-Filament dunkelgrau/schwarz, falls nicht vorhanden | 20–25 |
-| **bis vor die Platinenbestellung** | **≈ 150–200** |
-| erste JLCPCB-Bestellung (5 Platinen, 2 bestückt) + E-Ink-Panel | 90–130 |
-| optional: Nordic PPK2 – oder INA226-Logger für ~5 € (siehe [Teileliste](docs/breadboard.md)) | 100 / 5 |
+| Breadboard stage 1 (incl. transparent PETG) | 80–105 |
+| Breadboard stage 2 (battery) | 40–55 |
+| Shipping (BerryBase; DigiKey free from €50) | 5–10 |
+| Dark grey/black filament for the enclosure, if not at hand | 20–25 |
+| **before ordering the PCB** | **≈ 150–200** |
+| first JLCPCB order (5 PCBs, 2 assembled) + e-ink panel | 90–130 |
+| optional: Nordic PPK2 – or an INA226 logger for ~€5 (see [parts list](docs/breadboard.md)) | 100 / 5 |
 
-**Endprodukt pro Stück** (bestückte Platine, Panel, Filament, Schrauben; Zelle aus dem Bestand):
+**Finished light per unit** (assembled PCB, panel, filament, screws; cell from stock):
 
-| Bestellmenge bei JLCPCB | Platine pro Stück | Ampel gesamt |
+| JLCPCB order size | PCB per unit | Light in total |
 |---|---|---|
-| 2 bestückt (Einzel-Nachbau) | ~45–50 € | **~60–75 €** |
-| 5 bestückt (mit Freunden) | ~25 € | **~40–50 €** |
-| 30+ (Sammelbestellung/Kit) | ~13–15 € | **~25–35 €** |
+| 2 assembled (single build) | ~€45–50 | **~€60–75** |
+| 5 assembled (with friends) | ~€25 | **~€40–50** |
+| 30+ (group order/kit) | ~€13–15 | **~€25–35** |
 
-Bei kleinen Mengen dominieren die Fixkosten pro Bestellung: Rüstgebühr, ~3 $ je „Extended Part", Versand, Einfuhr. Die Bauteile selbst kosten nur ~10–14 $ pro Platine.
+At small quantities the fixed costs per order dominate: setup fee, ~$3 per "extended part", shipping, import. The parts themselves cost only ~$10–14 per board.
 
-**Hebel:**
+**Levers:**
 
-- Basic- statt Extended-Parts, wo es geht
-- Fuel Gauge weglassen (Spannung per ADC)
-- Fototransistor statt VEML7700
-- **Lite-Variante** ohne Akku: fertiges C6-Board + E-Ink-Modul + LEDs am USB-Netzteil, ~25–35 € plus Filament, gleiches Gehäuse
-- **„Bring your own lamp"** per HA/Hue kostet gar keine Hardware
+- basic instead of extended parts where possible
+- drop the fuel gauge (voltage via ADC)
+- phototransistor instead of VEML7700
+- **Lite variant** without battery: off-the-shelf C6 board + e-ink module + LEDs on a USB power supply, ~€25–35 plus filament, same enclosure
+- **"Bring your own lamp"** via HA/Hue needs no hardware at all
 
 ## Firmware
 
-**ESP-IDF in C.** Für Akkubetrieb mit Dauerverbindung braucht es automatischen Light Sleep und feine Kontrolle über den WLAN-Power-Save, und das kann ESPHome nicht. Für Nachbauten mit Netzteil gibt's trotzdem eine ESPHome-Beispielconfig.
+**ESP-IDF in C.** Battery operation with a permanent connection needs automatic light sleep and fine control over Wi-Fi power save, which ESPHome can't do. There will still be an ESPHome example config for mains-powered builds.
 
-| Modus | Wann | Verhalten |
+| Mode | When | Behaviour |
 |---|---|---|
-| Aktiv | du bist im Büro | WLAN bleibt verbunden (Light Sleep + Power-Save), MQTT-Dauerverbindung → ein Statuswechsel ist in ~1 s an der Ampel |
-| Away | PC gesperrt | LEDs aus, Deep Sleep, Abfrage alle 2 min (einstellbar). Nach dem Entsperren geht die Ampel spätestens dann wieder an |
-| Akku leer | unter der Abschaltschwelle | „Akku leer" aufs E-Ink, dann aus |
-| USB | Netzteil steckt | kein Stromsparen nötig, der Akku wird geladen bzw. gehalten |
+| Active | you're in the office | Wi-Fi stays connected (light sleep + power save), permanent MQTT connection → a state change reaches the light in ~1 s |
+| Away | PC locked | LEDs off, deep sleep, poll every 2 min (configurable). After unlocking, the light comes back on within that interval |
+| Battery empty | below the cut-off threshold | "battery empty" on the e-ink, then off |
+| USB | power supply connected | no power saving needed, the cell is charged or held |
 
-- **LEDs** über LEDC-Hardware-PWM: Dimmen, Blinken, Rot+Gelb. Die Ausgabe läuft im Light Sleep weiter (`LEDC_SLEEP_MODE_KEEP_ALIVE`; die passende Taktquelle am C6 ist noch zu verifizieren). Die Helligkeit gleicht die sinkende Akkuspannung aus.
-- **E-Ink:** zeigt die vom Hub gerenderte Bitmap. Die Stand-Zeit läuft per Teil-Refresh, regelmäßig kommt ein Voll-Refresh gegen Ghosting.
-- **Failsafe:** Meldet der Last Will den Hub als „offline" oder ist der Status zu alt, blinkt Gelb.
-- **Telemetrie:** Akku, Ladezustand, RSSI, Firmware. Das Gerät meldet sich per MQTT-Discovery selbst in HA an.
-- **Einrichtung im Browser:** [ESP Web Tools](https://esphome.github.io/esp-web-tools/) flasht über USB-C (Chrome/Edge, Web Serial) und übergibt per Improv die WLAN-Daten. Danach trägt man auf der Geräteseite den MQTT-Broker ein.
-- **OTA:** per MQTT angestoßen, Images aus den GitHub Releases, automatischer Rollback bei Fehlstart.
+- **LEDs** via LEDC hardware PWM: dimming, blinking, red+yellow. The output keeps running in light sleep (`LEDC_SLEEP_MODE_KEEP_ALIVE`; the right clock source on the C6 is still to be verified). Brightness compensates for the falling cell voltage.
+- **E-ink:** shows the bitmap rendered by the hub. The "last updated" time uses partial refresh, with a regular full refresh against ghosting.
+- **Failsafe:** if the Last Will reports the hub "offline" or the state is too old, yellow blinks.
+- **Telemetry:** battery, charging state, RSSI, firmware. The device announces itself in HA via MQTT discovery.
+- **Setup in the browser:** [ESP Web Tools](https://esphome.github.io/esp-web-tools/) flashes over USB-C (Chrome/Edge, Web Serial) and hands over the Wi-Fi credentials via Improv. Then you enter the MQTT broker on the device page.
+- **OTA:** triggered via MQTT, images from GitHub Releases, automatic rollback on a failed boot.
 
-## Gehäuse
+## Enclosure
 
 ```
    ┌─────────────┐
-   │  ╭───────╮  │  ← Schute
-   │  │  ROT  │  │
+   │  ╭───────╮  │  ← visor
+   │  │  RED  │  │
    │  ╰───────╯  │
    │  ╭───────╮  │
-   │  │ GELB  │  │
+   │  │YELLOW │  │
    │  ╰───────╯  │
    │  ╭───────╮  │
-   │  │ GRÜN  │  │
+   │  │ GREEN │  │
    │  ╰───────╯  │
    ├─────────────┤
-   │ E-Ink-Tafel │  ← Zusatztafel
+   │ e-ink sign  │  ← additional sign
    └──────┬──────┘
         USB-C
 ```
 
-- **Bauform:** Ampel-Miniatur mit drei Kammern und Schuten (Blendschirmen), darunter die E-Ink-Zusatztafel. Dunkelgrau oder schwarz wie das Original.
-- **Anforderung:** Die Ampelfarbe muss bei gedämpftem Tageslicht (innen, kein Fenster in der Nähe) über **5 m** erkennbar sein.
-- **Kompakt mit klassischen Proportionen.** Die Breite bestimmt das E-Ink-Panel: 1,54″ sind ca. 32 × 37 mm, mit Rahmen ergibt das **~45 mm**. Jede Kammer ist quadratisch, die Zusatztafel auch, so wie beim echten Signalgeber mit Zusatzschild. Alle Maße ca.:
+- **Form:** miniature traffic light with three chambers and visors, the e-ink sign below. Dark grey or black like the original.
+- **Requirement:** the colour must be recognisable over **5 m** in subdued daylight (indoors, no window nearby).
+- **Compact with classic proportions.** The e-ink panel sets the width: 1.54″ is approx. 32 × 37 mm, with a frame that's **~45 mm**. Every chamber is square, and so is the sign – like a real signal head with an additional sign. All dimensions approx.:
 
-  | Teil | Maße (B × H × T) | Anmerkung |
+  | Part | Size (W × H × D) | Note |
   |---|---|---|
-  | Kammer (3×) | 45 × 45 mm | Linse Ø ~30 mm, 1–2 LEDs dahinter |
-  | Zusatztafel | 45 × ~50 mm | E-Ink 1,54″ |
-  | Dach | 45 × ~5 mm | |
-  | **Gehäuse gesamt** | **~45 × 190 × 38 mm**, mit Schuten ~60 mm tief | eine Platine als Rückwand, 18650 stehend dahinter; ~150 g PETG + 45 g Zelle |
+  | Chamber (3×) | 45 × 45 mm | lens Ø ~30 mm, 1–2 LEDs behind it |
+  | Sign | 45 × ~50 mm | e-ink 1.54″ |
+  | Roof | 45 × ~5 mm | |
+  | **Enclosure total** | **~45 × 190 × 38 mm**, ~60 mm deep with visors | one PCB as the back wall, 18650 standing behind it; ~150 g PETG + 45 g cell |
 
-- **Sichtbarkeit nachgerechnet:**
-  - **Größe:** Eine 30-mm-Linse erscheint auf 5 m unter ~21 Bogenminuten. Eine echte 200-mm-Ampel auf 100 m sind nur ~7. Unsere Ampel wirkt also dreimal so groß wie eine echte Ampel auf 100 Meter.
-  - **Helligkeit:** Eine LED mit 5 mA (~0,3–0,5 lm) hinter 7 cm² Streuscheibe ergibt grob 100–150 cd/m². Das hebt sich im Innenraum klar ab, bei 20 mA wird es etwa viermal heller. Eine LED pro Kammer reicht also rechnerisch, den Rest regelt der Lichtsensor.
-  - **Nachmessen:** Der Breadboard-Test mit 5-mm-LEDs und Linsen-Testdrucken bestätigt das.
-- **Druck:** Das Gehäuse passt mit ~190 mm am Stück auf den MK3S (250 × 210 mm). Schuten, Linsen, Rückdeckel und Wandhalter sind eigene Teile.
-- **Platine als Rückwand:** ~40 × 175 mm, die LEDs sitzen direkt hinter den Kammern. Es braucht keine Kabel und keine Zusatzplatinen. Größer als 100 × 100 mm kostet bei JLCPCB nur ein paar Dollar mehr.
-- **Montage:** Bei ~200 g halten auch Klebestreifen. Auf der Stiege mit Kindern bleiben Schrauben oder Kabelbinder trotzdem die robustere Wahl.
-- **Größere Varianten** lassen sich über Parameter einstellen. Mit 2,13″ (ca. 59 × 29 mm) wird das Gehäuse ~70 mm breit und ~240 mm hoch, das ist auf dem MK3S knapp. Mit 2,9″ (ca. 79 × 37 mm) wird es ~100 mm breit und ~365 mm hoch. Das muss man in Kammern teilen, und Linsen mit 72 mm brauchen LED-Ringe.
-- **Linsen aus transparentem PETG**, als eigene flache Teile gedruckt, 0,8–1,2 mm dick, mit Streuscheiben-Struktur auf der Innenseite. Dazu:
-  - ein weißer Reflektor-Trichter hinter der Linse
-  - lichtdichte Trennwände, damit Rot nicht ins Gelb leuchtet
+- **Visibility, calculated:**
+  - **Size:** a 30 mm lens at 5 m subtends ~21 arcminutes. A real 200 mm traffic light at 100 m is only ~7. Our light looks three times as large as a real one at 100 metres.
+  - **Brightness:** one LED at 5 mA (~0.3–0.5 lm) behind 7 cm² of diffuser gives roughly 100–150 cd/m². That stands out clearly indoors; 20 mA is about four times brighter. One LED per chamber is enough on paper, the light sensor does the rest.
+  - **Verification:** the breadboard test with 5 mm LEDs and lens test prints confirms it.
+- **Printing:** at ~190 mm the enclosure fits the MK3S (250 × 210 mm) in one piece. Visors, lenses, back cover and wall mount are separate parts.
+- **PCB as the back wall:** ~40 × 175 mm, the LEDs sit directly behind the chambers. No cables, no extra boards. Larger than 100 × 100 mm costs only a few dollars more at JLCPCB.
+- **Mounting:** at ~200 g adhesive strips hold. On a staircase with kids, screws or cable ties are still the sturdier choice.
+- **Larger variants** via parameters. With 2.13″ (approx. 59 × 29 mm) the enclosure becomes ~70 mm wide and ~240 mm tall – tight on the MK3S. With 2.9″ (approx. 79 × 37 mm) it becomes ~100 mm wide and ~365 mm tall; it must be split into chambers, and 72 mm lenses need LED rings.
+- **Lenses in transparent PETG**, printed as separate flat parts, 0.8–1.2 mm thick, with a diffuser structure on the inside. Plus:
+  - a white reflector cone behind the lens
+  - light-tight walls so red doesn't bleed into yellow
 
-  Ein Linsen-Testdruck mit verschiedenen Stärken und Mustern zeigt, was am besten aussieht. Stärkere LEDs braucht es dafür nicht.
-- **Auf FDM und den Prusa MK3S optimiert**, also einfache Geometrie, die sich leicht drucken lässt:
-  - jedes Teil hat eine flache Seite fürs Druckbett und druckt **ohne Stützmaterial**
-  - Überhänge höchstens 45°, Brücken höchstens ~10 mm, liegende Bohrungen in Tropfenform
-  - am Druckbett Fasen statt Rundungen (kein Elefantenfuß-Problem)
-  - Wandstärken als Vielfache der Linienbreite (0,45 mm → 1,35 / 1,8 mm)
-  - Toleranzen als Parameter, kalibriert per Testdruck: ~0,2 mm für Schiebe-, ~0,1 mm für Presspassungen
-  - Schrauben (M2,5/M3) in gedruckte Dome oder Gewindeeinsätze, ansonsten Rastnasen
-  - ein Extruder: Linsen sind eigene Teile, Schrift und Logo kommen per Farbwechsel am Layer (M600)
-- **Rückseite:** Akkufach hinter der Platine, USB-C unten (Laden am Platz per Powerbank geht auch), Fenster für den Lichtsensor, Taster hinter Pin-Löchern. Die Antenne des ESP32-C6-Moduls sitzt am oberen Platinenrand, ohne Zelle dahinter.
-- **Wandhalter, abnehmbar** – eine eigene Platte mit
-  - Schlüssellöchern für Schrauben,
-  - glatter Fläche für ablösbare Klebestreifen (tesa Powerstrips, Command),
-  - Schlitzen für Kabelbinder.
+  A lens test print with different thicknesses and patterns shows what looks best. No stronger LEDs needed.
+- **Optimised for FDM and the Prusa MK3S**, i.e. simple geometry that prints easily:
+  - every part has a flat side for the bed and prints **without supports**
+  - overhangs at most 45°, bridges at most ~10 mm, horizontal holes as teardrops
+  - chamfers instead of fillets at the bed (no elephant-foot issues)
+  - wall thicknesses as multiples of the line width (0.45 mm → 1.35 / 1.8 mm)
+  - tolerances as parameters, calibrated by a test print: ~0.2 mm for sliding fits, ~0.1 mm for press fits
+  - screws (M2.5/M3) into printed bosses or heat-set inserts, otherwise snap fits
+  - single extruder: lenses are separate parts, text and logo via colour change at a layer (M600)
+- **Back:** battery compartment behind the PCB, USB-C at the bottom (charging in place from a power bank works too), window for the light sensor, buttons behind pin holes. The ESP32-C6 antenna sits at the top edge of the PCB with no cell behind it.
+- **Removable wall mount** – a separate plate with
+  - keyholes for screws,
+  - a smooth surface for removable adhesive strips (tesa Powerstrips, Command),
+  - slots for cable ties.
 
-  Die Ampel wird von oben eingehängt (Schwalbenschwanz + Rastnase) und zum Laden oder für den Zellentausch einfach abgehoben. Optional gibt's eine Mastschelle fürs Stiegengeländer.
-- **Parametrisch mit OpenSCAD + BOSL2:** Maßstab, Display-Größe, Halterungstyp und Toleranzen lassen sich einstellen. Die Dateien sind Customizer-kompatibel und passen damit auch zum OpenSCAD-Konfigurator auf MakerWorld.
+  The light hooks in from above (dovetail + snap) and lifts off for charging or swapping the cell. Optionally a clamp for the stair railing.
+- **Parametric with OpenSCAD + BOSL2:** scale, display size, mount type and tolerances are adjustable. The files are Customizer-compatible and therefore also work with the OpenSCAD configurator on MakerWorld.
 - **Iteration:**
-  1. Toleranz-Testdruck: Einhängung, Rastnase, Linsensitz, USB-C-Ausschnitt, Gewindeeinsätze
-  2. Linsen-Lichttest
-  3. Gehäuse v1 → Fotos → Anpassung
-- **Werkzeug:** eine aktuelle OpenSCAD-Version mit Manifold-Backend (bei Bedarf Snapshot/Nightly) – rendert um Größenordnungen schneller.
+  1. tolerance test print: hook-in, snap, lens seat, USB-C cut-out, inserts
+  2. lens light test
+  3. enclosure v1 → photos → adjustments
+- **Tooling:** a recent OpenSCAD with the Manifold backend (a snapshot/nightly if needed) – renders orders of magnitude faster.
 
-## Sicherheit & Datenschutz
+## Security & privacy
 
-- Alles läuft lokal. Die einzige externe Verbindung ist die Google Calendar API.
-- Der Companion schickt nur Ja/Nein-Signale und App-Namen, niemals Audio oder Video.
-- Termintitel bleiben im Hub. E-Ink, MQTT und HA sehen nur Kategorien wie „Meeting".
-- Eigene API-Tokens pro Client (Companion, Widget, Stream Deck, Webhooks), MQTT mit Benutzer und Passwort, TLS optional.
+- Everything runs locally. The only external connection is the Google Calendar API.
+- The companion only sends yes/no signals and app names, never audio or video.
+- Event titles stay in the hub. E-ink, MQTT and HA only see categories such as "meeting".
+- One API token per client (companion, widget, Stream Deck, webhooks), stored hashed; MQTT with user and password, TLS optional.
 
-## Open Source
+## Open source
 
 ```
 office-traffic-light/
-├── api/          OpenAPI-Spec – Vertrag zwischen allen Komponenten
-├── hub/          Go – Regel-Engine, API, Web-UI, MQTT, HA-Discovery, E-Ink-Rendering
-├── companion/    Go – Linux-Daemon: PipeWire, Sperre, Notifications, OAuth
-├── plasmoid/     QML – KDE-Plasma-6-Widget
-├── streamdeck/   TypeScript – Stream-Deck-Plugin (Elgato-SDK)
-├── firmware/     C – ESP-IDF; esphome/ mit Beispielconfig für Netzteil-Nachbauten
-├── hardware/     KiCad – Schaltplan, Layout, Fertigungsdaten
-├── enclosure/    OpenSCAD + BOSL2 – Gehäuse, Wandhalter, Testdrucke
-├── site/         Projekt-Homepage (GitHub Pages) inkl. Web-Flasher
-└── docs/         Doku, HA-Beispiele, Bauanleitung, Fotos
+├── api/          OpenAPI spec – the contract between all components
+├── hub/          Go – rule engine, API, web UI, MQTT, HA discovery, e-ink rendering
+├── companion/    Go – Linux daemon: PipeWire, lock, notifications, OAuth
+├── plasmoid/     QML – KDE Plasma 6 widget
+├── streamdeck/   TypeScript – Stream Deck plugin (Elgato SDK)
+├── firmware/     C – ESP-IDF; esphome/ with an example config for mains-powered builds
+├── hardware/     KiCad – schematic, layout, production files
+├── enclosure/    OpenSCAD + BOSL2 – enclosure, wall mount, test prints
+├── site/         project homepage (GitHub Pages) incl. web flasher
+└── docs/         docs, HA examples, build guide, photos
 ```
 
 - **CI/CD (GitHub Actions):**
-  - Hub als Multi-Arch-Docker-Image (amd64/arm64) nach GHCR
-  - Companion-Binaries, später ein AUR-Paket
-  - Widget als `.plasmoid` für den KDE Store
-  - Stream-Deck-Plugin-Paket
-  - Firmware-Build mit Web-Flasher auf GitHub Pages
-  - KiBot: Gerber, BOM/CPL für JLCPCB, Schaltplan-PDF, iBOM, 3D-Renders
-  - OpenSCAD: STL/3MF mit Vorschaubildern
-- **Lizenzen (Vorschlag):**
-  - Software: Apache-2.0
-  - Hardware und Gehäuse: CERN-OHL-S-2.0
-  - Doku: CC BY-SA 4.0
-- **Abgrenzung:** Busylights (Luxafor, Kuando), PresenceLight und unzählige „On Air"-Lampen zeigen meist nur „im Call ja/nein" am Schreibtisch. Hier geht's um die Familie: eine Ampel, die man aus der Ferne sieht, mit Zeitangaben, dazu eine Regel-Engine mit vielen Quellen und Failsafe, Linux first und akkutaugliche Open Hardware.
+  - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅ – later a multi-arch image (amd64/arm64) on GHCR
+  - companion binaries, later an AUR package
+  - widget as `.plasmoid` for the KDE Store
+  - Stream Deck plugin package
+  - firmware build with web flasher on GitHub Pages
+  - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
+  - OpenSCAD: STL/3MF with preview images
+- **Licences (proposal):**
+  - software: Apache-2.0
+  - hardware and enclosure: CERN-OHL-S-2.0
+  - docs: CC BY-SA 4.0
+- **How it differs:** busylights (Luxafor, Kuando), PresenceLight and countless "on air" lamps mostly show "in a call yes/no" at the desk. This one is for the family: a traffic light you can see from a distance, with times, a rule engine with many sources and a failsafe, Linux first, and battery-capable open hardware.
 
 ## Roadmap
 
-| Meilenstein | Inhalt |
+| Milestone | Content |
 |---|---|
-| **M0 – Software-Kern** | Hub (Override, Arbeitszeiten, Kalender, Regeln, MQTT/HA), Companion, Plasma-Widget. Als Ampel dient vorerst eine Hue-Lampe über HA → 1–2 Wochen Familientest, ganz ohne neue Hardware |
-| **M1a – Breadboard** | [Prototyp aus fertigen Modulen](docs/breadboard.md): Firmware, LEDs + Linsen-Test, E-Ink, Strommessung, danach Akku-Betrieb. Läuft parallel zu M0 |
-| **M1b – Platine + Gehäuse v1** | KiCad-Schaltplan + Layout + Review auf Basis der Messwerte, Bestellung bei JLCPCB, Toleranz-Testdrucke, Gehäuse v1 |
-| **M2 – Feinschliff** | Strommessung und Optimierung (Light Sleep, Away-Modus, TWT), E-Ink-Layouts, Stream-Deck-Plugin, Web-Flasher, OTA |
-| **M3 – Release** | Englische Doku, CI, KDE Store, Printables/MakerWorld, Docker-Image, optional OSHWA-Zertifizierung |
+| **M0 – software core** | Hub (override, working hours, calendar, rules, MQTT/HA) ✅ in review, then companion and Plasma widget. A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
+| **M1a – breadboard** | [Prototype from ready-made modules](docs/breadboard.md): firmware, LEDs + lens test, e-ink, current measurement, then battery operation. Runs in parallel to M0 |
+| **M1b – PCB + enclosure v1** | KiCad schematic + layout + review based on the measurements, JLCPCB order, tolerance test prints, enclosure v1 |
+| **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin, web flasher, OTA |
+| **M3 – release** | CI, KDE Store, Printables/MakerWorld, Docker image, optional OSHWA certification |
 
-## Offene Fragen
+## Open questions
 
-1. **Montageort:** Fotos von Kellerabgang und Gang. Wie lang ist die Sichtlinie? Davon hängen LED-Helligkeit und Gehäusegröße ab.
-2. **Kalender:** Kann das Spiegel-Script Meetings markieren? Welche Kalender soll der Hub lesen?
-3. **Fokus:** Ist die Pomodoro-Arbeitsphase Gelb oder Rot?
-4. **Sperre vs. Override:** Soll das Sperren des PCs einen laufenden manuellen Override beenden? Vorschlag: nein, Overrides laufen ohnehin ab.
-5. **E-Ink:** 1,54″ (entschieden 2026-10-29). Am Breadboard prüfen, ob der Text oben an der Stiege gut lesbar ist.
-6. **Zellen:** Welche 18650er sind es (Typ, Alter)? Gibt's ein Ladegerät mit Kapazitätstest?
-7. **Router:** Kann er WLAN 6 mit TWT (Hersteller/Modell)?
-8. **Homelab:** Gibt's einen Reverse Proxy mit HTTPS-Domain? Für OAuth nicht mehr nötig (Desktop-Client + Loopback), aber angenehm für Web-UI und PWA.
-9. **Lizenzen** bestätigen. Bis eine `LICENSE`-Datei im Repo liegt, darf rechtlich niemand den Code weiterverwenden.
-10. **Projekt-Domain:** welche Domain für die Homepage (nötig fürs Google-OAuth-Branding)?
+1. **Mounting spot:** photos of the stairs and hallway. How long is the line of sight? It drives LED brightness and enclosure size.
+2. **Calendar:** can the mirroring script mark meetings? Which calendars should the hub read?
+3. **Focus:** is the pomodoro work phase yellow or red? (Hub default: yellow, configurable per timer.)
+4. **Lock vs. override:** should locking the PC end a running manual override? Current behaviour: no – an override (priority 1) wins and ends on its own.
+5. **E-ink:** 1.54″ (decided 2026-10-29). Check on the breadboard whether the text is readable from the top of the stairs.
+6. **Cells:** which 18650s are they (type, age)? Is there a charger with capacity test?
+7. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
+8. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but nice for the web UI and PWA.
+9. **Licences:** confirm. Until a `LICENSE` file is in the repo, nobody may legally reuse the code.
+10. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
+11. **Unclassified calendar events:** `dnd` (current default) or `working`? Depends on whether the mirroring script can mark meetings (question 2).
+12. **Last call while yellow:** currently green blinks only when the light is green before a meeting. Should yellow blink too (it is reserved for the failsafe today)?
 
-## Risiken
+## Risks
 
-| Risiko | Gegenmaßnahme |
+| Risk | Mitigation |
 |---|---|
-| Reale Akkulaufzeit (Heimnetz-Broadcasts, LED-Helligkeit) | früh am Devboard messen; Plan B (USB) ist eingebaut |
-| LEDC-Ausgabe im Light Sleep am C6 | früh verifizieren; Fallback: LED-Treiber-IC mit eigener PWM |
-| Gebrauchte Zellen | konsequent prüfen und aussortieren |
-| Fehlalarme bei der Mikro-Erkennung | Ignore-Liste, „Falsch erkannt"-Aktion in der Notification |
-| Google-OAuth ist fummelig | Schritt-für-Schritt-Anleitung mit Screenshots; iCal-Adresse als Fallback |
-| Teile bei JLCPCB/LCSC nicht lieferbar | Alternativen im Schaltplan vermerken |
-| Plugin läuft nicht sauber in OpenDeck | früh testen; Fallback: StreamController-Plugin |
+| Real battery life (home network broadcasts, LED brightness) | measure early on the dev board; plan B (USB) is built in |
+| LEDC output in light sleep on the C6 | verify early; fallback: LED driver IC with its own PWM |
+| Used cells | check and sort out consistently |
+| False alarms from microphone detection | ignore list, "wrong detection" action in the notification |
+| Google OAuth is fiddly | step-by-step guide with screenshots; iCal address as fallback |
+| Parts not available at JLCPCB/LCSC | note alternatives in the schematic |
+| Plugin doesn't run cleanly in OpenDeck | test early; fallback: StreamController plugin |
 
-## Entscheidungslog
+## Decision log
 
-| Datum | Entscheidung | Grund |
+| Date | Decision | Reason |
 |---|---|---|
-| 2026-10-27 | Projektstart als Brainstorming | – |
-| 2026-10-28 | Eine Ampel am Kellerabgang statt zwei | dort fällt die Entscheidung |
-| 2026-10-28 | WLAN + MQTT statt ESP-NOW/Thread | WLAN überall gut, Broker und HA vorhanden |
-| 2026-10-28 | LEDs leuchten dauerhaft, solange du im Büro bist; kein Bewegungsmelder | Fernsicht vom Gang |
-| 2026-10-28 | E-Ink mit absoluten Zeiten statt LED-Countdown | Strom; kein Sensor nötig |
-| 2026-10-28 | 18650-Akku + USB-C mit Power-Path | vorhandene Zellen; Plan B Dauerstrom ohne Umbau |
-| 2026-10-28 | Kein Klopf-Knopf, kein eigenes Bedienpult | WhatsApp; Stream Deck + Widget |
-| 2026-10-28 | HA: nur Entities + Trigger | Automationen baut man sich selbst |
-| 2026-10-28 | Claude-Code-Hooks nur optional | als Arbeits-Signal unzuverlässig |
-| 2026-10-28 | Platine mit Bestückung (JLCPCB), Gehäuse in OpenSCAD | kein SMD-Löten möglich; Wunsch |
-| 2026-10-28 | Go (Hub/Companion), C/ESP-IDF (Firmware) | Single Binary + Docker; volle Kontrolle übers Stromsparen |
-| 2026-10-29 | Linsen aus transparentem PETG | sieht am echtesten aus, wenig Lichtverlust |
-| 2026-10-29 | Gehäuse nur wenig größer als die Elektronik, auf FDM optimiert | kompakt, leicht zu drucken, einfache Geometrie |
-| 2026-10-29 | Erster Prototyp auf dem Breadboard, Platine danach | Module sind in Tagen da, die Platine in Wochen; Messwerte fließen in den Schaltplan |
-| 2026-10-29 | Google: Projekt-Homepage mit eigener Domain; zuerst eigener Client, später gemeinsamer verifizierter Projekt-Client (Companion-Loopback + Redirect-Weiche à la Home Assistant) | Google verlangt fürs Veröffentlichen Homepage, Datenschutz und Nutzungsbedingungen; im Testing laufen Tokens nach 7 Tagen ab |
-| 2026-10-29 | Projekt-Homepage auf GitHub Pages, ohne Backend | OAuth-Branding, Doku, Web-Flasher, Redirect-Weiche |
-| 2026-10-29 | E-Ink 1,54″ statt 2,9″, kompakte Ampel ~45 × 190 mm | 5 m Erkennbarkeit reichen mit 30-mm-Linsen; druckt am Stück, eine LED pro Kammer, eine Platine; billiger. (Kurz verworfen: große Ampel 100 × 365 mm mit 2,9″ – drei Druckteile, LED-Ringe, mehr Strom) |
-| 2026-10-29 | Repo öffentlich ab Tag 1 | man soll dem Projekt beim Entstehen zusehen können |
+| 2026-10-27 | Project start as a brainstorm | – |
+| 2026-10-28 | One light at the top of the stairs instead of two | that's where the decision is made |
+| 2026-10-28 | Wi-Fi + MQTT instead of ESP-NOW/Thread | Wi-Fi is good everywhere, broker and HA exist |
+| 2026-10-28 | LEDs stay on while you're in the office; no motion sensor | visible from the hallway |
+| 2026-10-28 | E-ink with absolute times instead of an LED countdown | power; no sensor needed |
+| 2026-10-28 | 18650 cell + USB-C with power path | cells at hand; plan B permanent power without redesign |
+| 2026-10-28 | No knock button, no dedicated control desk | WhatsApp; Stream Deck + widget |
+| 2026-10-28 | HA: entities + triggers only | everyone builds their own automations |
+| 2026-10-28 | Claude Code hooks only optional | unreliable as a work signal |
+| 2026-10-28 | Assembled PCB (JLCPCB), enclosure in OpenSCAD | no SMD soldering possible; preference |
+| 2026-10-28 | Go (hub/companion), C/ESP-IDF (firmware) | single binary + Docker; full control over power saving |
+| 2026-10-29 | Lenses in transparent PETG | looks most real, little light loss |
+| 2026-10-29 | Enclosure only slightly larger than the electronics, optimised for FDM | compact, easy to print, simple geometry |
+| 2026-10-29 | First prototype on a breadboard, PCB afterwards | modules arrive in days, the PCB in weeks; measurements feed the schematic |
+| 2026-10-29 | Google: project homepage with its own domain; first an own client, later a shared verified project client (companion loopback + redirect relay à la Home Assistant) | Google requires homepage, privacy policy and terms to publish; in Testing tokens expire after 7 days |
+| 2026-10-29 | Project homepage on GitHub Pages, no backend | OAuth branding, docs, web flasher, redirect relay |
+| 2026-10-29 | E-ink 1.54″ instead of 2.9″, compact light ~45 × 190 mm | 5 m recognition works with 30 mm lenses; prints in one piece, one LED per chamber, one PCB; cheaper. (Briefly considered: a large 100 × 365 mm light with 2.9″ – three print parts, LED rings, more power) |
+| 2026-10-29 | Repo public from day one | people should be able to follow the project as it grows |
+| 2026-10-29 | Everything on GitHub in English | open source / open hardware for an international audience |
+| 2026-10-29 | Hub: SSE instead of WebSocket for live updates | one-way stream is enough, works through every proxy, trivial in QML/TypeScript/curl |
+| 2026-10-29 | Hub: pure-Go SQLite (modernc), distroless static image (~26 MB) | no cgo, easy multi-arch builds |
+| 2026-10-29 | Hub: API tokens created via CLI (`otl-hub token create`), stored as SHA-256 | no default password; tokens are 256-bit random |
+| 2026-10-29 | Hub: unknown slot ends stay `null` (call without calendar entry, locked screen); a call during a calendar meeting is assumed to end with the meeting | honest instead of guessed times on the e-ink and in HA |
+| 2026-10-29 | Hub: unclassified calendar events count as `dnd` by default | mirrored events lose attendees; red is the safer guess (open question 11) |
+| 2026-10-29 | Hub: last call only from green, ending soon only if yellow or green follows | follows the StVO meaning (red+yellow → green is coming) |
+| 2026-10-29 | Hub: override and focus timer replace each other | one manual source at a time is easier to understand |
+| 2026-10-29 | Hub: HA device-based discovery with `default_entity_id`; battery/charging come from the light itself | stable entity IDs; each device announces what it measures |
+| 2026-10-29 | Hub: e-ink rendering not part of M0, `display` topic reserved | the display (1.54″) and firmware come later |

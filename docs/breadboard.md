@@ -1,77 +1,77 @@
-# Breadboard-Prototyp & Teileliste
+# Breadboard prototype & parts list
 
-Der erste Hardware-Prototyp entsteht aus fertigen Modulen auf dem Breadboard – ganz ohne SMD-Löten. Die Teile sind in wenigen Tagen da, die Platine von JLCPCB dauert Wochen. Was wir hier messen (Strom, Helligkeit, Pinbelegung), fließt direkt in den Schaltplan.
+The first hardware prototype is built from ready-made modules on a breadboard – no SMD soldering at all. The parts arrive within days; the PCB from JLCPCB takes weeks. What we measure here (current, brightness, pin assignment) feeds directly into the schematic.
 
-> Stand 2026-10-29. Preise sind grobe Richtwerte; Verfügbarkeit vor der Bestellung im Shop prüfen.
+> As of 2026-10-29. Prices are rough guidelines; check availability in the shop before ordering. Shop recommendations assume delivery to Austria.
 
-## Zwei Ausbaustufen
+## Two stages
 
-| Stufe | Versorgung | Ziel |
+| Stage | Power | Goal |
 |---|---|---|
-| **1 – Firmware & Optik** | USB-C vom PC | Sichtbarkeit auf 5 m (eine LED hinter 30-mm-Linse), WLAN + MQTT, LEDs per LEDC-PWM (auch im Light Sleep – das größte technische Risiko), E-Ink mit Teil-Refresh, Lichtsensor, Linsen-Testdrucke, Strommessung am Modul |
-| **2 – Akku** | 18650 über Lader + Schutz | Power-Path (USB rein/raus im Betrieb), Fuel Gauge, Tiefentladeschutz, echte Laufzeit, Grün bei niedriger Akkuspannung |
+| **1 – firmware & optics** | USB-C from the PC | visibility at 5 m (one LED behind a 30 mm lens), Wi-Fi + MQTT, LEDs via LEDC PWM (also in light sleep – the biggest technical risk), e-ink with partial refresh, light sensor, lens test prints, module current measurement |
+| **2 – battery** | 18650 via charger + protection | power path (plug/unplug USB while running), fuel gauge, over-discharge protection, real runtime, green LED at low cell voltage |
 
-**Messung:** Das ESP32-C6-DevKitC-1 hat den Jumper **J5**. Zieht man ihn ab und hängt ein Amperemeter dazwischen, misst man nur den Strom des Moduls, ohne USB-Chip und Power-LED des Boards.
+**Measuring:** the ESP32-C6-DevKitC-1 has jumper **J5**. Pull it and put an ammeter in its place to measure only the module current, without the board's USB chip and power LED.
 
-**Tipp für Stufe 1:** Die LED-Schiene an 3,3 V statt 5 V hängen. Das entspricht ungefähr der Akkuspannung kurz vor der Abschaltung, also dem schlechtesten Fall für die grüne LED (Durchlassspannung ~2,7–3,0 V).
+**Tip for stage 1:** feed the LED rail from 3.3 V instead of 5 V. That is roughly the cell voltage just before cut-off, i.e. the worst case for the green LED (forward voltage ~2.7–3.0 V).
 
-## Teileliste
+## Parts list
 
-### Stufe 1 – Firmware & Optik
+### Stage 1 – firmware & optics
 
-| # | Teil | Menge | Hersteller-Nr. / Hinweis | ca. € |
+| # | Part | Qty | Manufacturer no. / note | approx. € |
 |---|---|---|---|---|
-| 1 | **ESP32-C6-DevKitC-1** (8 MB Flash) | 2 | Espressif `ESP32-C6-DEVKITC-1-N8` – eins als Ersatz bzw. für Tests mit Netzteil | 2 × 10 |
-| 2 | **1,54″-E-Paper-Modul** s/w, 200 × 200, SPI, mit Treiberplatine | 1 | Waveshare „1.54inch e-Paper Module", Version **V2** (Controller SSD1681, wie auf der späteren Platine) | 12–15 |
-| 3 | **Lichtsensor VEML7700**, STEMMA QT | 1 | Adafruit `4162` | 5 |
-| 4 | **N-MOSFET**, Logic-Level, THT | 3 (+2) | Infineon `IRLB8721PBF` (schaltet sicher mit 3,3 V am Gate) | 5 |
-| 5 | **LEDs 5 mm**, hell, breiter Abstrahlwinkel | je 10 | Rot ~625 nm, Gelb/Amber ~590 nm, Grün ~520 nm – eine pro Kammer, der Rest für Helligkeits- und Linsenvergleiche | 5 |
-| 6 | **Widerstands-Sortiment** E12, ¼ W | 1 | für LED-Vorwiderstände (47–330 Ω) und Gate-Pulldowns (10 kΩ) | 5–10 |
-| 7 | **Taster** 6 × 6 mm | 5 | Info-Taster, Experimente | 1 |
-| 8 | **Breadboard** 830 Kontakte | 2 | Das DevKit ist breit – mit zwei Boards nebeneinander bleiben auf beiden Seiten Kontakte frei | 2 × 5 |
-| 9 | **Jumper-Kabel** m-m und m-f | je 1 Set | | 2 × 4 |
-| 10 | **STEMMA-QT-Kabel** auf Stiftleiste | 2 | Adafruit `4209` – für VEML7700 und später MAX17048 | 2 × 1 |
-| 11 | **USB-C-Datenkabel** | 1 | falls keines herumliegt | – |
-| 12 | **Filament: PETG transparent** | 1 Rolle | für Linsen | 20–30 |
+| 1 | **ESP32-C6-DevKitC-1** (8 MB flash) | 2 | Espressif `ESP32-C6-DEVKITC-1-N8` – one as a spare or for tests on mains power | 2 × 10 |
+| 2 | **1.54″ e-paper module** b/w, 200 × 200, SPI, with driver board | 1 | Waveshare "1.54inch e-Paper Module", version **V2** (SSD1681 controller, as on the later PCB) | 12–15 |
+| 3 | **VEML7700 light sensor**, STEMMA QT | 1 | Adafruit `4162` | 5 |
+| 4 | **N-MOSFET**, logic level, THT | 3 (+2) | Infineon `IRLB8721PBF` (switches reliably with 3.3 V at the gate) | 5 |
+| 5 | **5 mm LEDs**, bright, wide viewing angle | 10 each | red ~625 nm, yellow/amber ~590 nm, green ~520 nm – one per chamber, the rest for brightness and lens comparisons | 5 |
+| 6 | **Resistor assortment** E12, ¼ W | 1 | LED series resistors (47–330 Ω) and gate pull-downs (10 kΩ) | 5–10 |
+| 7 | **Push buttons** 6 × 6 mm | 5 | info button, experiments | 1 |
+| 8 | **Breadboard** 830 points | 2 | the DevKit is wide – with two boards side by side, contacts stay free on both sides | 2 × 5 |
+| 9 | **Jumper wires** m-m and m-f | 1 set each | | 2 × 4 |
+| 10 | **STEMMA QT cable** to pin header | 2 | Adafruit `4209` – for VEML7700 and later MAX17048 | 2 × 1 |
+| 11 | **USB-C data cable** | 1 | if none is lying around | – |
+| 12 | **Filament: transparent PETG** | 1 spool | for the lenses | 20–30 |
 
-### Stufe 2 – Akku
+### Stage 2 – battery
 
-| # | Teil | Menge | Hersteller-Nr. / Hinweis | ca. € |
+| # | Part | Qty | Manufacturer no. / note | approx. € |
 |---|---|---|---|---|
-| 13 | **Lader mit Power-Path** | 1 | Adafruit `4755` („Universal USB/DC/Solar Lithium Ion/Polymer charger – bq24074"), derselbe Lader-IC wie auf der Platine | 15–20 |
-| 14 | **Fuel Gauge MAX17048**, STEMMA QT | 1 | Adafruit `5580` | 6–8 |
-| 15 | **1S-Schutzplatine** DW01A + 8205A | 2 | generisch, „1S 3,7 V Li-Ion BMS / Protection Board" – die Vape-Zellen haben keinen eingebauten Schutz | 2 × 1 |
-| 16 | **18650-Halter** mit Kabeln | 2 | einzeln, kein Doppelhalter | 2 × 2 |
-| 17 | **Buck-Boost 3,3 V** | 1 | z. B. Pololu `S7V8F3` (2,7–11,8 V → 3,3 V). Speist das DevKit über den 3V3-Pin – dann *kein* USB am DevKit anstecken | 10–15 |
-| 18 | **NTC 10 kΩ** (B ≈ 3435) | 1 | optional, für die Ladetemperatur-Überwachung am bq24074 | 1 |
+| 13 | **Charger with power path** | 1 | Adafruit `4755` ("Universal USB/DC/Solar Lithium Ion/Polymer charger – bq24074"), the same charger IC as on the PCB | 15–20 |
+| 14 | **MAX17048 fuel gauge**, STEMMA QT | 1 | Adafruit `5580` | 6–8 |
+| 15 | **1S protection board** DW01A + 8205A | 2 | generic "1S 3.7 V Li-ion BMS / protection board" – the vape cells have no built-in protection | 2 × 1 |
+| 16 | **18650 holder** with leads | 2 | single, not a double holder | 2 × 2 |
+| 17 | **Buck-boost 3.3 V** | 1 | e.g. Pololu `S7V8F3` (2.7–11.8 V → 3.3 V). Feeds the DevKit via its 3V3 pin – then do *not* plug USB into the DevKit | 10–15 |
+| 18 | **NTC 10 kΩ** (B ≈ 3435) | 1 | optional, for charge temperature monitoring on the bq24074 | 1 |
 
-### Optional – fürs genaue Messen
+### Optional – for precise measurements
 
-| Teil | Hinweis | ca. € |
+| Part | Note | approx. € |
 |---|---|---|
-| **INA226-Modul** mit 0,1-Ω-Shunt – die Sparvariante | Hängt zwischen Versorgung und Prototyp. Das zweite DevKit liest den Strom ein paar hundert Mal pro Sekunde aus und schickt ihn per MQTT ins Homelab, z. B. nach Grafana. Einzelne WLAN-Beacons sieht man damit nicht, aber Mittelwerte im mA-Bereich und mAh pro Tag – und das reicht fürs Energiebudget. Nebenbei entsteht ein eigenes kleines Open-Source-Werkzeug | ~5 |
-| **Nordic Power Profiler Kit II** (`NRF-PPK2`) – die Luxusvariante | Misst von µA bis 1 A mit hoher Abtastrate. Damit sieht man jeden WLAN-Beacon, jeden Light-Sleep-Zyklus und jeden E-Ink-Refresh einzeln | ~100 |
+| **INA226 module** with 0.1 Ω shunt – the budget option | Sits between supply and prototype. The second DevKit reads the current a few hundred times per second and sends it via MQTT to the homelab, e.g. to Grafana. It won't show individual Wi-Fi beacons, but averages in the mA range and mAh per day – enough for the energy budget. As a bonus it becomes a small open-source tool of its own | ~5 |
+| **Nordic Power Profiler Kit II** (`NRF-PPK2`) – the deluxe option | Measures from µA to 1 A at a high sample rate: every Wi-Fi beacon, every light-sleep cycle and every e-ink refresh individually | ~100 |
 
-**Summe:** Stufe 1 ca. 80–105 € (inkl. Filament), Stufe 2 ca. 40–55 €, ohne PPK2.
+**Total:** stage 1 approx. €80–105 (incl. filament), stage 2 approx. €40–55, without PPK2.
 
-## Wo bestellen (Lieferung nach Österreich)
+## Where to order (delivery to Austria)
 
-| Shop | Wofür | Warum |
+| Shop | For | Why |
 |---|---|---|
-| **[DigiKey.at](https://www.digikey.at)** – Hauptbestellung | Espressif, Adafruit, MOSFETs, LEDs, Widerstände, Breadboards, Kabel, PPK2 | Ab 50 € versandkostenfrei, meist in ~2 Tagen da. Mit **UPS** als Versandart sind Zoll und Einfuhrabgaben schon bezahlt (DDP) |
-| **[BerryBase](https://www.berrybase.de)** (DE) | Waveshare-E-Paper; führt auch den Adafruit bq24074 | EU-Versand ohne Zoll; Waveshare ist hier gut sortiert |
-| [reichelt.at](https://www.reichelt.at) | Alternative für die Basics (Breadboard, Kabel, LEDs, Widerstände, Taster) | österreichischer Shop eines deutschen Händlers, schnell; Espressif/Adafruit-Sortiment nicht geprüft |
-| Pimoroni (UK) | – | Seit dem Brexit mit Zoll-Abwicklung, seit Juli 2026 dazu eine EU-Pauschale pro Warenart. Lohnt sich nur für Pimoroni-eigene Produkte |
-| Mouser | – | liefert Adafruit-Produkte nicht an Privatkunden in der EU |
-| Generische Teile (15, 16) | BerryBase, Amazon oder AliExpress | Cent-Artikel, überall zu haben |
+| **[DigiKey.at](https://www.digikey.at)** – main order | Espressif, Adafruit, MOSFETs, LEDs, resistors, breadboards, cables, PPK2 | free shipping from €50, usually there in ~2 days. With **UPS** as carrier, duties and import fees are prepaid (DDP) |
+| **[BerryBase](https://www.berrybase.de)** (DE) | Waveshare e-paper; also stocks the Adafruit bq24074 | EU shipping without customs; good Waveshare selection |
+| [reichelt.at](https://www.reichelt.at) | alternative for the basics (breadboard, wires, LEDs, resistors, buttons) | Austrian shop of a German distributor, fast; Espressif/Adafruit range not checked |
+| Pimoroni (UK) | – | customs handling since Brexit, plus an EU flat fee per item type since July 2026. Only worth it for Pimoroni's own products |
+| Mouser | – | does not ship Adafruit products to private customers in the EU |
+| Generic parts (15, 16) | BerryBase, Amazon or AliExpress | cent items, available everywhere |
 
-## Sicherheit beim Akku-Aufbau (Stufe 2)
+## Safety for the battery build (stage 2)
 
-- Die Zelle hängt **immer** hinter einer Schutzplatine, auch auf dem Breadboard.
-- Zellen vorher prüfen (siehe [README → Zellen-Check](../README.md#akku--sicherheit)).
-- Die ersten Ladezyklen nicht unbeaufsichtigt laufen lassen, Aufbau auf eine nicht brennbare Unterlage (Fliese) stellen.
-- Breadboard-Kontakte vertragen nur ~1 A. Der Akku-Pfad (Zelle → Schutz → Lader) wird darum mit Klemmen oder gelöteten Litzen verbunden, nicht übers Breadboard.
+- The cell is **always** behind a protection board, also on the breadboard.
+- Check cells beforehand (see [README → Battery & safety](../README.md#battery--safety)).
+- Don't leave the first charge cycles unattended; put the build on a non-flammable surface (a tile).
+- Breadboard contacts only handle ~1 A. Wire the battery path (cell → protection → charger) with terminals or soldered leads, not through the breadboard.
 
-## Danach
+## Next
 
-Die Pinbelegung legen wir beim Firmware-Start fest. Dabei sind die Strapping-Pins des C6 zu beachten, und die LEDs kommen auf LP-GPIOs. Die Belegung landet dann als Tabelle und Fritzing-artige Skizze in `firmware/`.
+The pin assignment is fixed when the firmware starts. It has to respect the C6 strapping pins, and the LEDs go on LP GPIOs. The assignment then lands as a table and a Fritzing-style sketch in `firmware/`.
