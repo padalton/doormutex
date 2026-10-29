@@ -31,6 +31,7 @@ import (
 	"github.com/padalton/doormutex/hub/internal/mqttpub"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/store"
+	"github.com/padalton/doormutex/hub/internal/web"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -158,9 +159,11 @@ func serve(args []string) error {
 		go p.Svc.Run(ctx, time.Second, time.Duration(cfg.CalendarPoll))
 	}
 
+	handler := api.New(profiles, st, log)
+	handler.Mount("GET /", web.Handler())
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.New(profiles, st, log),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}

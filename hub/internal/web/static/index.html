@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1d22">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="doormutex">
+<title>doormutex</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<header>
+  <h1>doormutex</h1>
+  <select id="profile" aria-label="Profile" hidden></select>
+  <span id="live" class="live" title="Live connection">●</span>
+</header>
+
+<section id="login" hidden>
+  <h2>Connect</h2>
+  <p>Paste an API token from <code>doormutex-hub token create &lt;name&gt; [&lt;profile&gt;]</code>. It stays on this device.</p>
+  <form id="login-form">
+    <input id="token" type="password" autocomplete="off" placeholder="dm_…" required>
+    <button type="submit">Connect</button>
+  </form>
+  <p id="login-error" class="error" role="alert"></p>
+</section>
+
+<main id="app" hidden>
+  <nav>
+    <button data-tab="now" class="active">Now</button>
+    <button data-tab="day">Day</button>
+    <button data-tab="settings">Settings</button>
+    <button data-tab="history">History</button>
+  </nav>
+
+  <section id="tab-now" class="tab">
+    <div class="now">
+      <div class="light" id="light" aria-live="polite">
+        <span class="lamp red"></span><span class="lamp yellow"></span><span class="lamp green"></span>
+      </div>
+      <div class="status">
+        <p class="big" id="status-text">…</p>
+        <p id="status-until"></p>
+        <p id="status-reason" class="muted"></p>
+        <p id="status-next" class="muted"></p>
+        <p id="status-message" class="message" hidden></p>
+      </div>
+    </div>
+
+    <h2>Override</h2>
+    <div class="chips" id="durations" role="radiogroup" aria-label="Duration">
+      <button data-mode="duration" data-duration="15m">15 min</button>
+      <button data-mode="duration" data-duration="30m">30 min</button>
+      <button data-mode="duration" data-duration="1h" class="active">1 h</button>
+      <button data-mode="duration" data-duration="2h">2 h</button>
+      <button data-mode="end_of_event">end of event</button>
+      <button data-mode="end_of_workday">end of work day</button>
+      <button data-mode="indefinite">until changed</button>
+    </div>
+    <div class="set">
+      <button class="set-btn s-dnd" data-status="dnd">Red</button>
+      <button class="set-btn s-working" data-status="working">Yellow</button>
+      <button class="set-btn s-free" data-status="free">Green</button>
+      <button class="set-btn s-away" data-status="away">Off</button>
+      <button class="set-btn auto" id="auto">Auto</button>
+    </div>
+    <p id="override-info" class="muted"></p>
+
+    <h2>Message</h2>
+    <form id="message-form" class="row">
+      <input id="message" maxlength="64" placeholder="e.g. Gaming until 21:00">
+      <button type="submit">Show</button>
+      <button type="button" id="message-clear">Clear</button>
+    </form>
+
+    <h2>Pomodoro</h2>
+    <div class="row">
+      <button class="pomo" data-work="25m" data-break="5m">🍅 25 / 5</button>
+      <button class="pomo" data-work="50m" data-break="10m">🍅 50 / 10</button>
+      <button id="pomo-stop">Stop</button>
+    </div>
+    <p id="pomo-info" class="muted"></p>
+    <p id="error" class="error" role="alert"></p>
+  </section>
+
+  <section id="tab-day" class="tab" hidden>
+    <h2>Today</h2>
+    <div id="timeline" class="timeline"></div>
+    <ul id="slots" class="slots"></ul>
+  </section>
+
+  <section id="tab-settings" class="tab" hidden>
+    <h2>Light per calendar event kind</h2>
+    <form id="kinds" class="grid"></form>
+    <h2>Warning phases</h2>
+    <form id="phases" class="grid">
+      <label for="last_call">Before a meeting</label>
+      <select id="last_call"></select>
+      <label for="ending_soon">Before it ends</label>
+      <select id="ending_soon"></select>
+    </form>
+    <p class="muted">StVO: green blinks 4 s, yellow 3 s, red+yellow 2 s – like on the road. A lead time turns it into a real warning.</p>
+    <p id="settings-info" class="muted"></p>
+    <h2>Calendar accounts</h2>
+    <ul id="accounts" class="slots"></ul>
+    <h2>This device</h2>
+    <button id="logout">Forget token</button>
+  </section>
+
+  <section id="tab-history" class="tab" hidden>
+    <h2>Recent changes</h2>
+    <ul id="history" class="slots"></ul>
+  </section>
+</main>
+</body>
+</html>
