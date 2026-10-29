@@ -31,8 +31,9 @@ git clone https://github.com/BelfrySCAD/BOSL2.git ~/.local/share/OpenSCAD/librar
 flatpak install flathub me.amankhanna.opendeck
 npm install -g @elgato/cli
 
-# 6. Go-Werkzeuge
+# 6. Go-Werkzeuge (landen in ~/go/bin – das muss im PATH sein)
 go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
 ```
 
 ## Im Detail

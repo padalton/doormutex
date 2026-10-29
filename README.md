@@ -132,7 +132,7 @@ flowchart LR
 | Plasma-Widget | QML (Plasma 6) | Status, Override, Fokus/Pomodoro |
 | Stream-Deck-Plugin | TypeScript (Elgato-SDK) | Bedienpult auf dem Stream Deck XL |
 | Firmware | C, ESP-IDF | WLAN-Stromsparen, MQTT, LEDs, E-Ink, Akku |
-| Projekt-Homepage | GitHub Pages (statisch) | Doku, Web-Flasher (ESP Web Tools braucht HTTPS), Anleitung für die Google-Anbindung. Kein Backend, keine Nutzerdaten |
+| Projekt-Homepage | GitHub Pages (statisch) + eigene Domain | Pflicht für Googles OAuth-Branding (Beschreibung, Datenschutz, Nutzungsbedingungen), dazu Doku, Web-Flasher (ESP Web Tools braucht HTTPS) und die OAuth-Redirect-Weiche. Kein Backend, keine Nutzerdaten |
 | Platine | KiCad | ESP32-C6, Ladeelektronik, LED- und E-Ink-Treiber – bestückt von JLCPCB |
 | Gehäuse | OpenSCAD + BOSL2 | Ampel-Miniatur + abnehmbarer Wandhalter |
 
@@ -195,20 +195,19 @@ Jede Quelle meldet einen *Claim*: Status, Priorität und Ablaufzeit. Der höchst
 - **Gespiegelte Termine:** Im Referenz-Setup kopiert ein Apps Script die Arbeitstermine in den privaten Kalender. Dabei gehen Teilnehmer oft verloren. Tipp: Das Script markiert Meetings (Farbe, Präfix oder `extendedProperties`), der Hub liest die Markierung.
 #### Google-Login für Selbst-Hoster
 
-Das Problem: Jeder Nachbau hat seinen Hub unter einer anderen Adresse, meist ohne öffentliches HTTPS. Google verlangt bei Web-Clients aber HTTPS-Redirects auf eine öffentliche Domain und erlaubt keine IP-Adressen außer Loopback (`127.0.0.1`, `localhost`).
+Zwei getrennte Probleme:
 
-**Lösung: Jede Installation bringt ihr eigenes Google-Cloud-Projekt mit** („Bring your own credentials"). So machen es auch Home Assistant, rclone und Co.:
+1. **Dauerhafte Tokens.** Solange eine OAuth-App auf „Testing" steht, laufen die Refresh-Tokens nach 7 Tagen ab. Zum **Veröffentlichen** verlangt die Google Auth Platform eine vollständige Branding-Seite: Homepage, Datenschutzerklärung, Nutzungsbedingungen und eine autorisierte Domain. Die Homepage muss die App beschreiben, eine reine Login-Seite reicht nicht. Für die Verifizierung durch Google muss die Domain außerdem nachweislich dir gehören (Search Console). → **Ohne echte Projekt-Homepage gibt es keinen Dauerbetrieb.**
+2. **Redirect.** Jeder Nachbau hat seinen Hub unter einer anderen Adresse, meist ohne öffentliches HTTPS. Web-Clients brauchen aber einen HTTPS-Redirect auf eine öffentliche Domain. Ausnahme sind Desktop-Clients: Sie dürfen auf Loopback (`127.0.0.1`) zurückleiten. Den Device-Flow („Code auf einem anderen Gerät eingeben") lässt Google für Kalender-Scopes nicht zu.
 
-1. In der Google Cloud Console ein Projekt anlegen, die Calendar API aktivieren und einen OAuth-Client vom Typ **„Desktop-App"** erstellen. Als Scope reicht `calendar.readonly`.
-2. **Veröffentlichungsstatus auf „In Produktion" stellen.** Im Status „Testing" laufen die Refresh-Tokens nach 7 Tagen ab, in Produktion nicht. Eine Verifizierung durch Google braucht es dafür nicht: Beim ersten Login warnt Google einmal „App nicht verifiziert", die Warnung klickt man über „Erweitert → Weiter" weg. Die Grenze von 100 Nutzern für unverifizierte Apps spielt bei einer Person keine Rolle.
-3. **Login:**
-   - **per Companion (Standard):** `otl-companion auth google` öffnet den Browser am Schreibtisch, Google leitet auf `http://127.0.0.1:<port>` zurück (Loopback-Flow für Desktop-Apps). Der Companion schickt das Refresh-Token an den Hub.
-   - **per Web-UI (ohne Companion):** gleicher Desktop-Client. Nach dem Login landet der Browser auf einer `127.0.0.1`-Adresse, die nicht lädt. Diese URL aus der Adresszeile kopiert man in die Web-UI, der Hub holt sich daraus das Token. Umständlich, aber es funktioniert überall.
-4. Den Device-Flow („Code auf einem anderen Gerät eingeben") lässt Google für Kalender-Scopes nicht zu.
+**Plan:**
 
-**Wozu dann die Projekt-Homepage?** Für den Login braucht man sie nicht. Sie hostet Doku und Web-Flasher. Optional kann sie später eine **Redirect-Weiche** wie `my.home-assistant.io` bekommen: eine statische Seite, die den OAuth-Code an den Hub im Heimnetz weiterreicht. Damit ginge der Login auch mit Web-Clients direkt im Hub. Ein **gemeinsamer, vom Projekt verifizierter OAuth-Client** („Mit Google anmelden", ganz ohne Cloud Console) ist bewusst *nicht* geplant: Google müsste die App für den Kalender-Scope prüfen (eigene Domain, Datenschutzerklärung, Demo-Video), und das Client-Secret läge dann in jedem öffentlichen Docker-Image.
-
-Fallback ohne OAuth: die geheime iCal-Adresse des Kalenders. Dabei fehlen aber `eventType` und Teilnehmer, und Google aktualisiert den Feed teils stark verzögert.
+- **Projekt-Homepage mit eigener Domain** (GitHub Pages + Custom Domain, in der Search Console verifiziert). Darauf: Beschreibung, Logo, Screenshots, Datenschutzerklärung, Nutzungsbedingungen, Doku und Web-Flasher.
+- **Stufe 1 – für den Referenz-Aufbau:** ein eigener OAuth-Client, dessen Branding auf die Projekt-Homepage zeigt. Damit lässt er sich veröffentlichen, und die 7-Tage-Grenze fällt weg. Bis zur Verifizierung zeigt Google beim Login einen Warnhinweis, und es gilt eine Obergrenze von 100 Nutzern.
+- **Stufe 2 – für Nachbauten:** ein **gemeinsamer OAuth-Client des Projekts**, den Google prüft. `calendar.readonly` gilt als „sensitive", nicht als „restricted". Es braucht also eine Begründung und ein Demo-Video, aber keine kostenpflichtige Sicherheitsprüfung. Danach braucht kein Nachbauer eine eigene Google Cloud Console.
+  - **Login per Companion:** Client-Typ „Desktop-App", Loopback-Redirect auf `127.0.0.1`. Bei installierten Apps behandelt Google das Client-Secret ausdrücklich nicht als Geheimnis, es darf also im Open-Source-Code stehen.
+  - **Login per Web-UI ohne Companion:** eine **Redirect-Weiche** auf der Homepage, nach dem Vorbild von `my.home-assistant.io`. Google leitet auf `https://<homepage>/oauth/callback`, und die statische Seite reicht Code und `state` an die Hub-Adresse weiter, die dieser Browser vorher lokal gespeichert hat. Die Zieladresse kommt nie aus URL-Parametern, sonst wäre die Weiche ein offener Redirect. Offen ist das Client-Secret: Web-Clients brauchen es bei jedem Token-Refresh im Hub. Das prüfen wir, bevor Stufe 2 startet.
+- **Fallback ohne OAuth:** die geheime iCal-Adresse des Kalenders. Dabei fehlen aber `eventType` und Teilnehmer, und Google aktualisiert den Feed teils stark verzögert.
 
 ### Arbeitszeiten
 
@@ -360,7 +359,7 @@ flowchart LR
   reg --> mcu["ESP32-C6-MINI-1"]
   uvlo --> led["LED-Treiber<br/>3 × MOSFET"]
   mcu -->|PWM| led
-  led --> lamps["🔴 🟡 🟢<br/>2–4 LEDs je Kammer"]
+  led --> lamps["🔴 🟡 🟢<br/>LED-Ring 6–8 LEDs je Kammer"]
   mcu -->|SPI| epd["E-Ink 2,9″"]
   mcu -->|I²C| gauge["Fuel Gauge"]
   mcu -->|I²C| als["Lichtsensor"]
@@ -377,7 +376,7 @@ flowchart LR
 | 3,3 V | Buck-Boost, z. B. TPS63802 | stabile 3,3 V über den ganzen Akkubereich, auch bei WLAN-Stromspitzen |
 | Fuel Gauge | MAX17048 | Akkustand in % + Entladerate → Restlaufzeit in HA |
 | Lichtsensor | VEML7700 | Helligkeitsautomatik, Nachtabsenkung |
-| LED-Treiber | 3 × N-MOSFET, PWM per LEDC | 2–4 SMD-LEDs pro Kammer. Die LEDs hängen an LP-GPIOs, damit notfalls der LP-Core im Deep Sleep blinken kann |
+| LED-Treiber | 3 × N-MOSFET, PWM per LEDC | je Kammer eine kleine LED-Platine mit einem Ring aus 6–8 SMD-LEDs. Die LEDs hängen an LP-GPIOs, damit notfalls der LP-Core im Deep Sleep blinken kann |
 | LEDs | Rot ~625 nm, Gelb/Amber ~590 nm, Grün ~520 nm (oder Signalgrün ~505 nm) | Einzelfarben wie bei der echten Ampel; ausgelegt auf 20 mA, im Betrieb gedimmt |
 | E-Ink | 2,9″ s/w, 296 × 128, SSD1680 (z. B. GDEY029T94) | Teil-Refresh; die Treiberschaltung sitzt auf unserer Platine, das Panel wird per FPC eingesteckt |
 | USB-C | CC-Widerstände 5,1 kΩ, ESD-Schutz (USBLC6) | Laden, Dauerstrom, Flashen |
@@ -434,8 +433,42 @@ Die WLAN-Werte stützen sich auf [Espressifs Messungen](https://docs.espressif.c
 - **Fertigungsdaten aus der CI** per KiBot: Gerber, Bohrdaten, BOM und Bestückungsliste im JLCPCB-Format, Schaltplan-PDF, iBOM.
 - **Handarbeit danach:** E-Ink-Panel ins FPC einstecken, Zelle einlegen. Eventuell den 18650-Halter anlöten – zwei THT-Lötstellen schafft jeder Lötkolben.
 - **Antenne:** Den Bereich des ESP32-C6-Moduls freihalten, also keine Masse und kein Akku darunter.
-- **Grobe Kosten:** ~60–120 € für 5 Platinen, davon 2–5 bestückt, inkl. Versand und Einfuhr, plus E-Ink-Panel (~15–25 €). Belastbar erst mit fertiger BOM.
+- **Grobe Kosten:** siehe [Kosten](#kosten).
 - **Vorher kommt der Breadboard-Prototyp** aus fertigen Modulen ([Teileliste](docs/breadboard.md)). Die Teile sind in ein paar Tagen da, die Platine braucht Wochen. Die Firmware läuft so schon, bevor die Platine da ist, und die Strommessung hilft beim Schaltplan.
+
+### Kosten
+
+Grobe Schätzung vor dem Schaltplan, Stand 2026-10-29, inkl. Versand und 20 % USt. Belastbar wird das erst mit fertiger BOM.
+
+**Entwicklung bis zur ersten Platine:**
+
+| Posten | ca. € |
+|---|---|
+| Breadboard Stufe 1 (inkl. transparentem PETG) | 85–110 |
+| Breadboard Stufe 2 (Akku) | 40–55 |
+| Versand (BerryBase; DigiKey ab 50 € frei) | 5–10 |
+| Gehäuse-Filament dunkelgrau/schwarz, falls nicht vorhanden | 20–25 |
+| **bis vor die Platinenbestellung** | **≈ 150–200** |
+| erste JLCPCB-Bestellung (5 Platinen, 2 bestückt) + E-Ink-Panel | 90–130 |
+| optional: Nordic PPK2 – oder INA226-Logger für ~5 € (siehe [Teileliste](docs/breadboard.md)) | 100 / 5 |
+
+**Endprodukt pro Stück** (bestückte Platine, Panel, Filament, Schrauben; Zelle aus dem Bestand):
+
+| Bestellmenge bei JLCPCB | Platine pro Stück | Ampel gesamt |
+|---|---|---|
+| 2 bestückt (Einzel-Nachbau) | ~45–50 € | **~70–85 €** |
+| 5 bestückt (mit Freunden) | ~25 € | **~50–60 €** |
+| 30+ (Sammelbestellung/Kit) | ~13–15 € | **~35–45 €** |
+
+Bei kleinen Mengen dominieren die Fixkosten pro Bestellung: Rüstgebühr, ~3 $ je „Extended Part", Versand, Einfuhr. Die Bauteile selbst kosten nur ~10–14 $ pro Platine.
+
+**Hebel:**
+
+- Basic- statt Extended-Parts, wo es geht
+- Fuel Gauge weglassen (Spannung per ADC)
+- Fototransistor statt VEML7700
+- **Lite-Variante** ohne Akku: fertiges C6-Board + E-Ink-Modul + LEDs am USB-Netzteil, ~25–35 € plus Filament, gleiches Gehäuse
+- **„Bring your own lamp"** per HA/Hue kostet gar keine Hardware
 
 ## Firmware
 
@@ -475,9 +508,22 @@ Die WLAN-Werte stützen sich auf [Espressifs Messungen](https://docs.espressif.c
 ```
 
 - **Bauform:** Ampel-Miniatur mit drei Kammern und Schuten (Blendschirmen), darunter die E-Ink-Zusatztafel. Dunkelgrau oder schwarz wie das Original.
-- **Größe folgt der Elektronik:** Das Gehäuse wird nur wenig größer als Platine, Display und Zelle. Die bestimmenden Maße sind das E-Ink-Panel (2,9″: ca. 79 × 37 mm) und die 18650 (65 × 18 mm). Daraus folgen zwei mögliche Formen, entschieden wird beim ersten Entwurf:
-  - **schlanke Ampel** (~45 mm breit) mit hochkant stehendem Display: wenig Text pro Zeile
-  - **Zusatztafel quer** (~85 mm breit) unter einer schmaleren Ampel: besser lesbar, wie ein echtes Zusatzschild
+- **Große Ampel mit klassischen Proportionen.** Die Breite bestimmt das quer liegende E-Ink-Panel: 2,9″ sind ca. 79 × 37 mm, mit Halterung ergibt das **100 mm**. Daraus folgt (alle Maße ca.):
+
+  | Teil | Maße (B × H × T) | Anmerkung |
+  |---|---|---|
+  | Kammer (3×) | 100 × 100 × 45 mm | Linse Ø ~72 mm – wie beim Original ~¾ der Breite |
+  | Schute (3×) | ~45 mm auskragend | eigenes Teil, wird aufgesteckt |
+  | Dach | 100 × ~10 mm | |
+  | Zusatztafel | 100 × ~55 × 45 mm | E-Ink, Hauptplatine, 18650 quer dahinter (65 mm passen in 100 mm) |
+  | **Gesamt** | **~100 × 365 × 45 mm** (mit Schuten ~90 mm tief) | ~400 g PETG + 45 g Zelle |
+
+- **Modular wie das Original:** Echte Signalgeber sind aus einzelnen Kammern zusammengeschraubt, und genau so passt die Ampel auch auf den Prusa MK3S. Dessen Druckfläche ist 250 × 210 mm, an einem Stück wären 365 mm zu lang. Eine Kammer liegt mit 100 × 100 mm bequem auf dem Bett, zwei passen gleichzeitig drauf. Alle drei Kammern sind dasselbe STL. Nachbauten mit nur einer oder zwei Kammern („On Air", Rot/Grün) fallen dabei nebenbei ab.
+- **Folgen für die Elektronik:**
+  - **Größere Linsen brauchen mehr Licht.** Damit eine 72-mm-Linse gleich hell wirkt wie eine kleine, braucht sie ein Vielfaches an Lichtstrom. Echte LED-Ampeln zeigen deshalb sichtbare Lichtpunkte statt einer gleichmäßig leuchtenden Scheibe. Das machen wir auch: ein Ring aus 6–8 LEDs hinter einer klaren, strukturierten Linse. Das sieht echt aus und ist sparsamer als volle Streuung. Wie viel Strom das braucht, klärt der Breadboard-Test. Notfalls wird Plan B (USB-Kabel) wahrscheinlicher.
+  - **Hauptplatine ≤ 100 × 100 mm** in der Zusatztafel – das ist bei JLCPCB die günstigste Preisstufe. Die drei LED-Platinen hängen als Ausbrech-Nutzen (Mouse Bites) an derselben Platine. Das ergibt ein Design und eine Bestückungsgebühr. Verbunden wird per JST-Kabel.
+- **Montage:** Bei ~450 g und Kindern auf der Stiege besser Schrauben oder Kabelbinder als Klebestreifen. Klebestreifen bleiben als Option.
+- **Andere Displays:** Mit 2,13″ (ca. 59 × 29 mm) wird die Ampel ~75 mm breit und ~280 mm hoch. Mit 4,2″ (ca. 91 × 77 mm, 400 × 300 Pixel) wird sie ~110 mm breit und ~440 mm hoch, ist dafür aus der Entfernung lesbar.
 - **Linsen aus transparentem PETG**, als eigene flache Teile gedruckt, 0,8–1,2 mm dick, mit Streuscheiben-Struktur auf der Innenseite. Dazu:
   - ein weißer Reflektor-Trichter hinter der Linse
   - lichtdichte Trennwände, damit Rot nicht ins Gelb leuchtet
@@ -491,7 +537,7 @@ Die WLAN-Werte stützen sich auf [Espressifs Messungen](https://docs.espressif.c
   - Toleranzen als Parameter, kalibriert per Testdruck: ~0,2 mm für Schiebe-, ~0,1 mm für Presspassungen
   - Schrauben (M2,5/M3) in gedruckte Dome oder Gewindeeinsätze, ansonsten Rastnasen
   - ein Extruder: Linsen sind eigene Teile, Schrift und Logo kommen per Farbwechsel am Layer (M600)
-- **Platine als Rückwand:** Die LEDs sitzen direkt in den Kammern. Akkufach hinten, USB-C unten (Laden am Platz per Powerbank geht auch), Fenster für den Lichtsensor, Taster über Pin-Löcher.
+- **Platinen:** Die Hauptplatine sitzt in der Zusatztafel, mit Akkufach dahinter, USB-C unten (Laden am Platz per Powerbank geht auch), Fenster für den Lichtsensor und Taster hinter Pin-Löchern. In jeder Kammer sitzt eine LED-Platine hinter dem Reflektor.
 - **Wandhalter, abnehmbar** – eine eigene Platte mit
   - Schlüssellöchern für Schrauben,
   - glatter Fläche für ablösbare Klebestreifen (tesa Powerstrips, Command),
@@ -563,7 +609,7 @@ office-traffic-light/
 7. **Router:** Kann er WLAN 6 mit TWT (Hersteller/Modell)?
 8. **Homelab:** Gibt's einen Reverse Proxy mit HTTPS-Domain? Für OAuth nicht mehr nötig (Desktop-Client + Loopback), aber angenehm für Web-UI und PWA.
 9. **Lizenzen** bestätigen. Bis eine `LICENSE`-Datei im Repo liegt, darf rechtlich niemand den Code weiterverwenden.
-10. **Gehäuseform:** schlanke Ampel mit Hochkant-Display oder breitere Zusatztafel quer?
+10. **Projekt-Domain:** welche Domain für die Homepage (nötig fürs Google-OAuth-Branding)?
 
 ## Risiken
 
@@ -595,6 +641,8 @@ office-traffic-light/
 | 2026-10-29 | Linsen aus transparentem PETG | sieht am echtesten aus, wenig Lichtverlust |
 | 2026-10-29 | Gehäuse nur wenig größer als die Elektronik, auf FDM optimiert | kompakt, leicht zu drucken, einfache Geometrie |
 | 2026-10-29 | Erster Prototyp auf dem Breadboard, Platine danach | Module sind in Tagen da, die Platine in Wochen; Messwerte fließen in den Schaltplan |
-| 2026-10-29 | Google: jede Installation mit eigenem OAuth-Client (Desktop-App, „In Produktion") | kein öffentliches HTTPS nötig, keine Google-Verifizierung, kein Secret im Image |
-| 2026-10-29 | Projekt-Homepage auf GitHub Pages, ohne Backend | Doku + Web-Flasher; optional später Redirect-Weiche |
+| 2026-10-29 | Google: Projekt-Homepage mit eigener Domain; zuerst eigener Client, später gemeinsamer verifizierter Projekt-Client (Companion-Loopback + Redirect-Weiche à la Home Assistant) | Google verlangt fürs Veröffentlichen Homepage, Datenschutz und Nutzungsbedingungen; im Testing laufen Tokens nach 7 Tagen ab |
+| 2026-10-29 | Projekt-Homepage auf GitHub Pages, ohne Backend | OAuth-Branding, Doku, Web-Flasher, Redirect-Weiche |
+| 2026-10-29 | Große Ampel (~100 × 365 mm), Breite = E-Ink 2,9″, modulare Kammern | klassische Proportionen; passt kammerweise auf den MK3S |
+| 2026-10-29 | Hauptplatine ≤ 100 × 100 mm, LED-Platinen als Ausbrech-Nutzen | günstigste JLCPCB-Stufe, eine Bestückungsgebühr |
 | 2026-10-29 | Repo öffentlich ab Tag 1 | man soll dem Projekt beim Entstehen zusehen können |
