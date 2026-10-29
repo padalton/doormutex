@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="hubUrl" type="String">
+      <label>Hub address, e.g. http://hub.lan:8080</label>
+      <default>http://localhost:8080</default>
+    </entry>
+    <entry name="token" type="Password">
+      <label>API token (doormutex-hub token create widget office)</label>
+      <default></default>
+    </entry>
+    <entry name="profile" type="String">
+      <label>Profile id; empty: the token's profile</label>
+      <default></default>
+    </entry>
+  </group>
+</kcfg>
