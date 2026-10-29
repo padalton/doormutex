@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -474,4 +476,25 @@ func fmtPtr(t *time.Time) string {
 		return "<none>"
 	}
 	return t.Format("2006-01-02 15:04")
+}
+
+func TestPomodoroJSON(t *testing.T) {
+	p := Pomodoro{Start: at(9, 0), Work: 25 * time.Minute, Break: 5 * time.Minute, Cycles: 2, WorkStatus: status.DND}
+	b, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"work":"25m0s"`) || !strings.Contains(string(b), `"end":"2026-10-28T10:00:00+01:00"`) {
+		t.Errorf("json = %s", b)
+	}
+	var back Pomodoro
+	if err := json.Unmarshal(b, &back); err != nil || !back.Start.Equal(p.Start) || back.Work != p.Work || back.Break != p.Break || back.Cycles != p.Cycles {
+		t.Errorf("round trip = %+v, %v", back, err)
+	}
+}
+
+func TestDefaultStatus(t *testing.T) {
+	in := base(at(19, 0))
+	in.Rules.Default = status.Away
+	check(t, Evaluate(at(19, 0), in), want{status: status.Away, reason: ReasonDefault, light: status.LightOff, noCheck: true})
 }
