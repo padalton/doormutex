@@ -1,0 +1,42 @@
+# Secrets & lokale Konfiguration
+.env
+*.env.local
+secrets/
+*.token
+
+# Go
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# Node (Stream-Deck-Plugin)
+node_modules/
+*.streamDeckPlugin
+
+# ESP-IDF
+firmware/**/build/
+firmware/**/managed_components/
+firmware/**/sdkconfig
+firmware/**/sdkconfig.old
+!firmware/**/sdkconfig.defaults*
+
+# KiCad
+*-backups/
+*.kicad_prl
+fp-info-cache
+_autosave-*
+*.lck
+hardware/**/production/
+
+# OpenSCAD / Slicer – Exporte entstehen in der CI
+enclosure/**/out/
+*.gcode
+*.bgcode
+
+# Editor & System
+.vscode/
+.idea/
+*.swp
+.DS_Store
