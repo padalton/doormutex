@@ -194,6 +194,24 @@ One hub, several **profiles** – one per person and light. Each profile has its
 - **The e-ink shows a short message** ("Gaming until 21:00").
 - **The office profile can also run without a companion,** controlled only via HA (light and message) – for setups where the companion can't run.
 
+**Configuration** (see [`hub/config.example.yaml`](hub/config.example.yaml)):
+
+```yaml
+profiles:
+  - id: office
+    mode: office # companion, calendar, working hours
+  - id: teen
+    name: Teen room
+    mode: room # no companion, no working hours, off by default
+```
+
+```bash
+doormutex-hub token create teen-phone teen   # works only for profile "teen"
+doormutex-hub token create widget            # all profiles, choose with ?profile=
+```
+
+The API serves the token's profile without any extra parameter, so the same client works for every profile. `GET /api/v1/profiles` lists the profiles a token may see.
+
 Where room mode runs for people *without* a homelab (no Docker, no HA) is still open – see [open questions](#open-questions).
 
 ## Signal sources
@@ -318,26 +336,28 @@ No native app – so no Apple developer account and no app store:
 
 ## Home Assistant & MQTT
 
-The hub only creates entities via MQTT discovery (one device, device-based discovery) – everyone builds their own automations.
+The hub only creates entities via MQTT discovery (one device per profile, device-based discovery) – everyone builds their own automations. Entity IDs contain the profile, e.g. `sensor.doormutex_office_status` or `sensor.doormutex_teen_status`.
 
 | Entity | Type | Content |
 |---|---|---|
-| `sensor.doormutex_status` | enum | `free`, `working`, `dnd`, `away` – attributes: reason, detail, phase, light, since, until |
-| `event.doormutex_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
-| `sensor.doormutex_slot_start` / `…_slot_end` | timestamp | current slot |
-| `sensor.doormutex_next_free_start` / `…_next_free_end` | timestamp | next free slot |
+| `sensor.doormutex_office_status` | enum | `free`, `working`, `dnd`, `away` – attributes: reason, detail, phase, light, since, until, message |
+| `event.doormutex_office_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
+| `sensor.doormutex_office_slot_start` / `…_slot_end` | timestamp | current slot |
+| `sensor.doormutex_office_next_free_start` / `…_next_free_end` | timestamp | next free slot |
 | `sensor.doormutex_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
 | `binary_sensor.doormutex_charging` | binary | charging / on USB (announced by the light itself) |
 | diagnostics | – | Wi-Fi signal, firmware version, online |
-| `select.doormutex_override` | select | planned: `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home |
-| `text.doormutex_message` | text | planned: short message for the e-ink |
+| `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` |
+| `text.doormutex_office_message` | text | short message for the e-ink (one line, ≤ 64 characters) |
 
 | Topic | Content |
 |---|---|
-| `doormutex/state` | retained JSON (see below), same document as `GET /api/v1/status` |
-| `doormutex/event` | `status_changed` events for the HA event entity (not retained) |
+| `doormutex/<profile>/state` | retained JSON (see below), same document as `GET /api/v1/status` |
+| `doormutex/<profile>/event` | `status_changed` events for the HA event entity (not retained) |
+| `doormutex/<profile>/override/set` | command from HA: `auto`, `free`, `working`, `dnd`, `away` |
+| `doormutex/<profile>/message/set` | command from HA: e-ink message, empty clears it |
 | `doormutex/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
-| `doormutex/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
+| `doormutex/<profile>/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
 | `doormutex/device/<id>/telemetry` | battery, charging, RSSI, firmware |
 | `doormutex/device/<id>/cmd` | OTA, restart, identify |
 
@@ -371,12 +391,12 @@ triggers:
     to: "on"
 conditions:
   - condition: state
-    entity_id: sensor.doormutex_status
+    entity_id: sensor.doormutex_office_status
     state: ["dnd", "working"]
 actions:
   - variables:
       # Hue yellow looks greenish – orange reads as traffic-light yellow
-      colour: "{{ 'red' if is_state('sensor.doormutex_status', 'dnd') else 'orange' }}"
+      colour: "{{ 'red' if is_state('sensor.doormutex_office_status', 'dnd') else 'orange' }}"
   - action: scene.create
     data:
       scene_id: stairs_before
@@ -726,3 +746,4 @@ doormutex/
 | 2026-10-29 | mDNS name `doormutex[-<name>].local` | English project name, several lights per network |
 | 2026-10-29 | Project renamed from the working title office-traffic-light to **doormutex** | the old name already existed on GitHub and was too narrow for room mode; a mutex lets only one into the critical section |
 | 2026-10-30 | Implemented the review rules in the hub (PR m1-rules). Fault is reported as status `away` with phase `fault`; calendar kind `meeting` became `video_call` | `away` keeps HA automations simple (nobody to disturb is known); the kind name matches the README table |
+| 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
