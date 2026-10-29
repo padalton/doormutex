@@ -329,6 +329,8 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 ### Web UI
 
+<p><img src="docs/images/web-now.png" alt="Web UI: now" width="260"> <img src="docs/images/web-settings.png" alt="Web UI: settings" width="260"></p>
+
 Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
 
 - **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until changed) or *auto*; e-ink message; pomodoro
