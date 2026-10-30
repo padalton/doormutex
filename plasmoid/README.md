@@ -9,10 +9,23 @@ A KDE Plasma 6 widget for the panel or the desktop: a mini traffic light as the 
 
 ## Install
 
-```bash
-kpackagetool6 -t Plasma/Applet -i plasmoid/package    # first time
-kpackagetool6 -t Plasma/Applet -u plasmoid/package    # update
-```
+- **KDE Store:** *Add Widgets → Get New Widgets → Download New Plasma Widgets*, search for *doormutex*.
+- **With the companion package** (AUR `doormutex-companion-bin`, `.deb`, `.rpm`): the widget is installed system-wide to `/usr/share/plasma/plasmoids/` – nothing else to do.
+- **Release file:** `doormutex-X.Y.Z.plasmoid` from the [releases](https://github.com/padalton/doormutex/releases):
+
+  ```bash
+  kpackagetool6 -t Plasma/Applet -i doormutex-X.Y.Z.plasmoid   # first time
+  kpackagetool6 -t Plasma/Applet -u doormutex-X.Y.Z.plasmoid   # update
+  ```
+
+- **From the repository:**
+
+  ```bash
+  kpackagetool6 -t Plasma/Applet -i plasmoid/package    # first time
+  kpackagetool6 -t Plasma/Applet -u plasmoid/package    # update
+  ```
+
+A copy installed for the user (`kpackagetool6`, KDE Store) takes precedence over the system-wide one from a package; remove it with `kpackagetool6 -t Plasma/Applet -r org.doormutex.trafficlight`.
 
 Then *Add Widgets → doormutex*, and in its settings enter the hub address and a token:
 
@@ -29,4 +42,4 @@ plasmoidviewer -a plasmoid/package
 /usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml plasmoid/package/contents/ui/*.qml
 ```
 
-CI packs `doormutex.plasmoid` (a zip of `package/`) as a build artifact – the file the KDE Store expects.
+CI packs `doormutex.plasmoid` (a zip of `package/`) as a build artifact. Releases attach `doormutex-X.Y.Z.plasmoid` with the version stamped into `metadata.json` (`packaging/prepare.py`) – the file the KDE Store expects.
