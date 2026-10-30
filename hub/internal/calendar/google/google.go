@@ -24,6 +24,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/secret"
 )
 
 // Scope is the only OAuth scope the hub asks for.
@@ -89,6 +90,7 @@ type Provider struct {
 	mu     sync.Mutex
 	cache  map[string][]calendar.Event // last good events per account
 	status map[string]*calendar.AccountStatus
+	logins map[string]pendingLogin // state → sign-in in progress (remote.go)
 }
 
 // New creates a provider.
@@ -102,7 +104,7 @@ func New(o Options) *Provider {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	p := &Provider{o: o, cache: map[string][]calendar.Event{}, status: map[string]*calendar.AccountStatus{}}
+	p := &Provider{o: o, cache: map[string][]calendar.Event{}, status: map[string]*calendar.AccountStatus{}, logins: map[string]pendingLogin{}}
 	for _, a := range o.Accounts {
 		p.status[a.Name] = &calendar.AccountStatus{Name: a.Name}
 	}
@@ -149,7 +151,10 @@ func (p *Provider) account(ctx context.Context, a Account, from, to time.Time) (
 	key := TokenKey(p.o.Profile, a.Name)
 	var tok oauth2.Token
 	if err := p.o.Tokens.Get(key, &tok); err != nil {
-		return nil, fmt.Errorf("%w – run: doormutex-hub google login %s %s", ErrNotConnected, p.o.Profile, a.Name)
+		if errors.Is(err, secret.ErrDecrypt) {
+			return nil, fmt.Errorf("stored token: %w – sign in again", err)
+		}
+		return nil, fmt.Errorf("%w – sign in with: doormutex-companion google login %s (or on the hub: doormutex-hub google login %s %s)", ErrNotConnected, a.Name, p.o.Profile, a.Name)
 	}
 	if p.o.HTTP != nil {
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, p.o.HTTP)
@@ -307,7 +312,8 @@ var videoLink = regexp.MustCompile(`(?i)\b(?:https?://)?(?:[a-z0-9-]+\.)*(?:` +
 
 // classify turns a Google event into a hub event; ok is false for events
 // the hub ignores (cancelled, declined, working location, birthdays,
-// mirrored copies of a connected account).
+// mirrored copies of a connected account). Invitations answered with
+// "maybe" or not answered yet are marked tentative.
 func (p *Provider) classify(it item, a Account) (calendar.Event, bool) {
 	if it.Status == "cancelled" {
 		return calendar.Event{}, false
@@ -318,6 +324,11 @@ func (p *Provider) classify(it item, a Account) (calendar.Event, bool) {
 		}
 	}
 	e := calendar.Event{ID: it.ID, Transparent: it.Transparency == "transparent"}
+	for _, at := range it.Attendees {
+		if at.Self && (at.ResponseStatus == "tentative" || at.ResponseStatus == "needsAction") {
+			e.Tentative = true
+		}
+	}
 	if it.Start.Date != "" {
 		s, err1 := time.ParseInLocation("2006-01-02", it.Start.Date, p.o.Location)
 		en, err2 := time.ParseInLocation("2006-01-02", it.End.Date, p.o.Location)

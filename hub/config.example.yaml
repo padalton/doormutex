@@ -45,6 +45,8 @@ profiles:
         focus: working # Google focus time
         out_of_office: dnd # timed; all-day out of office is a day off
         other: working # e.g. a phone call on the mobile
+      pomodoro_work_status: dnd # light during pomodoro work phases: dnd (red) or working (yellow)
+      tentative: working # invitations answered "maybe" or not yet: a status, kind (like accepted) or ignore
       # Warning phases: "stvo" (seconds, like on the road) or a lead time.
       last_call: stvo # green blinks (red/yellow alternate when yellow) before a meeting
       ending_soon: stvo # red+yellow before a meeting ends

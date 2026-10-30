@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/padalton/doormutex/companion/internal/hubclient"
+	"github.com/padalton/doormutex/companion/internal/i18n"
 )
 
 type fakeSampler struct {
@@ -148,6 +149,15 @@ func TestNotifications(t *testing.T) {
 func TestDescribeFault(t *testing.T) {
 	s, b := Describe(hubclient.State{Status: "away", Phase: "fault", Reason: "companion_lost"})
 	if s != "🟡 Fault" || b != "companion not responding" {
+		t.Errorf("%q %q", s, b)
+	}
+}
+
+func TestDescribeGerman(t *testing.T) {
+	Texts = i18n.New("de")
+	defer func() { Texts = i18n.New("en") }()
+	s, b := Describe(hubclient.State{Status: "dnd", Reason: "calendar", Detail: "video_call"})
+	if s != "🔴 Bitte nicht stören" || b != "Kalender – Videocall" {
 		t.Errorf("%q %q", s, b)
 	}
 }

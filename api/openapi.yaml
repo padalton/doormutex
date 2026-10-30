@@ -95,6 +95,92 @@ paths:
               schema: { $ref: "#/components/schemas/CalendarInfo" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/calendar/accounts/{account}/login:
+    parameters:
+      - { $ref: "#/components/parameters/Profile" }
+      - { $ref: "#/components/parameters/Account" }
+    post:
+      summary: Start a Google sign-in from a desktop client
+      description: |
+        For a client on the machine with the browser (the companion): it
+        listens on a loopback port and passes that address. The hub keeps
+        the PKCE verifier and returns Google's sign-in URL; Google then
+        redirects the browser to the client with `code` and `state`, which
+        the client hands to `…/login/complete`. The client secret and the
+        refresh token never leave the hub. A started sign-in is valid for
+        10 minutes. Profile-scoped tokens can only sign in their own
+        profile's accounts.
+      operationId: startCalendarLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [redirect_uri]
+              additionalProperties: false
+              properties:
+                redirect_uri: { type: string, examples: ["http://127.0.0.1:43117/"], description: "http://127.0.0.1:PORT/ only" }
+      responses:
+        "200":
+          description: Open `auth_url` in the browser.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [auth_url]
+                properties:
+                  auth_url: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: Unknown account, or the profile has no Google calendar.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/calendar/accounts/{account}/login/complete:
+    parameters:
+      - { $ref: "#/components/parameters/Profile" }
+      - { $ref: "#/components/parameters/Account" }
+    post:
+      summary: Finish a Google sign-in
+      description: Exchanges the code from Google's redirect and stores the account's token (encrypted). Each `state` works once.
+      operationId: completeCalendarLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, state]
+              additionalProperties: false
+              properties:
+                code: { type: string }
+                state: { type: string }
+      responses:
+        "200":
+          description: The account is connected; the hub reads it right away.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  account: { type: string }
+                  status: { type: string, enum: [connected] }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404":
+          description: The profile has no Google calendar.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "502":
+          description: Google refused the code.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /api/v1/settings:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     get:
@@ -199,8 +285,10 @@ paths:
       summary: Set a manual status
       description: |
         Replaces a running pomodoro timer. Every override ends unless mode is
-        `indefinite`. Microphone/camera and a locked PC beat an override; it
-        applies again afterwards while it is still valid.
+        `indefinite`; `next_change` ends it as soon as the automatic status
+        (what the light would show without the override) changes.
+        Microphone/camera and a locked PC beat an override; it applies again
+        afterwards while it is still valid.
       operationId: setOverride
       requestBody:
         required: true
@@ -210,6 +298,7 @@ paths:
             examples:
               thirtyMinutes: { value: { status: dnd, mode: duration, duration: 30m } }
               untilEndOfWorkday: { value: { status: working, mode: end_of_workday } }
+              untilNextChange: { value: { status: dnd, mode: next_change } }
       responses:
         "200": { $ref: "#/components/responses/State" }
         "400": { $ref: "#/components/responses/BadRequest" }
@@ -230,7 +319,7 @@ paths:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     put:
       summary: Start a pomodoro timer
-      description: Replaces a running override. Work phases show `work_status` (default `dnd`), breaks show `free`.
+      description: Replaces a running override. Work phases show `work_status` (default from the setting `pomodoro_work_status`, which defaults to `dnd`), breaks show `free`.
       operationId: startPomodoro
       requestBody:
         required: true
@@ -355,6 +444,12 @@ components:
           schema: { $ref: "#/components/schemas/Error" }
 
   parameters:
+    Account:
+      name: account
+      in: path
+      required: true
+      description: Account name from the profile's `calendar.accounts`, e.g. `private` or `work`.
+      schema: { type: string }
     Profile:
       name: profile
       in: query
@@ -443,7 +538,13 @@ components:
       properties:
         status: { $ref: "#/components/schemas/Status" }
         start: { type: string, format: date-time }
-        until: { type: string, format: date-time, description: Omitted if indefinite. }
+        until: { type: string, format: date-time, description: Omitted if indefinite or until_change. }
+        until_change:
+          type: boolean
+          description: Ends as soon as the automatic status differs from `base` (mode `next_change`).
+        base:
+          allOf: [{ $ref: "#/components/schemas/Status" }]
+          description: Automatic status when a `next_change` override was set.
 
     Pomodoro:
       type: object
@@ -505,8 +606,21 @@ components:
           description: Status per event kind, or `ignore`.
           propertyNames: { enum: [video_call, focus, out_of_office, other] }
           additionalProperties: { type: string, enum: [free, working, dnd, away, ignore] }
+        tentative:
+          type: string
+          enum: [free, working, dnd, away, kind, ignore]
+          default: working
+          description: |
+            Invitations answered "maybe" or not answered yet: this status
+            (whatever their kind), `kind` = like an accepted event, or
+            `ignore`. Kinds set to `ignore` stay ignored.
         last_call: { $ref: "#/components/schemas/Lead" }
         ending_soon: { $ref: "#/components/schemas/Lead" }
+        pomodoro_work_status:
+          type: string
+          enum: [dnd, working]
+          default: dnd
+          description: Light during pomodoro work phases when a request has no `work_status`.
 
     MessageRequest:
       type: object
@@ -550,7 +664,10 @@ components:
         status: { $ref: "#/components/schemas/Status" }
         mode:
           type: string
-          enum: [duration, until, end_of_event, end_of_workday, indefinite]
+          enum: [duration, until, end_of_event, end_of_workday, next_change, indefinite]
+          description: |
+            `next_change` lasts until the automatic status changes (e.g. the
+            screen is locked, a meeting starts, the work day ends).
         duration:
           type: string
           description: Required for mode `duration`, 1s to 7 days.
@@ -570,7 +687,7 @@ components:
         work_status:
           type: string
           enum: [working, dnd]
-          default: dnd
+          description: Omitted = the setting `pomodoro_work_status` (default `dnd`).
 
     Media:
       type: object

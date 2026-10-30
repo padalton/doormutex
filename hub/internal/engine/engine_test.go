@@ -493,6 +493,47 @@ func TestPomodoroJSON(t *testing.T) {
 	}
 }
 
+func TestTentative(t *testing.T) {
+	now := at(10, 10)
+	call := meeting(calendar.KindVideoCall, at(10, 0), at(11, 0))
+	call.Tentative = true
+	for setting, want := range map[string]status.Status{
+		"":              status.Working, // default: yellow
+		TentativeKind:   status.DND,     // like an accepted call
+		TentativeIgnore: status.Working, // working hours
+		"free":          status.Free,
+	} {
+		in := base(now)
+		if setting != "" {
+			in.Rules.Tentative = setting
+		}
+		in.Events = []calendar.Event{call}
+		st := Evaluate(now, in)
+		if st.Status != want {
+			t.Errorf("tentative=%q: %s, want %s", setting, st.Status, want)
+		}
+		if setting == TentativeIgnore && st.Reason != ReasonWorkHours {
+			t.Errorf("ignored tentative event still counts: %s", st.Reason)
+		}
+	}
+	// A kind that is ignored stays ignored, even if tentative events are red.
+	in := base(now)
+	in.Rules.Tentative = "dnd"
+	delete(in.Rules.CalendarStatus, calendar.KindVideoCall)
+	in.Events = []calendar.Event{call}
+	if st := Evaluate(now, in); st.Reason != ReasonWorkHours {
+		t.Errorf("ignored kind: %+v", st)
+	}
+	for _, v := range []string{"kind", "ignore", "dnd"} {
+		if CheckTentative(v) != nil {
+			t.Errorf("%s rejected", v)
+		}
+	}
+	if CheckTentative("maybe") == nil {
+		t.Error("maybe accepted")
+	}
+}
+
 func TestDefaultStatus(t *testing.T) {
 	in := base(at(19, 0))
 	in.Rules.Default = status.Away

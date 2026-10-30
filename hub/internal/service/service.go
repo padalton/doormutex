@@ -56,9 +56,11 @@ const Ignore = "ignore"
 // Settings are the rules people change at runtime (web UI). They are
 // persisted and override the config file.
 type Settings struct {
-	Calendar   map[calendar.Kind]string `json:"calendar"` // status or "ignore"
+	Calendar   map[calendar.Kind]string `json:"calendar"`  // status or "ignore"
+	Tentative  string                   `json:"tentative"` // status, "kind" or "ignore"
 	LastCall   engine.Lead              `json:"last_call"`
 	EndingSoon engine.Lead              `json:"ending_soon"`
+	Pomodoro   status.Status            `json:"pomodoro_work_status"` // dnd or working
 }
 
 // Message is a short text for the e-ink, optionally with an expiry.
@@ -284,7 +286,7 @@ func (s *Service) Evaluate() engine.State {
 }
 
 func (s *Service) expireLocked(now time.Time) {
-	if o := s.override; o != nil && !o.Until.IsZero() && !o.Until.After(now) {
+	if o := s.override; o != nil && (!o.Until.IsZero() && !o.Until.After(now) || o.Ended(now, s.inputsLocked())) {
 		s.override = nil
 		s.persist(keyOverride, nil)
 	}
@@ -350,7 +352,19 @@ const (
 	ModeEndOfEvent   = "end_of_event"
 	ModeEndOfWorkday = "end_of_workday"
 	ModeIndefinite   = "indefinite"
+	ModeNextChange   = "next_change" // until the automatic status changes
 )
+
+// RemoteOverrideMode is the mode for overrides from Home Assistant's
+// select: with a required desktop companion the next automatic change
+// ends it; without one (HA-only, room mode) HA or the web UI is the
+// controller and it stays until changed.
+func (s *Service) RemoteOverrideMode() string {
+	if s.base.Rules.RequireCompanion {
+		return ModeNextChange
+	}
+	return ModeIndefinite
+}
 
 // OverrideRequest sets a manual status.
 type OverrideRequest struct {
@@ -396,9 +410,13 @@ func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 		}
 		ov.Until = end
 	case ModeIndefinite:
+	case ModeNextChange:
+		in := s.inputsLocked()
+		in.Pomodoro = nil // replaced by the override
+		ov.UntilChange, ov.Base = true, engine.Automatic(now, in)
 	default:
 		s.mu.Unlock()
-		return engine.State{}, fmt.Errorf("%w: mode must be one of duration, until, end_of_event, end_of_workday, indefinite", ErrInvalid)
+		return engine.State{}, fmt.Errorf("%w: mode must be one of duration, until, end_of_event, end_of_workday, next_change, indefinite", ErrInvalid)
 	}
 	s.override, s.pomodoro = &ov, nil
 	s.persist(keyOverride, ov)
@@ -410,7 +428,7 @@ func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 func (s *Service) currentEventEndLocked(now time.Time) (time.Time, bool) {
 	var end time.Time
 	for _, e := range s.events {
-		if _, ok := s.base.Rules.CalendarStatus[e.Kind]; !ok || e.AllDay || e.Transparent {
+		if _, ok := s.base.Rules.EventStatus(e); !ok {
 			continue
 		}
 		if !now.Before(e.Start) && now.Before(e.End) && e.End.After(end) {
@@ -441,13 +459,17 @@ func (s *Service) SetPomodoro(r PomodoroRequest) (engine.State, error) {
 	if r.Work < time.Minute || r.Work > 4*time.Hour || r.Break < 0 || r.Break > time.Hour || r.Cycles < 0 || r.Cycles > 24 {
 		return engine.State{}, fmt.Errorf("%w: work 1m–4h, break 0–1h, cycles 0–24", ErrInvalid)
 	}
+	s.mu.Lock()
+	if r.WorkStatus == "" {
+		r.WorkStatus = s.base.Rules.PomodoroWork
+	}
 	if r.WorkStatus == "" {
 		r.WorkStatus = status.DND
 	}
-	if r.WorkStatus != status.Working && r.WorkStatus != status.DND {
-		return engine.State{}, fmt.Errorf("%w: work_status must be working or dnd", ErrInvalid)
+	if err := CheckPomodoroWork(r.WorkStatus); err != nil {
+		s.mu.Unlock()
+		return engine.State{}, err
 	}
-	s.mu.Lock()
 	f := engine.Pomodoro{Start: s.now(), Work: r.Work, Break: r.Break, Cycles: r.Cycles, WorkStatus: r.WorkStatus}
 	s.pomodoro, s.override = &f, nil
 	s.persist(keyPomodoro, f)
@@ -482,7 +504,14 @@ func (s *Service) Settings() Settings {
 
 func (s *Service) settingsLocked() Settings {
 	r := s.base.Rules
-	out := Settings{Calendar: map[calendar.Kind]string{}, LastCall: r.LastCall, EndingSoon: r.EndingSoon}
+	out := Settings{Calendar: map[calendar.Kind]string{}, Tentative: r.Tentative, LastCall: r.LastCall, EndingSoon: r.EndingSoon}
+	if out.Tentative == "" {
+		out.Tentative = engine.TentativeKind
+	}
+	out.Pomodoro = r.PomodoroWork
+	if out.Pomodoro == "" {
+		out.Pomodoro = status.DND
+	}
 	for _, k := range calendar.Kinds {
 		out.Calendar[k] = Ignore
 		if st, ok := r.CalendarStatus[k]; ok {
@@ -495,8 +524,18 @@ func (s *Service) settingsLocked() Settings {
 // SettingsUpdate changes some settings; nil fields stay as they are.
 type SettingsUpdate struct {
 	Calendar   map[calendar.Kind]string
+	Tentative  *string
 	LastCall   *engine.Lead
 	EndingSoon *engine.Lead
+	Pomodoro   *status.Status
+}
+
+// CheckPomodoroWork validates the status of pomodoro work phases.
+func CheckPomodoroWork(s status.Status) error {
+	if s != status.Working && s != status.DND {
+		return fmt.Errorf("%w: pomodoro work status must be working or dnd", ErrInvalid)
+	}
+	return nil
 }
 
 // UpdateSettings validates, applies and persists a settings change.
@@ -511,9 +550,25 @@ func (s *Service) UpdateSettings(u SettingsUpdate) (Settings, error) {
 			}
 		}
 	}
+	if u.Tentative != nil {
+		if err := engine.CheckTentative(*u.Tentative); err != nil {
+			return Settings{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		}
+	}
+	if u.Pomodoro != nil {
+		if err := CheckPomodoroWork(*u.Pomodoro); err != nil {
+			return Settings{}, err
+		}
+	}
 	s.mu.Lock()
 	next := s.settingsLocked()
 	maps.Copy(next.Calendar, u.Calendar)
+	if u.Tentative != nil {
+		next.Tentative = *u.Tentative
+	}
+	if u.Pomodoro != nil {
+		next.Pomodoro = *u.Pomodoro
+	}
 	if u.LastCall != nil {
 		next.LastCall = *u.LastCall
 	}
@@ -536,6 +591,13 @@ func (s *Service) applyLocked(st Settings) {
 		}
 	}
 	s.base.Rules.CalendarStatus = cs
+	// Settings saved by an older hub lack the newer fields: keep the defaults.
+	if st.Tentative != "" {
+		s.base.Rules.Tentative = st.Tentative
+	}
+	if st.Pomodoro != "" {
+		s.base.Rules.PomodoroWork = st.Pomodoro
+	}
 	s.base.Rules.LastCall, s.base.Rules.EndingSoon = st.LastCall, st.EndingSoon
 }
 

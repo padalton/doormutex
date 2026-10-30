@@ -153,6 +153,22 @@ func TestClassify(t *testing.T) {
 	if ev, _ := p.classify(base(func(it *item) { it.Transparency = "transparent" }), ignore); !ev.Transparent {
 		t.Error("transparency lost")
 	}
+	answer := func(rs string) func(*item) {
+		return func(it *item) {
+			it.Attendees = append(it.Attendees, struct {
+				Self           bool   `json:"self"`
+				ResponseStatus string `json:"responseStatus"`
+			}{false, "declined"}, struct {
+				Self           bool   `json:"self"`
+				ResponseStatus string `json:"responseStatus"`
+			}{true, rs})
+		}
+	}
+	for rs, tentative := range map[string]bool{"tentative": true, "needsAction": true, "accepted": false} {
+		if ev, ok := p.classify(base(answer(rs)), ignore); !ok || ev.Tentative != tentative {
+			t.Errorf("%s: tentative = %v (ok %v)", rs, ev.Tentative, ok)
+		}
+	}
 }
 
 // fakeGoogle serves the token endpoint and the events API for two accounts.
@@ -203,7 +219,10 @@ func (f *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			_, _ = fmt.Fprint(w, `{"items":[{"id":"c","status":"confirmed","eventType":"focusTime",
-				"start":{"dateTime":"2026-10-28T13:00:00+01:00"},"end":{"dateTime":"2026-10-28T15:00:00+01:00"}}]}`)
+				"start":{"dateTime":"2026-10-28T13:00:00+01:00"},"end":{"dateTime":"2026-10-28T15:00:00+01:00"}},
+				{"id":"d","status":"confirmed","eventType":"default","hangoutLink":"https://meet.google.com/y",
+				"attendees":[{"self":true,"responseStatus":"tentative"}],
+				"start":{"dateTime":"2026-10-28T16:00:00+01:00"},"end":{"dateTime":"2026-10-28T16:30:00+01:00"}}]}`)
 		default:
 			http.Error(w, `{"error":{"message":"unauthorized"}}`, http.StatusUnauthorized)
 		}
@@ -247,7 +266,7 @@ func TestEventsFromTwoAccounts(t *testing.T) {
 	for _, e := range ev {
 		got[e.ID] = e.Kind
 	}
-	want := map[string]calendar.Kind{"private/primary/a": calendar.KindVideoCall, "work/primary/c": calendar.KindFocus}
+	want := map[string]calendar.Kind{"private/primary/a": calendar.KindVideoCall, "work/primary/c": calendar.KindFocus, "work/primary/d": calendar.KindVideoCall}
 	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("events = %v, want %v", got, want)
 	}
@@ -270,7 +289,7 @@ func TestEventsFromTwoAccounts(t *testing.T) {
 	f.failWork = true
 	f.mu.Unlock()
 	ev, err = p.Events(context.Background(), from, from.Add(48*time.Hour))
-	if err == nil || !strings.Contains(err.Error(), "backend error") || len(ev) != 2 {
+	if err == nil || !strings.Contains(err.Error(), "backend error") || len(ev) != 3 {
 		t.Fatalf("partial failure: %d events, err %v", len(ev), err)
 	}
 	if st := p.Status(); st[1].Error == "" || !st[1].Connected {

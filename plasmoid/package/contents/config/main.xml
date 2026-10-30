@@ -16,5 +16,9 @@
       <label>Profile id; empty: the token's profile</label>
       <default></default>
     </entry>
+    <entry name="pomodoroWorkStatus" type="String">
+      <label>Pomodoro light while working: empty = the hub setting, dnd (red) or working (yellow)</label>
+      <default></default>
+    </entry>
   </group>
 </kcfg>

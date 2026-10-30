@@ -5,12 +5,12 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/padalton/doormutex/companion/internal/hubclient"
+	"github.com/padalton/doormutex/companion/internal/i18n"
 )
 
 // Sampler reads the current desktop state.
@@ -134,7 +134,7 @@ func (a *Agent) notifier(ctx context.Context) func(hubclient.State) {
 		summary, body := Describe(st)
 		var actions map[string]string
 		if st.Override != nil {
-			actions = map[string]string{"auto": "Back to automatic"}
+			actions = map[string]string{"auto": Texts.T("action.auto")}
 		}
 		err := a.Notifier.Notify(summary, body, actions, func(key string) {
 			if key == "auto" {
@@ -149,36 +149,34 @@ func (a *Agent) notifier(ctx context.Context) func(hubclient.State) {
 	}
 }
 
-var statusText = map[string]string{
-	"dnd": "🔴 Do not disturb", "working": "🟡 Working", "free": "🟢 Come in", "away": "⚫ Off",
-}
+// Texts translates notifications; main sets it from the environment.
+var Texts = i18n.New("en")
 
-var reasonText = map[string]string{
-	"override": "set by hand", "pomodoro": "pomodoro", "pomodoro_break": "pomodoro break",
-	"microphone": "microphone in use", "camera": "camera in use", "screen_locked": "screen locked",
-	"pc_off": "PC off", "companion_lost": "companion not responding", "companion_offline": "PC not running",
-	"calendar": "calendar", "work_hours": "working hours", "signal": "signal", "default": "nothing planned",
-}
+var statusIcon = map[string]string{"dnd": "🔴", "working": "🟡", "free": "🟢", "away": "⚫"}
 
 // Describe turns a state into a notification text, e.g.
 // "🔴 Do not disturb" / "microphone in use – Firefox · until 14:30".
 func Describe(st hubclient.State) (string, string) {
-	summary := statusText[st.Status]
-	if summary == "" {
-		summary = st.Status
+	summary := st.Status
+	if icon, ok := statusIcon[st.Status]; ok {
+		summary = icon + " " + Texts.T("status."+st.Status)
 	}
 	if st.Phase == "fault" {
-		summary = "🟡 Fault"
+		summary = "🟡 " + Texts.T("status.fault")
 	}
-	parts := []string{reasonText[st.Reason]}
-	if parts[0] == "" {
-		parts[0] = st.Reason
+	reason := st.Reason
+	if Texts.Has("reason." + st.Reason) {
+		reason = Texts.T("reason." + st.Reason)
 	}
-	if st.Detail != "" {
-		parts[0] += " – " + strings.ReplaceAll(st.Detail, "_", " ")
+	switch {
+	case st.Reason == "calendar" && Texts.Has("kind."+st.Detail):
+		reason += " – " + Texts.T("kind."+st.Detail)
+	case st.Detail != "":
+		reason += " – " + strings.ReplaceAll(st.Detail, "_", " ")
 	}
+	parts := []string{reason}
 	if st.Until != nil {
-		parts = append(parts, fmt.Sprintf("until %s", st.Until.Local().Format("15:04")))
+		parts = append(parts, Texts.T("until", "time", st.Until.Local().Format("15:04")))
 	}
 	return summary, strings.Join(parts, " · ")
 }

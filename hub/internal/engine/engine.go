@@ -60,11 +60,30 @@ type Claim struct {
 	planned  bool // known in advance (calendar, work hours, timers) vs. live
 }
 
-// Override is a manual status. A zero Until means indefinite.
+// Override is a manual status. A zero Until means indefinite – unless
+// UntilChange is set: then it ends as soon as the automatic status (what
+// the light would show without the override) differs from Base.
 type Override struct {
-	Status status.Status `json:"status"`
-	Start  time.Time     `json:"start"`
-	Until  time.Time     `json:"until,omitzero"`
+	Status      status.Status `json:"status"`
+	Start       time.Time     `json:"start"`
+	Until       time.Time     `json:"until,omitzero"`
+	UntilChange bool          `json:"until_change,omitempty"`
+	Base        status.Status `json:"base,omitempty"` // automatic status when it was set
+}
+
+// Ended reports whether an until-change override is over: the automatic
+// status at now differs from the one it was set on.
+func (o Override) Ended(now time.Time, in Inputs) bool {
+	if !o.UntilChange {
+		return false
+	}
+	return Automatic(now, in) != o.Base
+}
+
+// Automatic returns the status at now without the override.
+func Automatic(now time.Time, in Inputs) status.Status {
+	in.Override = nil
+	return Evaluate(now, in).Status
 }
 
 // Pomodoro is a timer: Work, then Break, repeated Cycles times
@@ -173,6 +192,7 @@ func (l *Lead) UnmarshalText(b []byte) error {
 // Rules are the tunables of the decision logic.
 type Rules struct {
 	CalendarStatus   map[calendar.Kind]status.Status // missing kind → event ignored
+	Tentative        string                          // tentative events: a status, TentativeKind or TentativeIgnore
 	LastCall         Lead                            // warning before a meeting starts
 	EndingSoon       Lead                            // red+yellow before a meeting ends
 	MediaDebounce    time.Duration                   // mic/cam must be active this long
@@ -180,8 +200,46 @@ type Rules struct {
 	StaleAfter       time.Duration                   // companion silent this long → away
 	RequireCompanion bool                            // no companion heartbeat → away
 	Default          status.Status                   // when nothing else applies; empty means free
+	PomodoroWork     status.Status                   // pomodoro work phases unless the request says; empty means dnd
 	Horizon          time.Duration                   // how far ahead to plan
 	Lookback         time.Duration                   // how far back to find "since"
+}
+
+// Settings for tentative events (answered "maybe" or not yet) besides a status.
+const (
+	TentativeKind   = "kind"   // like an accepted event of the same kind
+	TentativeIgnore = "ignore" // skip them
+)
+
+// CheckTentative validates the setting for tentative events.
+func CheckTentative(v string) error {
+	if v == TentativeKind || v == TentativeIgnore {
+		return nil
+	}
+	if _, err := status.Parse(v); err != nil {
+		return fmt.Errorf("tentative: want a status, %q or %q", TentativeKind, TentativeIgnore)
+	}
+	return nil
+}
+
+// EventStatus returns the status of a timed calendar event; ok is false
+// if the rules ignore it. Tentative events get the Tentative status – if
+// their kind isn't ignored altogether.
+func (r Rules) EventStatus(e calendar.Event) (st status.Status, ok bool) {
+	st, ok = r.CalendarStatus[e.Kind]
+	if !ok || e.AllDay || e.Transparent || !e.End.After(e.Start) {
+		return "", false
+	}
+	if e.Tentative {
+		switch r.Tentative {
+		case "", TentativeKind:
+		case TentativeIgnore:
+			return "", false
+		default:
+			st = status.Status(r.Tentative)
+		}
+	}
+	return st, true
 }
 
 // DefaultRules returns the defaults documented in the README.
@@ -193,6 +251,7 @@ func DefaultRules() Rules {
 			calendar.KindOutOfOffice: status.DND, // timed; all-day out of office is a day off
 			calendar.KindOther:       status.Working,
 		},
+		Tentative:        string(status.Working),
 		MediaDebounce:    10 * time.Second,
 		MediaHold:        2 * time.Minute,
 		StaleAfter:       90 * time.Second,
@@ -425,7 +484,8 @@ func equalOverride(a, b *Override) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.Status == b.Status && a.Start.Equal(b.Start) && a.Until.Equal(b.Until)
+	return a.Status == b.Status && a.Start.Equal(b.Start) && a.Until.Equal(b.Until) &&
+		a.UntilChange == b.UntilChange && a.Base == b.Base
 }
 
 func equalPomodoro(a, b *Pomodoro) bool {

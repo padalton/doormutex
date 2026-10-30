@@ -17,6 +17,14 @@ type fakeCtl struct {
 	mu       sync.Mutex
 	override string // "auto" after ClearOverride
 	message  *string
+	office   bool // companion required → next_change
+}
+
+func (f *fakeCtl) RemoteOverrideMode() string {
+	if f.office {
+		return service.ModeNextChange
+	}
+	return service.ModeIndefinite
 }
 
 func (f *fakeCtl) SetOverride(r service.OverrideRequest) (engine.State, error) {
@@ -126,6 +134,13 @@ func TestCommands(t *testing.T) {
 	c.onCommand(nil, msg{"doormutex/teen/override/set", "purple"}) // rejected, logged
 	if o, _ := ctl.get(); o != "auto" {
 		t.Errorf("invalid status applied: %q", o)
+	}
+	// With a required companion, HA's override lasts until the next
+	// automatic change.
+	ctl.office = true
+	c.onCommand(nil, msg{"doormutex/teen/override/set", "dnd"})
+	if o, _ := ctl.get(); o != "dnd/next_change" {
+		t.Errorf("office override = %q", o)
 	}
 	c.onCommand(nil, msg{"doormutex/teen/message/set", " Gaming until 21:00 "})
 	if _, m := ctl.get(); m == nil || *m != "Gaming until 21:00" {

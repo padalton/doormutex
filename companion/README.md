@@ -34,6 +34,15 @@ journalctl --user -u doormutex-companion -f
 
 Needs `pw-dump` (part of PipeWire) – nothing else.
 
+## Google Calendar sign-in
+
+```bash
+doormutex-companion google login private   # account names from the hub profile's calendar.accounts
+doormutex-companion google login work
+```
+
+Opens the browser with Google's sign-in (`xdg-open`); Google redirects back to the companion on `127.0.0.1`, which hands the code to the hub. The hub keeps the client secret and stores the refresh token encrypted. Details: [docs/google-calendar.md](../docs/google-calendar.md).
+
 ## Development
 
 ```bash

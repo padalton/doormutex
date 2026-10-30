@@ -44,6 +44,7 @@ type Controller interface {
 	SetOverride(service.OverrideRequest) (engine.State, error)
 	ClearOverride() engine.State
 	SetMessage(text string, ttl time.Duration) (engine.State, error)
+	RemoteOverrideMode() string // mode of overrides set from HA
 }
 
 // Profile is one person and light published to MQTT.
@@ -189,13 +190,14 @@ func (c *Client) onCommand(_ mqtt.Client, m mqtt.Message) {
 }
 
 // applyOverride maps the HA select: "auto" clears the override, a status
-// sets it until changed again.
+// sets it – until the next automatic change with a desktop companion,
+// until changed again without one.
 func applyOverride(ctl Controller, payload string) error {
 	if payload == "auto" {
 		ctl.ClearOverride()
 		return nil
 	}
-	_, err := ctl.SetOverride(service.OverrideRequest{Status: status.Status(payload), Mode: service.ModeIndefinite})
+	_, err := ctl.SetOverride(service.OverrideRequest{Status: status.Status(payload), Mode: ctl.RemoteOverrideMode()})
 	return err
 }
 

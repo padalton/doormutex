@@ -9,7 +9,7 @@ The state is detected automatically (microphone/camera, Google Calendar, working
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-30). The repo is public from day one so anyone can follow the project as it grows. Software: [`hub/`](hub/) (with web UI), [`companion/`](companion/), [`plasmoid/`](plasmoid/).
 >
-> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Android](docs/android.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml) · [Translating](TRANSLATING.md)
 
 ## Signals
 
@@ -65,7 +65,7 @@ Content: reason, until when, what comes next, hints such as "camera on" (don't w
   - working hours (incl. Austrian public holidays) → yellow
   - PC locked → off
   - otherwise → green
-- **Manual override with duration:** from 15 min to "until end of work day" or indefinite; "auto" resets
+- **Manual override with duration:** from 15 min to "until end of work day", "until the next automatic change" or indefinite; "auto" resets
 - **KDE Plasma widget** (panel and desktop): see the detected state and its reason, override with a time, pomodoro
 - **Desktop notification** on every state change
 - **Last call** and **failsafe** (see Signals)
@@ -155,7 +155,7 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `GET /api/v1/status` | current state incl. reason, slot, next free slot |
 | `GET /api/v1/timeline?from=…&to=…` | planned slots from calendar, working hours and timers |
 | `PUT` / `DELETE /api/v1/override` | set an override (status + duration or end) / clear it |
-| `PUT` / `DELETE /api/v1/pomodoro` | start / stop a pomodoro timer (work phase red by default) |
+| `PUT` / `DELETE /api/v1/pomodoro` | start / stop a pomodoro timer (work phase red by default; setting `pomodoro_work_status` or `work_status` per request for yellow) |
 | `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) and goodbye before shutdown/suspend |
 | `POST` / `DELETE /api/v1/signals/{source}` | webhook signals with TTL |
 | `GET /api/v1/events` | live updates (Server-Sent Events) |
@@ -172,7 +172,7 @@ Every source contributes a *claim*: status, priority and validity. The best vali
 |---|---|---|---|
 | 1 | Microphone or camera in use | `dnd` | counts after ≥ 10 s (debounce), holds for 2 min (reconnects, chat after the call) |
 | 2 | PC locked, shut down or suspended | `away` | the companion signs off; silence without a goodbye is a fault (see below) |
-| 3 | Manual override (widget, Stream Deck, web UI, phone, HA) or pomodoro | any | always ends: after a duration, "until the event ends", "until end of work day" – or explicitly indefinite |
+| 3 | Manual override (widget, Stream Deck, web UI, phone, HA) or pomodoro | any | always ends: after a duration, "until the event ends", "until end of work day", "until the next automatic change" – or explicitly indefinite |
 | 4 | Calendar event | by event kind | see [Google Calendar](#google-calendar) |
 | 5 | Working hours | `working` | weekly plan, public holidays, extra days off |
 | 6 | Webhook signals (optional) | usually `working` | with TTL |
@@ -248,13 +248,14 @@ Implemented in [`companion/`](companion/) – install as a systemd user service,
   | Out of office, timed | `eventType: outOfOffice` | 🔴 `dnd` – in the reference setup private appointments are blocked as OOO in the work calendar. If the PC is locked, the light is off anyway |
   | Out of office, all day | `eventType: outOfOffice`, all-day | day off (vacation): no working hours that day |
   | Other event | – | 🟡 `working` – e.g. a phone call on the mobile, which the companion can't see |
+  | Tentative | invitation answered "maybe" or not answered yet (`responseStatus` `tentative` / `needsAction`) | 🟡 `working`, whatever the kind – or "like the kind", or ignored |
   | Ignored | working location, birthdays, other all-day events, events marked "free", declined events | – |
 
 - **Overlapping events:** the strictest status wins (`dnd` before `working`), not the one that started last.
 - **Calendar and microphone/camera complement each other:** a call known from the calendar gives the last call ahead of time; microphone/camera catch spontaneous calls and always win.
 - **Focus time and out of office only exist in Google Workspace accounts** and only on primary calendars – in a private Gmail calendar there are plain events only.
 - **Privacy:** location and description are only read to find video links; titles and contents are never stored or shown. Before connecting a work account, check the employer's IT policy.
-- **Set-up:** [docs/google-calendar.md](docs/google-calendar.md) – OAuth client, `doormutex-hub google login <profile> <account>`, mirrored copies. `GET /api/v1/calendar` shows the health of every account.
+- **Set-up:** [docs/google-calendar.md](docs/google-calendar.md) – OAuth client, sign-in with `doormutex-companion google login <account>` (browser on the desktop, no copy and paste; `doormutex-hub google login` for headless set-ups), mirrored copies. Refresh tokens are stored encrypted. `GET /api/v1/calendar` shows the health of every account.
 
 #### Google sign-in for self-hosters
 
@@ -309,9 +310,9 @@ Implemented in [`plasmoid/`](plasmoid/) – install with `kpackagetool6`, see it
 - **Right-click menu:** "open web UI", "auto", quick overrides.
 - **Popup:**
   - detected state with source ("microphone in use", "calendar: meeting until 14:30")
-  - override: red / yellow / green / off for 15 min, 30 min, 1 h, 2 h, until the event ends, until end of work day, or indefinite
+  - override: red / yellow / green / off for 15 min, 30 min, 1 h, 2 h, until the event ends, until end of work day, until the next automatic change, or indefinite
   - "auto" clears the override
-  - pomodoro, e.g. 25/5 or 50/10 (work phase red, break green – configurable)
+  - pomodoro, e.g. 25/5 or 50/10 (work phase red, break green – yellow work phase as a setting in the web UI or per start in the widget)
   - day bar: today's slots as a coloured bar
 - Works in the panel and on the desktop; distributed via the KDE Store ("Get New Widgets").
 - **Other desktops:** the web UI can be installed as a PWA; a GNOME extension would be a nice community project.
@@ -338,9 +339,10 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
 
-- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until changed) or *auto*; e-ink message; pomodoro
+- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until the next automatic change / until changed) or *auto*; e-ink message; pomodoro
 - **Day:** today's planned slots as a bar and a list
-- **Settings:** light per calendar event kind, warning timing (StVO or a lead time), calendar account health
+- **Settings:** light per calendar event kind and for tentative invitations, warning timing (StVO or a lead time), pomodoro colour, calendar account health, language of this device
+- **Languages:** English and German; the browser's language is picked automatically and can be changed per device. More languages: [TRANSLATING.md](TRANSLATING.md)
 - **History:** recent status changes
 - **Profiles:** a selector when the token may see several profiles
 
@@ -348,10 +350,11 @@ Later: working hours, profiles and tokens, device health (battery, Wi-Fi, firmwa
 
 ### Phone (iPhone and Android)
 
-No native app – so no Apple developer account and no app store. Step-by-step: [docs/apple-shortcuts.md](docs/apple-shortcuts.md).
+No native app – so no Apple developer account, no app store, nothing to maintain per platform. Step-by-step: [iPhone](docs/apple-shortcuts.md) · [Android](docs/android.md).
 
-- **Web app:** the web UI can be added to the home screen ("Add to Home Screen") and then opens like an app. Within the home network plain HTTP is enough for controlling the light; push notifications need HTTPS (on iOS from 16.4, for web apps on the home screen).
-- **Apple Shortcuts:** a shortcut calls the hub API with the profile's token. That gives Siri ("traffic light red"), the Action Button and home-screen widgets – and automations such as "when the *Do Not Disturb* focus turns on → light red". The iPhone's focus mode then switches the light.
+- **Web app:** the web UI can be added to the home screen and then opens like an app. On iOS plain HTTP in the home network is enough; **Android's Chrome installs web apps only over HTTPS** – a reverse proxy with an internal hostname and a DNS-challenge certificate does it (example in the Android guide). Installed on Android, a long-press on the icon offers *Red*, *Green* and *Automatic* (app shortcuts).
+- **iPhone – Apple Shortcuts:** a shortcut calls the hub API with the profile's token. That gives Siri ("traffic light red"), the Action Button and home-screen widgets – and automations such as "when the *Do Not Disturb* focus turns on → light red".
+- **Android – HTTP Shortcuts, MacroDroid/Tasker:** the open-source app *HTTP Shortcuts* puts API calls on home-screen icons, widgets and **Quick Settings tiles**; MacroDroid or Tasker switch the light with the phone's Do Not Disturb or a mode such as "Gaming". Voice via Google Assistant / Google Home goes through Home Assistant scripts.
 
 ## Home Assistant & MQTT
 
@@ -366,7 +369,7 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `sensor.doormutex_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
 | `binary_sensor.doormutex_charging` | binary | charging / on USB (announced by the light itself) |
 | diagnostics | – | Wi-Fi signal, firmware version, online |
-| `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` |
+| `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` – in office mode with the companion only until the next automatic change (screen locked, meeting, end of work day); without the companion (HA-only, room mode) HA or the web UI is in charge and it stays until changed |
 | `text.doormutex_office_message` | text | short message for the e-ink (one line, ≤ 64 characters) |
 
 | Topic | Content |
@@ -472,7 +475,7 @@ flowchart LR
 
 ### Battery & safety
 
-The light runs on used 18650 cells from old vapes. That makes the protection circuitry mandatory, not optional:
+The light runs on a single 18650 cell. In the reference build these are Panasonic cells in good condition, checked with an analysing charger; others will use cells from old vapes. Either way the protection circuitry is mandatory, not optional:
 
 | Protection against | Implementation |
 |---|---|
@@ -612,7 +615,7 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
   - **Verification:** the breadboard test with 5 mm LEDs and lens test prints confirms it.
 - **Printing:** at ~190 mm the enclosure fits the MK3S (250 × 210 mm) in one piece. Visors, lenses, back cover and wall mount are separate parts.
 - **PCB as the back wall:** ~40 × 175 mm, the LEDs sit directly behind the chambers. No cables, no extra boards. Larger than 100 × 100 mm costs only a few dollars more at JLCPCB.
-- **Mounting:** at ~200 g adhesive strips hold. On a staircase with kids, screws or cable ties are still the sturdier choice.
+- **Mounting:** at ~200 g adhesive strips hold. On a staircase with kids, screws or cable ties are still the sturdier choice. **Magnets** for steel: in the foot (standing on a steel newel post) and optionally in a side wall (on a steel railing or handrail, at eye level) – details and holding-force estimate in [hardware/README.md](hardware/README.md#magnet-mount).
 - **Larger variants** via parameters. With 2.13″ (approx. 59 × 29 mm) the enclosure becomes ~70 mm wide and ~240 mm tall – tight on the MK3S. With 2.9″ (approx. 79 × 37 mm) it becomes ~100 mm wide and ~365 mm tall; it must be split into chambers, and 72 mm lenses need LED rings.
 - **Lenses in transparent PETG**, printed as separate flat parts, 0.8–1.2 mm thick, with a diffuser structure on the inside. Plus:
   - a white reflector cone behind the lens
@@ -633,10 +636,10 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
   - a smooth surface for removable adhesive strips (tesa Powerstrips, Command),
   - slots for cable ties.
 
-  The light hooks in from above (dovetail + snap) and lifts off for charging or swapping the cell. Optionally a clamp for the stair railing.
+  The light hooks in from above (dovetail + snap) and lifts off for charging or swapping the cell. Optionally a clamp for the stair railing, or **magnets** in the foot and side wall for steel railings (reference setup: a steel newel post at the end of a ~5 m hallway).
 - **Parametric with OpenSCAD + BOSL2:** scale, display size, mount type and tolerances are adjustable. The files are Customizer-compatible and therefore also work with the OpenSCAD configurator on MakerWorld.
 - **Iteration:**
-  1. tolerance test print: hook-in, snap, lens seat, USB-C cut-out, inserts
+  1. tolerance test print: hook-in, snap, lens seat, USB-C cut-out, inserts, magnet pockets (holding force on the real railing)
   2. lens light test
   3. enclosure v1 → photos → adjustments
 - **Tooling:** a recent OpenSCAD with the Manifold backend (a snapshot/nightly if needed) – renders orders of magnitude faster.
@@ -646,7 +649,9 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 - Everything runs locally. The only external connection is the Google Calendar API.
 - The companion only sends yes/no signals and app names, never audio or video.
 - Event titles stay in the hub. E-ink, MQTT and HA only see categories such as "meeting".
-- One API token per client (companion, widget, Stream Deck, webhooks), stored hashed; MQTT with user and password, TLS optional.
+- One API token per client (companion, widget, Stream Deck, webhooks), stored hashed. A token can be limited to one profile (a teenager's phone); tokens without a profile are admin tokens for all profiles.
+- Google refresh tokens are stored encrypted (AES-256-GCM, key from `DOORMUTEX_SECRET_KEY` or a key file kept out of the database backups); the client secret and the tokens never leave the hub – not even during sign-in through the companion.
+- MQTT with user and password, TLS optional. Commands on MQTT (HA `select`/`text`) rely on the broker's ACLs.
 
 ## Open source
 
@@ -683,7 +688,7 @@ doormutex/
 
 | Milestone | Content |
 |---|---|
-| **M0 – software core** | Hub ✅ (merged). In review as stacked PRs #3–#8: review rules, profiles + room mode, Google Calendar, web UI, companion, Plasma widget. A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
+| **M0 – software core** | Hub, review rules, profiles + room mode, Google Calendar, web UI, companion, Plasma widget ✅ (#1–#8, landed on `main` with #10). Review decisions: `next_change` override, tentative events, encrypted tokens, sign-in through the companion, English/German, Android guide (#11). A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
 | **M1a – breadboard** | [Prototype from ready-made modules](docs/breadboard.md): firmware, LEDs + lens test, e-ink, current measurement, then battery operation. Runs in parallel to M0 |
 | **M1b – PCB + enclosure v1** | KiCad schematic + layout + review based on the measurements, JLCPCB order, tolerance test prints, enclosure v1 |
 | **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin, web flasher, OTA |
@@ -691,14 +696,11 @@ doormutex/
 
 ## Open questions
 
-1. **Mounting spot:** photos of the stairs and hallway. How long is the line of sight? It drives LED brightness and enclosure size.
-2. **E-ink:** 1.54″ (decided 2026-10-29). Check on the breadboard whether the text is readable from the top of the stairs.
-3. **Cells:** which 18650s are they (type, age)? Is there a charger with capacity test?
-4. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
-5. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but needed for push notifications to the web app.
-6. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
-7. **Room mode without a homelab:** proposal: a standalone mode in which the light hosts its own web UI and API at `doormutex-<name>.local` (ESP-IDF HTTP server, setup via a Wi-Fi QR code on the e-ink, pairing code against siblings). Alternatives: a Home Assistant add-on or a hosted service. Decide before the firmware architecture is fixed.
-8. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing are proposals – check on the breadboard whether they read well from the stairs.
+1. **Railing for the magnet mount:** is the steel magnetic (a fridge magnet sticks)? Stainless steel railings often aren't. Profile and size of the newel post and the handrail (round/square, mm) – the foot and the side wall follow their shape.
+2. **Project domain and homepage:** which domain, where hosted (needed for Google OAuth branding and long-lived tokens)?
+3. **Packaging:** AUR package and/or binary releases from CI for the companion and the hub.
+4. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing – check on the breadboard whether they read well from the end of the hallway.
+5. **Wi-Fi:** which access point will the light use? TWT needs Wi-Fi 6 (see [hardware/README.md](hardware/README.md#wi-fi-unifi)).
 
 ## Risks
 
@@ -765,8 +767,23 @@ doormutex/
 | 2026-10-29 | mDNS name `doormutex[-<name>].local` | English project name, several lights per network |
 | 2026-10-29 | Project renamed from the working title office-traffic-light to **doormutex** | the old name already existed on GitHub and was too narrow for room mode; a mutex lets only one into the critical section |
 | 2026-10-30 | Implemented the review rules in the hub (PR m1-rules). Fault is reported as status `away` with phase `fault`; calendar kind `meeting` became `video_call` | `away` keeps HA automations simple (nobody to disturb is known); the kind name matches the README table |
-| 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
+| 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override – refined below, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
 | 2026-10-30 | Google Calendar: own HTTP client against the Calendar API (no Google SDK), `x/oauth2` with PKCE; scope `calendar.events.readonly`; titles are not even requested; login via loopback or pasting the redirect address; accounts fail independently (last good events are kept) | small dependency footprint, testable with `httptest`; works when the hub runs in Docker on another machine |
 | 2026-10-30 | Web UI: plain HTML/CSS/JS embedded with `go:embed`, no npm, strict CSP, service worker never caches the API; runtime settings (light per event kind, phase timing) saved in the hub and override the config | nothing to build or install, nothing loaded from outside the hub; the settings belong where people change them |
 | 2026-10-30 | Companion: separate Go module, polls `pw-dump` every 2 s instead of a PipeWire client library, camera also via `/proc/*/fd`, logind via D-Bus (`godbus`), heartbeat on change and every 30 s | no cgo, no PipeWire headers; `pw-dump` costs a few milliseconds; V4L2 apps (Zoom, Chrome) don't show up in PipeWire |
-| 2026-10-30 | Plasma widget: plain QML with `XMLHttpRequest`, reads the SSE stream from a streaming request and polls as a fallback; token in the Plasma config | no compiled plugin, installs with `kpackagetool6`; KWallet would be nicer (open question) |
+| 2026-10-30 | Plasma widget: plain QML with `XMLHttpRequest`, reads the SSE stream from a streaming request and polls as a fallback; token in the Plasma config | no compiled plugin, installs with `kpackagetool6`; KWallet decided against (below) |
+| 2026-10-30 | Confirmed: a fault is `status: away` + `phase: fault` (no fifth status); red+yellow 2 s; amber (3 s yellow) also in lead-time mode, after the lead-time warning | review of the overnight report |
+| 2026-10-30 | New override mode `next_change`: ends as soon as the automatic status changes. HA's `select` uses it when the profile requires the companion; without the companion (HA-only, room mode) HA or the web UI is in charge and the status stays until changed | with the companion the PC knows best; HA should only bridge until the next real change |
+| 2026-10-30 | MQTT commands rely on the broker's ACLs – fine for now | the broker is in the home network and needs a login |
+| 2026-10-30 | Room mode without a homelab: keep it simple for now – no hosted service, no HA add-on; the hub is needed | revisit with the firmware (standalone web UI on the light) |
+| 2026-10-30 | Google: 7-day token expiry in "Testing" accepted until the project homepage exists; refresh tokens encrypted at rest (AES-256-GCM) | security matters for open source; a database backup alone doesn't reveal the tokens |
+| 2026-10-30 | Google sign-in through the companion with a loopback redirect, no pasting: the hub keeps verifier, secret and token, the companion only relays the code; `doormutex-hub google login` stays for headless set-ups | the browser runs on the desktop, the hub in Docker elsewhere |
+| 2026-10-30 | Tentative invitations ("maybe", not answered) are yellow by default, whatever the kind; setting: a status, like the kind, or ignore | a maybe isn't a commitment – but it isn't free time either |
+| 2026-10-30 | Pomodoro work phase red by default, yellow as a setting (web UI) and per start (widget) | flexible without changing the default |
+| 2026-10-30 | Profile-scoped tokens may change their own profile's settings; tokens without a profile are admin tokens for all profiles | the teenager configures their own light, never the office |
+| 2026-10-30 | Widget token in the Plasma config like other widgets, no KWallet | simple; the token only controls the light |
+| 2026-10-30 | Languages: English primary, German maintained; JSON catalogs (web app, companion) and gettext (widget), Weblate-ready; community translations via pull requests ([TRANSLATING.md](TRANSLATING.md)) | most of the family speaks German; the formats work with Weblate when needed |
+| 2026-10-30 | Android first-class next to the iPhone, still without a native app: installable web app (needs HTTPS → reverse proxy) with app shortcuts, HTTP Shortcuts for widgets and Quick Settings tiles, MacroDroid/Tasker for Do Not Disturb, voice via HA | most of the family uses Android; no store, nothing per platform to maintain |
+| 2026-10-30 | Mounting by magnets for steel: in the foot (newel post) and optionally a side wall (railing, eye level); anti-slip pad, fall protection | the reference spot is a steel stair-railing post at the end of a ~5 m hallway |
+| 2026-10-30 | E-ink 1.54″ only needs to be readable right in front of the light | the colour is read from 5 m, the text up close |
+| 2026-10-30 | Reference cells: Panasonic 18650 in good condition, checked with an analysing charger (discharge/refresh) | protection circuitry stays mandatory for everyone else's cells |

@@ -27,6 +27,13 @@ PlasmaExtras.Representation {
         })
     }
 
+    // The yellow button wins; unchecked means red if the widget preset is
+    // yellow, otherwise the preset (empty: the hub's setting).
+    function pomodoroStatus() {
+        if (yellowPomodoro.checked) return "working"
+        return root.pomodoroWorkStatus === "working" ? "dnd" : root.pomodoroWorkStatus
+    }
+
     Connections {
         target: root
         function onExpandedChanged() {
@@ -111,13 +118,14 @@ PlasmaExtras.Representation {
             PlasmaComponents3.Label { text: i18n("Override for") }
             PlasmaComponents3.ComboBox {
                 id: duration
-                readonly property var values: ["15m", "30m", "1h", "2h", "end_of_event", "end_of_workday", "indefinite"]
+                readonly property var values: ["15m", "30m", "1h", "2h", "end_of_event", "end_of_workday", "next_change", "indefinite"]
                 readonly property string choice: values[currentIndex]
                 Layout.fillWidth: true
                 currentIndex: 2
                 model: [
                     i18n("15 minutes"), i18n("30 minutes"), i18n("1 hour"), i18n("2 hours"),
-                    i18n("until the event ends"), i18n("until end of work day"), i18n("until changed")
+                    i18n("until the event ends"), i18n("until end of work day"),
+                    i18n("until the next automatic change"), i18n("until changed")
                 ]
             }
         }
@@ -150,11 +158,20 @@ PlasmaExtras.Representation {
         RowLayout {
             PlasmaComponents3.Button {
                 text: "🍅 25 / 5"
-                onClicked: root.startPomodoro("25m", "5m")
+                onClicked: root.startPomodoro("25m", "5m", full.pomodoroStatus())
             }
             PlasmaComponents3.Button {
                 text: "🍅 50 / 10"
-                onClicked: root.startPomodoro("50m", "10m")
+                onClicked: root.startPomodoro("50m", "10m", full.pomodoroStatus())
+            }
+            PlasmaComponents3.ToolButton {
+                id: yellowPomodoro
+                // Yellow instead of red for this pomodoro; preset from the widget settings.
+                text: i18n("yellow")
+                checkable: true
+                checked: root.pomodoroWorkStatus === "working"
+                QQC2.ToolTip.text: i18n("Yellow (working) instead of red while the pomodoro runs")
+                QQC2.ToolTip.visible: hovered
             }
             PlasmaComponents3.Button {
                 text: i18n("Stop")
