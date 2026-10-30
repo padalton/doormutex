@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/calendar/google"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/status"
@@ -32,6 +33,14 @@ type Profile struct {
 	Mode     string
 	Calendar string // calendar provider: none, google, fake
 	Svc      *service.Service
+	Login    CalendarLogin // nil: no sign-in through the API (not Google)
+}
+
+// CalendarLogin signs calendar accounts in through a client on the desktop
+// (loopback redirect); *google.Provider implements it.
+type CalendarLogin interface {
+	StartLogin(account, redirectURI string) (authURL string, err error)
+	CompleteLogin(ctx context.Context, account, state, code string) error
 }
 
 // Server is the HTTP API.
@@ -55,6 +64,8 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	s.handle("GET /api/v1/status", s.getStatus)
 	s.handle("GET /api/v1/history", s.getHistory)
 	s.handle("GET /api/v1/calendar", s.getCalendar)
+	s.handle("POST /api/v1/calendar/accounts/{account}/login", s.startLogin)
+	s.handle("POST /api/v1/calendar/accounts/{account}/login/complete", s.completeLogin)
 	s.handle("GET /api/v1/settings", s.getSettings)
 	s.handle("PUT /api/v1/settings", s.putSettings)
 	s.handle("PUT /api/v1/message", s.putMessage)
@@ -206,6 +217,79 @@ func (s *Server) getCalendar(w http.ResponseWriter, r *http.Request) {
 		acc = []calendar.AccountStatus{}
 	}
 	writeJSON(w, http.StatusOK, CalendarInfo{Provider: p.Calendar, Accounts: acc})
+}
+
+// LoginStart is the body of POST /api/v1/calendar/accounts/{account}/login.
+type LoginStart struct {
+	RedirectURI string `json:"redirect_uri"`
+}
+
+// LoginURL is its answer: open AuthURL in the browser.
+type LoginURL struct {
+	AuthURL string `json:"auth_url"`
+}
+
+// LoginComplete is the body of …/login/complete: code and state from
+// Google's redirect.
+type LoginComplete struct {
+	Code  string `json:"code"`
+	State string `json:"state"`
+}
+
+func login(r *http.Request) CalendarLogin {
+	return r.Context().Value(profileKey{}).(*Profile).Login
+}
+
+func (s *Server) startLogin(w http.ResponseWriter, r *http.Request) {
+	l := login(r)
+	if l == nil {
+		writeError(w, http.StatusNotFound, "this profile has no Google calendar")
+		return
+	}
+	var b LoginStart
+	if !decode(w, r, &b) {
+		return
+	}
+	u, err := l.StartLogin(r.PathValue("account"), b.RedirectURI)
+	switch {
+	case err == nil:
+		writeJSON(w, http.StatusOK, LoginURL{AuthURL: u})
+	case errors.Is(err, google.ErrUnknownAccount):
+		writeError(w, http.StatusNotFound, err.Error())
+	default:
+		writeError(w, http.StatusBadRequest, err.Error())
+	}
+}
+
+func (s *Server) completeLogin(w http.ResponseWriter, r *http.Request) {
+	l := login(r)
+	if l == nil {
+		writeError(w, http.StatusNotFound, "this profile has no Google calendar")
+		return
+	}
+	var b LoginComplete
+	if !decode(w, r, &b) {
+		return
+	}
+	account := r.PathValue("account")
+	if err := l.CompleteLogin(r.Context(), account, b.State, b.Code); err != nil {
+		code := http.StatusBadGateway // Google refused the code
+		if errors.Is(err, google.ErrLoginExpired) {
+			code = http.StatusBadRequest
+		}
+		writeError(w, code, err.Error())
+		return
+	}
+	s.log.Info("calendar account signed in", "profile", svc(r).Profile(), "account", account, "client", Client(r).Name)
+	// Read the new account right away instead of at the next poll.
+	sv := svc(r)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		sv.RefreshCalendar(ctx)
+		sv.Evaluate()
+	}()
+	writeJSON(w, http.StatusOK, map[string]string{"account": account, "status": "connected"})
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {

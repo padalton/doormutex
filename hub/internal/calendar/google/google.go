@@ -23,9 +23,8 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/padalton/doormutex/hub/internal/secret"
-
 	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/secret"
 )
 
 // Scope is the only OAuth scope the hub asks for.
@@ -91,6 +90,7 @@ type Provider struct {
 	mu     sync.Mutex
 	cache  map[string][]calendar.Event // last good events per account
 	status map[string]*calendar.AccountStatus
+	logins map[string]pendingLogin // state → sign-in in progress (remote.go)
 }
 
 // New creates a provider.
@@ -104,7 +104,7 @@ func New(o Options) *Provider {
 	if o.Logger == nil {
 		o.Logger = slog.Default()
 	}
-	p := &Provider{o: o, cache: map[string][]calendar.Event{}, status: map[string]*calendar.AccountStatus{}}
+	p := &Provider{o: o, cache: map[string][]calendar.Event{}, status: map[string]*calendar.AccountStatus{}, logins: map[string]pendingLogin{}}
 	for _, a := range o.Accounts {
 		p.status[a.Name] = &calendar.AccountStatus{Name: a.Name}
 	}

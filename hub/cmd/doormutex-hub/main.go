@@ -3,7 +3,8 @@
 //	doormutex-hub serve [-config config.yaml]     run the hub (default)
 //	doormutex-hub token create NAME [PROFILE]     create an API token (optionally for one profile)
 //	doormutex-hub token list|revoke [NAME]        manage API tokens
-//	doormutex-hub google login|logout PROFILE ACCOUNT  connect a Google account (calendar)
+//	doormutex-hub google login|logout PROFILE ACCOUNT  connect a Google account on a headless hub
+//	                                              (on a desktop: doormutex-companion google login ACCOUNT)
 //	doormutex-hub healthcheck                     exit 0 if the local hub answers (for Docker)
 package main
 
@@ -112,6 +113,7 @@ func serve(args []string) error {
 			return err
 		}
 		var cal calendar.Provider
+		var login api.CalendarLogin
 		switch p.Calendar.Provider {
 		case "fake":
 			cal = calendar.NewFake(p.Calendar.FakeEvents...)
@@ -119,16 +121,17 @@ func serve(args []string) error {
 			if err := cfg.GoogleReady(); err != nil {
 				return fmt.Errorf("profile %s: %w", p.ID, err)
 			}
-			cal = google.New(google.Options{
+			g := google.New(google.Options{
 				OAuth: oauthConfig(cfg), Profile: p.ID, Accounts: googleAccounts(p), MirrorKey: cfg.Google.MirrorKey,
 				Tokens: tokens, Location: base.Location, Logger: log.With("profile", p.ID),
 			})
+			cal, login = g, g
 		}
 		svc, err := service.New(service.Options{Profile: p.ID, Base: base, Store: st, Calendar: cal, Logger: log.With("profile", p.ID)})
 		if err != nil {
 			return err
 		}
-		profiles = append(profiles, api.Profile{ID: p.ID, Name: p.Name, Mode: p.Mode, Calendar: p.Calendar.Provider, Svc: svc})
+		profiles = append(profiles, api.Profile{ID: p.ID, Name: p.Name, Mode: p.Mode, Calendar: p.Calendar.Provider, Svc: svc, Login: login})
 	}
 	if tokens, _ := st.ListTokens(); len(tokens) == 0 {
 		log.Warn("no API tokens yet – create one per client with: doormutex-hub token create <name> [<profile>]")

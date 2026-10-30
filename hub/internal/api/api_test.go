@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/calendar/google"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/schedule"
 	"github.com/padalton/doormutex/hub/internal/service"
@@ -46,6 +48,39 @@ type fixture struct {
 	clk   *clock
 	cal   *calendar.Fake
 	token string // unscoped
+}
+
+// fakeLogin stands in for the Google provider's remote sign-in.
+type fakeLogin struct {
+	mu       sync.Mutex
+	redirect string
+	done     []string
+}
+
+func (l *fakeLogin) StartLogin(account, redirect string) (string, error) {
+	if account != "private" {
+		return "", google.ErrUnknownAccount
+	}
+	if !strings.HasPrefix(redirect, "http://127.0.0.1:") {
+		return "", google.ErrBadRedirect
+	}
+	l.mu.Lock()
+	l.redirect = redirect
+	l.mu.Unlock()
+	return "https://accounts.example/auth?state=s1", nil
+}
+
+func (l *fakeLogin) CompleteLogin(_ context.Context, account, state, code string) error {
+	if state != "s1" {
+		return google.ErrLoginExpired
+	}
+	if code != "the-code" {
+		return errors.New("exchange code: invalid_grant")
+	}
+	l.mu.Lock()
+	l.done = append(l.done, account)
+	l.mu.Unlock()
+	return nil
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -84,7 +119,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	a := New([]Profile{
-		{ID: "office", Name: "Office", Mode: "office", Svc: svc},
+		{ID: "office", Name: "Office", Mode: "office", Svc: svc, Login: &fakeLogin{}},
 		{ID: "teen", Name: "Teen room", Mode: "room", Svc: teen},
 	}, st, slog.New(slog.DiscardHandler))
 	srv := httptest.NewServer(a)
@@ -213,6 +248,39 @@ func TestNextChangeOverride(t *testing.T) {
 	}
 	if mode := f.teen.RemoteOverrideMode(); mode != service.ModeIndefinite {
 		t.Errorf("room profile remote mode %q", mode)
+	}
+}
+
+func TestCalendarLogin(t *testing.T) {
+	f := newFixture(t)
+	resp, b := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/private/login", `{"redirect_uri":"http://127.0.0.1:43117/"}`)
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(b), `"auth_url":"https://accounts.example/auth?state=s1"`) {
+		t.Fatalf("start: %d %s", resp.StatusCode, b)
+	}
+	for body, want := range map[string]int{
+		`{"code":"the-code","state":"old"}`:      http.StatusBadRequest,
+		`{"code":"wrong","state":"s1"}`:          http.StatusBadGateway,
+		`{"code":"the-code","state":"s1"}`:       http.StatusOK,
+		`{"code":"the-code","state":"s1","x":1}`: http.StatusBadRequest,
+	} {
+		if resp, b := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/private/login/complete", body); resp.StatusCode != want {
+			t.Errorf("complete %s: %d %s", body, resp.StatusCode, b)
+		}
+	}
+	if resp, _ := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/work/login", `{"redirect_uri":"http://127.0.0.1:1/"}`); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown account: %d", resp.StatusCode)
+	}
+	if resp, _ := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/private/login", `{"redirect_uri":"https://evil.example/"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("bad redirect: %d", resp.StatusCode)
+	}
+	// The teen profile has no Google calendar; a teen token can't reach the office.
+	if resp, _ := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/private/login?profile=teen", `{"redirect_uri":"http://127.0.0.1:1/"}`); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("teen profile: %d", resp.StatusCode)
+	}
+	teenTok, _ := f.store.CreateToken("teen-phone", "teen")
+	f.token = teenTok
+	if resp, _ := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/private/login?profile=office", `{"redirect_uri":"http://127.0.0.1:1/"}`); resp.StatusCode != http.StatusForbidden {
+		t.Errorf("teen token for the office: %d", resp.StatusCode)
 	}
 }
 
@@ -414,7 +482,7 @@ func TestSpecMatchesRoutes(t *testing.T) {
 			}
 			m := strings.ToUpper(method)
 			documented[m+" "+path] = true
-			p := strings.ReplaceAll(path, "{source}", "spec-test")
+			p := strings.ReplaceAll(strings.ReplaceAll(path, "{source}", "spec-test"), "{account}", "private")
 			if path == "/api/v1/events" {
 				continue // streams forever; covered by TestEventStream
 			}
