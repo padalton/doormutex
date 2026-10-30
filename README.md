@@ -38,19 +38,11 @@ One traffic light, three chambers, just like on the road: red on top, yellow in 
 
 A small e-ink display sits below the light. It shows **absolute times instead of a countdown** ("until 14:30" rather than "23 min left"). So the content only changes when the state changes: no motion sensor needed, no power while idle.
 
-```
-┌────────────────────┐
-│ MEETING            │
-│ until 14:30        │  ← large font
-│ camera on          │
-│ then work → 17:00  │
-│ ▮▮▮▯ 72 %    14:02 │
-└────────────────────┘
-```
+<p><img src="docs/images/eink-video-call-en.png" alt="E-ink sign: Do not disturb, until 15:00, video call, free from 15:00" width="200"> <img src="docs/images/eink-message-de.png" alt="E-ink sign in German with a message and the battery" width="200"> <img src="docs/images/eink-fault-en.png" alt="E-ink sign: fault, the PC companion is not responding" width="200"></p>
 
-1.54″, 200 × 200 pixels. The light already shows the colour; the sign adds the small print. "until 14:30" is ~5 mm tall, the rest ~2 mm: readable when you stand at the top of the stairs.
+1.54″, 200 × 200 pixels, black and white – rendered by the hub (frames from the tests, actual size). E-ink has no colour, so the status is a big word plus a symbol: ⛔ do not disturb, 🕓 working, ✓ come in, ☾ not here, ⚠ fault. The light already shows the colour; the sign adds the small print, readable right in front of the light.
 
-Content: reason, until when, what comes next, hints such as "camera on" (don't walk through the picture), battery level and a "last updated" time. That time is refreshed every 15 min with a partial refresh so a frozen display stands out. Event titles are never shown.
+Content: status, until when, the reason (event kind such as "video call", never a title) or the message, the next free time, the time of the last change and the battery. The frame only changes when its content does, so the panel isn't refreshed for nothing. English and German (per profile, setting `eink_language`).
 
 ## Feature set
 
@@ -162,6 +154,7 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `GET /api/v1/profiles` | profiles the token may see, with their state |
 | `GET` / `PUT /api/v1/settings` | light per calendar event kind, warning timing (saved, overrides the config) |
 | `PUT` / `DELETE /api/v1/message` | e-ink message |
+| `GET /api/v1/eink.png`, `GET /api/v1/eink.bin` | the e-ink frame as a preview image / packed for the panel (5000 bytes, SSD1681 layout), with ETag |
 | `GET /api/v1/calendar`, `GET /api/v1/history` | calendar account health, recent status changes |
 
 ## State logic
@@ -339,9 +332,9 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
 
-- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until the next automatic change / until changed) or *auto*; e-ink message; pomodoro
+- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until the next automatic change / until changed) or *auto*; e-ink message with a live preview of the sign; pomodoro
 - **Day:** today's planned slots as a bar and a list
-- **Settings:** light per calendar event kind and for tentative invitations, warning timing (StVO or a lead time), pomodoro colour, calendar account health, language of this device
+- **Settings:** light per calendar event kind and for tentative invitations, warning timing (StVO or a lead time), pomodoro colour, language of the e-ink sign, calendar account health, language of this device
 - **Languages:** English and German; the browser's language is picked automatically and can be changed per device. More languages: [TRANSLATING.md](TRANSLATING.md)
 - **History:** recent status changes
 - **Profiles:** a selector when the token may see several profiles
@@ -379,7 +372,7 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `doormutex/<profile>/override/set` | command from HA: `auto`, `free`, `working`, `dnd`, `away` |
 | `doormutex/<profile>/message/set` | command from HA: e-ink message, empty clears it |
 | `doormutex/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
-| `doormutex/<profile>/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
+| `doormutex/<profile>/display` | retained e-ink frame rendered by the hub, 5000 bytes like `GET /api/v1/eink.bin`; only sent when it changes; without battery (the light draws its own) |
 | `doormutex/device/<id>/telemetry` | battery, charging, RSSI, firmware |
 | `doormutex/device/<id>/cmd` | OTA, restart, identify |
 
@@ -573,7 +566,7 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 | USB | power supply connected | no power saving needed, the cell is charged or held |
 
 - **LEDs** via LEDC hardware PWM: dimming, blinking, red+yellow. The output keeps running in light sleep (`LEDC_SLEEP_MODE_KEEP_ALIVE`; the right clock source on the C6 is still to be verified). Brightness compensates for the falling cell voltage.
-- **E-ink:** shows the bitmap rendered by the hub. The "last updated" time uses partial refresh, with a regular full refresh against ghosting.
+- **E-ink:** shows the frame rendered by the hub (`display` topic or `GET /api/v1/eink.bin` with `If-None-Match`): 200 × 200, rows top to bottom, 25 bytes per row, leftmost pixel in the most significant bit, 1 = white – written as-is into the SSD1681 black/white RAM. The light only refreshes the panel when a new frame arrives (partial refresh, regularly a full refresh against ghosting) and draws its battery level into the free corner at the bottom right. It fetches the offline screen (`?screen=offline`) once and keeps it in flash for when the hub is gone.
 - **Failsafe:** if the Last Will reports the hub "offline" or the state is too old, yellow blinks.
 - **Telemetry:** battery, charging state, RSSI, firmware. The device announces itself in HA via MQTT discovery.
 - **Setup in the browser:** [ESP Web Tools](https://esphome.github.io/esp-web-tools/) flashes over USB-C (Chrome/Edge, Web Serial) and hands over the Wi-Fi credentials via Improv. Then you enter the MQTT broker on the device page.
@@ -787,3 +780,8 @@ doormutex/
 | 2026-10-30 | Mounting by magnets for steel: in the foot (newel post) and optionally a side wall (railing, eye level); anti-slip pad, fall protection | the reference spot is a steel stair-railing post at the end of a ~5 m hallway |
 | 2026-10-30 | E-ink 1.54″ only needs to be readable right in front of the light | the colour is read from 5 m, the text up close |
 | 2026-10-30 | Reference cells: Panasonic 18650 in good condition, checked with an analysing charger (discharge/refresh) | protection circuitry stays mandatory for everyone else's cells |
+| 2026-10-30 | E-ink rendered by the hub in pure Go (embedded Go fonts, BSD-3-Clause; no system fonts, no grey levels): status word + symbol, until when, reason or message, next free time, time of the last change, battery; golden-image tests | deterministic frames → the ETag only changes with the content and the panel isn't refreshed for nothing; the light stays dumb |
+| 2026-10-30 | E-ink frame format: 5000 bytes in the SSD1681 black/white RAM layout (MSB = left, 1 = white); `GET /api/v1/eink.bin` with ETag and retained on `doormutex/<profile>/display` (no longer reserved); PNG preview for the web UI | the firmware writes it to the panel as-is; HTTP for polling in away mode, MQTT in active mode |
+| 2026-10-30 | Battery on the e-ink: the light draws it itself into the free bottom-right corner of MQTT frames; HTTP also takes a `battery` parameter (preview) | the hub only knows the battery from telemetry; a level change shouldn't need a new frame from the hub |
+| 2026-10-30 | Footer time = when the content last changed, no 15-minute "last updated" refresh; the hub's own outage is shown by an offline screen the light keeps in flash | a frame changing every 15 min costs refreshes; the light knows best when it lost the hub |
+| 2026-10-30 | E-ink language per profile (`eink_language`, English default, German); the sign uses the web UI's words ("Do not disturb", "Bitte nicht stören"), wrapped in the header | the sign has no browser to ask; same words on the light, the phone and the widget |

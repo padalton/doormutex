@@ -5,6 +5,7 @@ doormutex is written in English; German is maintained alongside. Every other lan
 | Part | Files | Format |
 |---|---|---|
 | Web app (phone, browser) | [`hub/internal/web/static/i18n/`](hub/internal/web/static/i18n/) | JSON: `en.json` is the source, one file per language, listed in `languages.json` |
+| E-ink sign on the light (rendered by the hub) | [`hub/internal/eink/i18n/`](hub/internal/eink/i18n/) | JSON, same style; keep the texts short – the sign is 200 pixels wide. Also add the language to `EINK_LANGS` in the web app's `app.js` and to `eink_language` in `api/openapi.yaml`, and render the test images (`go test ./internal/eink -update`) to check that everything fits |
 | Desktop companion (notifications, terminal) | [`companion/internal/i18n/`](companion/internal/i18n/) | JSON, same style; the language comes from `LANGUAGE` / `LC_ALL` / `LC_MESSAGES` / `LANG` |
 | KDE Plasma widget | [`plasmoid/translate/`](plasmoid/translate/) | gettext: `template.pot` is the source, one `<lang>.po` per language |
 
