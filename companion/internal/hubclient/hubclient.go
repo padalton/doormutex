@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -106,6 +107,23 @@ func (c *Client) Heartbeat(ctx context.Context, r Report) (State, error) {
 // ClearOverride returns the light to automatic mode.
 func (c *Client) ClearOverride(ctx context.Context) error {
 	return c.do(ctx, http.MethodDelete, "/api/v1/override", nil, nil)
+}
+
+// StartGoogleLogin asks the hub for Google's sign-in URL; Google will
+// redirect the browser to redirectURI (the companion's loopback address).
+func (c *Client) StartGoogleLogin(ctx context.Context, account, redirectURI string) (string, error) {
+	var out struct {
+		AuthURL string `json:"auth_url"`
+	}
+	err := c.do(ctx, http.MethodPost, "/api/v1/calendar/accounts/"+url.PathEscape(account)+"/login",
+		map[string]string{"redirect_uri": redirectURI}, &out)
+	return out.AuthURL, err
+}
+
+// CompleteGoogleLogin hands Google's code to the hub, which stores the token.
+func (c *Client) CompleteGoogleLogin(ctx context.Context, account, state, code string) error {
+	return c.do(ctx, http.MethodPost, "/api/v1/calendar/accounts/"+url.PathEscape(account)+"/login/complete",
+		map[string]string{"state": state, "code": code}, nil)
 }
 
 // Follow streams the state until ctx is done, reconnecting with backoff.

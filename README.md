@@ -255,7 +255,7 @@ Implemented in [`companion/`](companion/) – install as a systemd user service,
 - **Calendar and microphone/camera complement each other:** a call known from the calendar gives the last call ahead of time; microphone/camera catch spontaneous calls and always win.
 - **Focus time and out of office only exist in Google Workspace accounts** and only on primary calendars – in a private Gmail calendar there are plain events only.
 - **Privacy:** location and description are only read to find video links; titles and contents are never stored or shown. Before connecting a work account, check the employer's IT policy.
-- **Set-up:** [docs/google-calendar.md](docs/google-calendar.md) – OAuth client, `doormutex-hub google login <profile> <account>`, mirrored copies. `GET /api/v1/calendar` shows the health of every account.
+- **Set-up:** [docs/google-calendar.md](docs/google-calendar.md) – OAuth client, sign-in with `doormutex-companion google login <account>` (browser on the desktop, no copy and paste; `doormutex-hub google login` for headless set-ups), mirrored copies. Refresh tokens are stored encrypted. `GET /api/v1/calendar` shows the health of every account.
 
 #### Google sign-in for self-hosters
 

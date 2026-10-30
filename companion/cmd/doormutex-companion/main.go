@@ -5,6 +5,7 @@
 //
 //	doormutex-companion [run] [-config path]   run (default; e.g. as a systemd user service)
 //	doormutex-companion check [-config path]   print what it detects once and test the hub connection
+//	doormutex-companion google login ACCOUNT    sign a Google account of the hub profile in (browser on this desktop)
 package main
 
 import (
@@ -25,6 +26,7 @@ import (
 	"github.com/padalton/doormutex/companion/internal/agent"
 	"github.com/padalton/doormutex/companion/internal/camera"
 	"github.com/padalton/doormutex/companion/internal/desktop"
+	"github.com/padalton/doormutex/companion/internal/googlelogin"
 	"github.com/padalton/doormutex/companion/internal/hubclient"
 	"github.com/padalton/doormutex/companion/internal/pipewire"
 )
@@ -57,10 +59,12 @@ func main() {
 		err = run(*cfgPath)
 	case "check":
 		err = check(*cfgPath)
+	case "google":
+		err = googleCmd(*cfgPath, fs.Args())
 	case "version":
 		fmt.Println(version)
 	default:
-		err = fmt.Errorf("unknown command %q (want run, check, version)", cmd)
+		err = fmt.Errorf("unknown command %q (want run, check, google, version)", cmd)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "doormutex-companion:", err)
@@ -230,4 +234,28 @@ func check(path string) error {
 	summary, body := agent.Describe(st)
 	fmt.Printf("hub:        %s – %s\n", summary, body)
 	return nil
+}
+
+// googleCmd signs a Google account of the token's profile in at the hub.
+// The browser opens here, Google redirects to the companion's loopback
+// port, and the hub exchanges the code – nothing to copy and paste.
+func googleCmd(path string, args []string) error {
+	if len(args) != 2 || args[0] != "login" {
+		return errors.New("usage: doormutex-companion google login ACCOUNT (an account name from the hub profile's calendar.accounts, e.g. private)")
+	}
+	cfg, err := load(path)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	hub := &hubclient.Client{URL: cfg.Hub, Token: cfg.Token}
+	return googlelogin.Run(ctx, hub, args[1], nil, os.Stdout, googlelogin.Texts{
+		Opening: "Opening the browser – sign in with the Google account for \"" + args[1] + "\". If it doesn't open, use this address:",
+		Done:    "Google account \"" + args[1] + "\" is connected. The hub reads the calendar now.",
+		Page:    "doormutex: signed in. You can close this tab.",
+		Failed:  "Google sign-in failed",
+	})
 }
