@@ -366,9 +366,9 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `event.doormutex_office_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
 | `sensor.doormutex_office_slot_start` / `…_slot_end` | timestamp | current slot |
 | `sensor.doormutex_office_next_free_start` / `…_next_free_end` | timestamp | next free slot |
-| `sensor.doormutex_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
-| `binary_sensor.doormutex_charging` | binary | charging / on USB (announced by the light itself) |
-| diagnostics | – | Wi-Fi signal, firmware version, online |
+| `sensor.doormutex_office_battery` | % | battery level, plus `…_battery_voltage` (announced by the light itself, its own HA device linked to the profile) |
+| `binary_sensor.doormutex_office_charging` | binary | charging, plus `…_usb_power` (announced by the light itself) |
+| diagnostics | – | Wi-Fi signal, light fault, firmware version, online; *Identify* and *Restart* buttons (light) |
 | `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` – in office mode with the companion only until the next automatic change (screen locked, meeting, end of work day); without the companion (HA-only, room mode) HA or the web UI is in charge and it stays until changed |
 | `text.doormutex_office_message` | text | short message for the e-ink (one line, ≤ 64 characters) |
 
@@ -379,9 +379,10 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `doormutex/<profile>/override/set` | command from HA: `auto`, `free`, `working`, `dnd`, `away` |
 | `doormutex/<profile>/message/set` | command from HA: e-ink message, empty clears it |
 | `doormutex/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
-| `doormutex/<profile>/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
-| `doormutex/device/<id>/telemetry` | battery, charging, RSSI, firmware |
-| `doormutex/device/<id>/cmd` | OTA, restart, identify |
+| `doormutex/<profile>/display` | retained bitmap for the e-ink, rendered by the hub (5000 bytes: 200 × 200, 1 bit) |
+| `doormutex/device/<id>/telemetry` | retained JSON from the light: battery, voltage, charging, USB, RSSI, light, fault, firmware ([firmware/README.md](firmware/README.md#mqtt)) |
+| `doormutex/device/<id>/online` | `online` / `offline` – the light's Last Will |
+| `doormutex/device/<id>/cmd` | `identify`, `restart`, `ota <url>` |
 
 ```json
 {
@@ -398,7 +399,7 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 }
 ```
 
-`light` is one of `off`, `red`, `yellow`, `green`, `green_blink`, `red_yellow`, `yellow_blink`.
+`light` is one of `off`, `red`, `yellow`, `green`, `green_blink`, `red_yellow`, `red_yellow_alternate`, `yellow_blink`.
 
 ### Bring your own lamp – example
 
@@ -563,7 +564,9 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 
 ## Firmware
 
-**ESP-IDF in C.** Battery operation with a permanent connection needs automatic light sleep and fine control over Wi-Fi power save, which ESPHome can't do. There will still be an ESPHome example config for mains-powered builds.
+**ESP-IDF in C.** Battery operation with a permanent connection needs automatic light sleep and fine control over Wi-Fi power save, which ESPHome can't do. For mains-powered builds there is an [ESPHome example config](firmware/esphome/doormutex-mains.yaml).
+
+**Status:** a skeleton in [`firmware/`](firmware/README.md) – builds in CI (ESP-IDF v5.5, esp32c6), core logic unit-tested on the host; LEDs, Wi-Fi/MQTT, Improv, console, telemetry and HA discovery are written, e-ink driver, light sensor, away mode and OTA download are still to do. Nothing has run on hardware yet.
 
 | Mode | When | Behaviour |
 |---|---|---|
@@ -574,9 +577,9 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 
 - **LEDs** via LEDC hardware PWM: dimming, blinking, red+yellow. The output keeps running in light sleep (`LEDC_SLEEP_MODE_KEEP_ALIVE`; the right clock source on the C6 is still to be verified). Brightness compensates for the falling cell voltage.
 - **E-ink:** shows the bitmap rendered by the hub. The "last updated" time uses partial refresh, with a regular full refresh against ghosting.
-- **Failsafe:** if the Last Will reports the hub "offline" or the state is too old, yellow blinks.
+- **Failsafe:** if the Last Will reports the hub "offline", the connection is down for more than 2 minutes, or the state's `until` is long past without a new state, yellow blinks. (The hub publishes only on change, so an old `updated` alone is fine.)
 - **Telemetry:** battery, charging state, RSSI, firmware. The device announces itself in HA via MQTT discovery.
-- **Setup in the browser:** [ESP Web Tools](https://esphome.github.io/esp-web-tools/) flashes over USB-C (Chrome/Edge, Web Serial) and hands over the Wi-Fi credentials via Improv. Then you enter the MQTT broker on the device page.
+- **Setup in the browser:** [ESP Web Tools](https://esphome.github.io/esp-web-tools/) flashes over USB-C (Chrome/Edge, Web Serial) and hands over the Wi-Fi credentials via Improv. Then you enter the MQTT broker on the USB console (`set mqtt_url …`) – a device web page may follow.
 - **OTA:** triggered via MQTT, images from GitHub Releases, automatic rollback on a failed boot.
 
 ## Enclosure
@@ -787,3 +790,9 @@ doormutex/
 | 2026-10-30 | Mounting by magnets for steel: in the foot (newel post) and optionally a side wall (railing, eye level); anti-slip pad, fall protection | the reference spot is a steel stair-railing post at the end of a ~5 m hallway |
 | 2026-10-30 | E-ink 1.54″ only needs to be readable right in front of the light | the colour is read from 5 m, the text up close |
 | 2026-10-30 | Reference cells: Panasonic 18650 in good condition, checked with an analysing charger (discharge/refresh) | protection circuitry stays mandatory for everyone else's cells |
+| 2026-10-30 | Firmware skeleton: ESP-IDF v5.5, pure-C core (`dm_core`) unit-tested on the host, IDF components for LEDs, network, setup, power, e-ink; CI builds esp32c6 in the `espressif/idf` container | logic testable without hardware; the breadboard only has to prove the drivers |
+| 2026-10-30 | Light failsafe: hub Last Will, connection down > 2 min, or `until` > 2 min past without a new state → yellow blinks; an old `updated` alone is no fault | the hub publishes only on change, but always when `until` is reached |
+| 2026-10-30 | Setup: Improv over USB (ESP Web Tools) for Wi-Fi, a text console on the same port for MQTT/profile; settings in NVS | no device web page needed for the first version; works from any serial terminal |
+| 2026-10-30 | The light is its own HA device (battery, voltage, charging, USB, signal, fault, identify/restart), linked to its profile's hub device; entity IDs `doormutex_<profile>_…` | several lights (office, teen) don't collide |
+| 2026-10-30 | Breadboard pins: LEDs on GPIO 2/3/6 (LP GPIOs), I²C 22/23, e-ink 18–21/10/11; strapping pins and 0/1 (32 kHz crystal) kept free – to be verified | first assignment for the prototype, lands in the schematic afterwards |
+| 2026-10-30 | ESPHome example for mains-powered builds: same topics, patterns and failsafe | the easy path for anyone without a battery |
