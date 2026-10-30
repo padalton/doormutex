@@ -1,7 +1,7 @@
 # Example: run the hub next to an existing MQTT broker.
 #   cp config.example.yaml config.yaml   # adjust work hours and mqtt.url
 #   docker compose -f compose.example.yaml up -d
-#   docker compose -f compose.example.yaml exec hub doormutex-hub token create companion
+#   docker compose -f compose.example.yaml exec hub doormutex-hub token create companion office
 services:
   hub:
     image: ghcr.io/padalton/doormutex-hub:latest

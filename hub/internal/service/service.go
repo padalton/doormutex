@@ -11,8 +11,10 @@ import (
 	"maps"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/padalton/doormutex/hub/internal/calendar"
 	"github.com/padalton/doormutex/hub/internal/engine"
@@ -44,10 +46,34 @@ type Publisher interface {
 const (
 	keyOverride = "override"
 	keyPomodoro = "pomodoro"
+	keyMessage  = "message"
+	keySettings = "settings"
 )
 
-// Service is safe for concurrent use.
+// Ignore is the calendar setting for event kinds the hub skips.
+const Ignore = "ignore"
+
+// Settings are the rules people change at runtime (web UI). They are
+// persisted and override the config file.
+type Settings struct {
+	Calendar   map[calendar.Kind]string `json:"calendar"` // status or "ignore"
+	LastCall   engine.Lead              `json:"last_call"`
+	EndingSoon engine.Lead              `json:"ending_soon"`
+}
+
+// Message is a short text for the e-ink, optionally with an expiry.
+type Message struct {
+	Text  string    `json:"text"`
+	Until time.Time `json:"until,omitzero"`
+}
+
+// MaxMessage is the longest message in characters (the 1.54" e-ink shows
+// about four lines of 16 characters).
+const MaxMessage = 64
+
+// Service holds one profile's live state. It is safe for concurrent use.
 type Service struct {
+	id    string
 	base  engine.Inputs // location, rules, work week, holidays
 	store *store.Store
 	cal   calendar.Provider
@@ -57,6 +83,7 @@ type Service struct {
 	mu        sync.Mutex
 	override  *engine.Override
 	pomodoro  *engine.Pomodoro
+	message   *Message
 	companion engine.Companion
 	signals   map[string]engine.Signal
 	events    []calendar.Event
@@ -68,6 +95,7 @@ type Service struct {
 
 // Options configure a Service.
 type Options struct {
+	Profile  string // profile id; prefixes the persisted keys and the history
 	Base     engine.Inputs
 	Store    *store.Store
 	Calendar calendar.Provider // nil: no calendar
@@ -78,6 +106,7 @@ type Options struct {
 // New creates a service and restores the persisted override/pomodoro timer.
 func New(o Options) (*Service, error) {
 	s := &Service{
+		id:      o.Profile,
 		base:    o.Base,
 		store:   o.Store,
 		cal:     o.Calendar,
@@ -98,22 +127,48 @@ func New(o Options) (*Service, error) {
 	if s.log == nil {
 		s.log = slog.Default()
 	}
-	var ov engine.Override
-	switch err := s.store.Get(keyOverride, &ov); {
-	case err == nil:
-		s.override = &ov
-	case !errors.Is(err, store.ErrNotFound):
+	var err error
+	if s.override, err = restore[engine.Override](s, keyOverride); err != nil {
 		return nil, err
 	}
-	var f engine.Pomodoro
-	switch err := s.store.Get(keyPomodoro, &f); {
-	case err == nil:
-		s.pomodoro = &f
-	case !errors.Is(err, store.ErrNotFound):
+	if s.pomodoro, err = restore[engine.Pomodoro](s, keyPomodoro); err != nil {
 		return nil, err
+	}
+	if s.message, err = restore[Message](s, keyMessage); err != nil {
+		return nil, err
+	}
+	saved, err := restore[Settings](s, keySettings)
+	if err != nil {
+		return nil, err
+	}
+	if saved != nil {
+		s.applyLocked(*saved)
 	}
 	return s, nil
 }
+
+func restore[T any](s *Service, key string) (*T, error) {
+	var v T
+	switch err := s.store.Get(s.key(key), &v); {
+	case err == nil:
+		return &v, nil
+	case errors.Is(err, store.ErrNotFound):
+		return nil, nil
+	default:
+		return nil, err
+	}
+}
+
+// key namespaces a persisted key by profile.
+func (s *Service) key(k string) string {
+	if s.id == "" {
+		return k
+	}
+	return "profiles/" + s.id + "/" + k
+}
+
+// Profile returns the profile id.
+func (s *Service) Profile() string { return s.id }
 
 // AddPublisher registers a publisher; it immediately gets the current state.
 func (s *Service) AddPublisher(p Publisher) {
@@ -148,6 +203,15 @@ func (s *Service) Run(ctx context.Context, tick, poll time.Duration) {
 	}
 }
 
+// CalendarStatus reports the calendar accounts (nil without a calendar or
+// for providers without accounts).
+func (s *Service) CalendarStatus() []calendar.AccountStatus {
+	if r, ok := s.cal.(calendar.StatusReporter); ok {
+		return r.Status()
+	}
+	return nil
+}
+
 // RefreshCalendar fetches events for the planning horizon. On error the
 // previous events are kept.
 func (s *Service) RefreshCalendar(ctx context.Context) {
@@ -157,8 +221,11 @@ func (s *Service) RefreshCalendar(ctx context.Context) {
 	now := s.now()
 	ev, err := s.cal.Events(ctx, now.Add(-s.base.Rules.Lookback), now.Add(s.base.Rules.Horizon))
 	if err != nil {
-		s.log.Warn("calendar refresh failed, keeping previous events", "err", err)
-		return
+		if ev == nil {
+			s.log.Warn("calendar refresh failed, keeping previous events", "err", err)
+			return
+		}
+		s.log.Warn("calendar refresh partly failed", "err", err)
 	}
 	s.mu.Lock()
 	s.events = ev
@@ -170,6 +237,9 @@ func (s *Service) inputsLocked() engine.Inputs {
 	in.Override, in.Pomodoro, in.Companion = s.override, s.pomodoro, s.companion
 	in.Events = s.events
 	in.Signals = slices.Collect(maps.Values(s.signals))
+	if s.message != nil {
+		in.Message = s.message.Text
+	}
 	return in
 }
 
@@ -201,7 +271,7 @@ func (s *Service) Evaluate() engine.State {
 	if !had || prev.Status != st.Status {
 		c := Change{From: prev.Status, To: st.Status, Reason: st.Reason, Detail: st.Detail, At: now}
 		s.log.Info("status changed", "from", c.From, "to", c.To, "reason", c.Reason, "detail", c.Detail)
-		if err := s.store.AppendHistory(store.HistoryEntry{At: now, Status: string(st.Status), Reason: st.Reason, Detail: st.Detail}); err != nil {
+		if err := s.store.AppendHistory(store.HistoryEntry{Profile: s.id, At: now, Status: string(st.Status), Reason: st.Reason, Detail: st.Detail}); err != nil {
 			s.log.Error("write history", "err", err)
 		}
 		if had {
@@ -227,10 +297,14 @@ func (s *Service) expireLocked(now time.Time) {
 			delete(s.signals, k)
 		}
 	}
+	if m := s.message; m != nil && !m.Until.IsZero() && !m.Until.After(now) {
+		s.message = nil
+		s.persist(keyMessage, nil)
+	}
 }
 
 func (s *Service) persist(key string, v any) {
-	if err := s.store.Put(key, v); err != nil {
+	if err := s.store.Put(s.key(key), v); err != nil {
 		s.log.Error("persist", "key", key, "err", err)
 	}
 }
@@ -397,6 +471,103 @@ func (s *Service) CompanionReport(r engine.Report) engine.State {
 	s.companion.Observe(s.now(), r, s.base.Rules)
 	s.mu.Unlock()
 	return s.Evaluate()
+}
+
+// Settings returns the current runtime settings.
+func (s *Service) Settings() Settings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.settingsLocked()
+}
+
+func (s *Service) settingsLocked() Settings {
+	r := s.base.Rules
+	out := Settings{Calendar: map[calendar.Kind]string{}, LastCall: r.LastCall, EndingSoon: r.EndingSoon}
+	for _, k := range calendar.Kinds {
+		out.Calendar[k] = Ignore
+		if st, ok := r.CalendarStatus[k]; ok {
+			out.Calendar[k] = string(st)
+		}
+	}
+	return out
+}
+
+// SettingsUpdate changes some settings; nil fields stay as they are.
+type SettingsUpdate struct {
+	Calendar   map[calendar.Kind]string
+	LastCall   *engine.Lead
+	EndingSoon *engine.Lead
+}
+
+// UpdateSettings validates, applies and persists a settings change.
+func (s *Service) UpdateSettings(u SettingsUpdate) (Settings, error) {
+	for k, v := range u.Calendar {
+		if !slices.Contains(calendar.Kinds, k) {
+			return Settings{}, fmt.Errorf("%w: unknown event kind %q", ErrInvalid, k)
+		}
+		if v != Ignore {
+			if _, err := status.Parse(v); err != nil {
+				return Settings{}, fmt.Errorf("%w: calendar.%s: %w", ErrInvalid, k, err)
+			}
+		}
+	}
+	s.mu.Lock()
+	next := s.settingsLocked()
+	maps.Copy(next.Calendar, u.Calendar)
+	if u.LastCall != nil {
+		next.LastCall = *u.LastCall
+	}
+	if u.EndingSoon != nil {
+		next.EndingSoon = *u.EndingSoon
+	}
+	s.applyLocked(next)
+	s.persist(keySettings, next)
+	out := s.settingsLocked()
+	s.mu.Unlock()
+	s.Evaluate()
+	return out, nil
+}
+
+func (s *Service) applyLocked(st Settings) {
+	cs := map[calendar.Kind]status.Status{}
+	for k, v := range st.Calendar {
+		if v != Ignore {
+			cs[k] = status.Status(v)
+		}
+	}
+	s.base.Rules.CalendarStatus = cs
+	s.base.Rules.LastCall, s.base.Rules.EndingSoon = st.LastCall, st.EndingSoon
+}
+
+// SetMessage sets the e-ink message; an empty text clears it. A zero ttl
+// keeps it until it is changed.
+func (s *Service) SetMessage(text string, ttl time.Duration) (engine.State, error) {
+	text = strings.TrimSpace(text)
+	if utf8.RuneCountInString(text) > MaxMessage || strings.ContainsAny(text, "\r\n") {
+		return engine.State{}, fmt.Errorf("%w: message: one line, at most %d characters", ErrInvalid, MaxMessage)
+	}
+	if ttl < 0 || ttl > 7*24*time.Hour {
+		return engine.State{}, fmt.Errorf("%w: ttl must be between 0 and 7 days", ErrInvalid)
+	}
+	s.mu.Lock()
+	if text == "" {
+		s.message = nil
+		s.persist(keyMessage, nil)
+	} else {
+		m := Message{Text: text}
+		if ttl > 0 {
+			m.Until = s.now().Add(ttl)
+		}
+		s.message = &m
+		s.persist(keyMessage, m)
+	}
+	s.mu.Unlock()
+	return s.Evaluate(), nil
+}
+
+// History returns the most recent status changes, newest first.
+func (s *Service) History(limit int) ([]store.HistoryEntry, error) {
+	return s.store.History(s.id, limit)
 }
 
 var signalName = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,31}$`)

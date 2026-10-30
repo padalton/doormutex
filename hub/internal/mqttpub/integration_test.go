@@ -147,10 +147,13 @@ func TestIntegrationMosquitto(t *testing.T) {
 		URL: "tcp://" + px.ln.Addr().String(), ClientID: "doormutex-hub-test",
 		BaseTopic: "doormutex", DiscoveryPrefix: "homeassistant", Discovery: true, Version: "test",
 	}
-	pub, err := Connect(cfg, slog.New(slog.DiscardHandler))
+	ctl := &fakeCtl{}
+	client, err := Connect(cfg, []Profile{{ID: "office", Name: "Office", Ctl: ctl}, {ID: "teen", Name: "Teen room"}},
+		slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
+	pub := client.Publisher("office")
 
 	until := time.Date(2026, 10, 28, 14, 30, 0, 0, time.UTC)
 	pub.PublishState(engine.State{Status: status.DND, Phase: status.PhaseNormal, Light: status.LightRed,
@@ -158,12 +161,13 @@ func TestIntegrationMosquitto(t *testing.T) {
 	pub.PublishChange(service.Change{From: status.Working, To: status.DND, Reason: engine.ReasonCalendar, At: until.Add(-30 * time.Minute)})
 
 	col.wait(t, "doormutex/hub/online", func(b []byte) bool { return string(b) == "online" })
-	col.wait(t, "homeassistant/device/doormutex_hub/config", func(b []byte) bool { return json.Valid(b) })
-	col.wait(t, "doormutex/state", func(b []byte) bool {
+	col.wait(t, "homeassistant/device/doormutex_office/config", func(b []byte) bool { return json.Valid(b) })
+	col.wait(t, "homeassistant/device/doormutex_teen/config", func(b []byte) bool { return json.Valid(b) })
+	col.wait(t, "doormutex/office/state", func(b []byte) bool {
 		var st engine.State
 		return json.Unmarshal(b, &st) == nil && st.Status == status.DND && st.Until != nil
 	})
-	col.wait(t, "doormutex/event", func(b []byte) bool {
+	col.wait(t, "doormutex/office/event", func(b []byte) bool {
 		var ev ChangeEvent
 		return json.Unmarshal(b, &ev) == nil && ev.EventType == "status_changed" && ev.To == status.DND
 	})
@@ -175,12 +179,27 @@ func TestIntegrationMosquitto(t *testing.T) {
 		t.Fatal(tok.Error())
 	}
 	defer lc.Disconnect(0)
-	lc.Subscribe("doormutex/state", 1, late.handler).WaitTimeout(5 * time.Second)
-	late.wait(t, "doormutex/state", func(b []byte) bool { return strings.Contains(string(b), `"status":"dnd"`) })
+	lc.Subscribe("doormutex/office/state", 1, late.handler).WaitTimeout(5 * time.Second)
+	late.wait(t, "doormutex/office/state", func(b []byte) bool { return strings.Contains(string(b), `"status":"dnd"`) })
+
+	// Commands from HA (select / text entities) reach the profile.
+	sub.Publish("doormutex/office/override/set", 1, false, "working").WaitTimeout(5 * time.Second)
+	sub.Publish("doormutex/office/message/set", 1, false, "Back at 3").WaitTimeout(5 * time.Second)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		o, m := ctl.get()
+		if o == "working/indefinite" && m != nil && *m == "Back at 3" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("commands not applied: override %q, message %v", o, m)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 
 	// Crash: cut the connection without DISCONNECT → broker sends the Last Will.
 	px.cut()
 	col.wait(t, "doormutex/hub/online", func(b []byte) bool { return string(b) == "offline" })
-	pub.client.Disconnect(0)
-	fmt.Println("integration: online, discovery, retained state, event and Last Will verified against", broker)
+	client.client.Disconnect(0)
+	fmt.Println("integration: online, discovery, retained state, event, HA commands and Last Will verified against", broker)
 }

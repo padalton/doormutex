@@ -1,7 +1,9 @@
 // Command doormutex-hub is the doormutex hub.
 //
 //	doormutex-hub serve [-config config.yaml]     run the hub (default)
-//	doormutex-hub token create|list|revoke NAME   manage API tokens
+//	doormutex-hub token create NAME [PROFILE]     create an API token (optionally for one profile)
+//	doormutex-hub token list|revoke [NAME]        manage API tokens
+//	doormutex-hub google login|logout PROFILE ACCOUNT  connect a Google account (calendar)
 //	doormutex-hub healthcheck                     exit 0 if the local hub answers (for Docker)
 package main
 
@@ -15,16 +17,21 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 	_ "time/tzdata" // the distroless image has no zoneinfo
 
+	"golang.org/x/oauth2"
+
 	"github.com/padalton/doormutex/hub/internal/api"
 	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/calendar/google"
 	"github.com/padalton/doormutex/hub/internal/config"
 	"github.com/padalton/doormutex/hub/internal/mqttpub"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/store"
+	"github.com/padalton/doormutex/hub/internal/web"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -42,12 +49,14 @@ func main() {
 		err = serve(args)
 	case "token":
 		err = token(args)
+	case "google":
+		err = googleCmd(args)
 	case "healthcheck":
 		err = healthcheck(args)
 	case "version":
 		fmt.Println(version)
 	default:
-		err = fmt.Errorf("unknown command %q (want serve, token, healthcheck, version)", cmd)
+		err = fmt.Errorf("unknown command %q (want serve, token, google, healthcheck, version)", cmd)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "doormutex-hub:", err)
@@ -84,65 +93,83 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
-	base, err := cfg.Inputs()
-	if err != nil {
-		return err
-	}
 	st, err := store.Open(cfg.Database)
 	if err != nil {
 		return fmt.Errorf("database %s: %w", cfg.Database, err)
 	}
 	defer func() { _ = st.Close() }()
 
-	var cal calendar.Provider
-	switch cfg.Calendar.Provider {
-	case "none":
-	case "fake":
-		cal = calendar.NewFake(cfg.Calendar.FakeEvents...)
-	default:
-		return fmt.Errorf("calendar.provider %q not supported yet (none, fake)", cfg.Calendar.Provider)
-	}
-
-	svc, err := service.New(service.Options{Base: base, Store: st, Calendar: cal, Logger: log})
-	if err != nil {
-		return err
+	var profiles []api.Profile
+	for _, p := range cfg.Profiles {
+		base, err := cfg.Inputs(p)
+		if err != nil {
+			return err
+		}
+		var cal calendar.Provider
+		switch p.Calendar.Provider {
+		case "fake":
+			cal = calendar.NewFake(p.Calendar.FakeEvents...)
+		case "google":
+			if err := cfg.GoogleReady(); err != nil {
+				return fmt.Errorf("profile %s: %w", p.ID, err)
+			}
+			cal = google.New(google.Options{
+				OAuth: oauthConfig(cfg), Profile: p.ID, Accounts: googleAccounts(p), MirrorKey: cfg.Google.MirrorKey,
+				Tokens: st, Location: base.Location, Logger: log.With("profile", p.ID),
+			})
+		}
+		svc, err := service.New(service.Options{Profile: p.ID, Base: base, Store: st, Calendar: cal, Logger: log.With("profile", p.ID)})
+		if err != nil {
+			return err
+		}
+		profiles = append(profiles, api.Profile{ID: p.ID, Name: p.Name, Mode: p.Mode, Calendar: p.Calendar.Provider, Svc: svc})
 	}
 	if tokens, _ := st.ListTokens(); len(tokens) == 0 {
-		log.Warn("no API tokens yet – create one per client with: doormutex-hub token create <name>")
+		log.Warn("no API tokens yet – create one per client with: doormutex-hub token create <name> [<profile>]")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if cfg.MQTT.URL != "" {
-		pub, err := mqttpub.Connect(mqttpub.Config{
+		var mp []mqttpub.Profile
+		for _, p := range profiles {
+			mp = append(mp, mqttpub.Profile{ID: p.ID, Name: p.Name, Ctl: p.Svc})
+		}
+		client, err := mqttpub.Connect(mqttpub.Config{
 			URL: cfg.MQTT.URL, Username: cfg.MQTT.Username, Password: cfg.MQTT.Password,
 			ClientID: cfg.MQTT.ClientID, BaseTopic: cfg.MQTT.BaseTopic,
 			DiscoveryPrefix: cfg.MQTT.DiscoveryPrefix, Discovery: cfg.DiscoveryEnabled(), Version: version,
-		}, log)
-		if pub == nil {
+		}, mp, log)
+		if client == nil {
 			return err
 		}
 		if err != nil {
 			log.Warn("mqtt", "err", err)
 		}
-		defer pub.Close()
-		svc.AddPublisher(pub)
+		defer client.Close()
+		for _, p := range profiles {
+			p.Svc.AddPublisher(client.Publisher(p.ID))
+		}
 	} else {
 		log.Info("mqtt disabled (no mqtt.url)")
 	}
 
-	go svc.Run(ctx, time.Second, time.Duration(cfg.Calendar.PollInterval))
+	for _, p := range profiles {
+		go p.Svc.Run(ctx, time.Second, time.Duration(cfg.CalendarPoll))
+	}
 
+	handler := api.New(profiles, st, log)
+	handler.Mount("GET /", web.Handler())
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.New(svc, st, log),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
 	errc := make(chan error, 1)
 	go func() { errc <- srv.ListenAndServe() }()
-	log.Info("hub started", "version", version, "listen", cfg.Listen, "timezone", cfg.Timezone)
+	log.Info("hub started", "version", version, "listen", cfg.Listen, "timezone", cfg.Timezone, "profiles", len(profiles))
 
 	select {
 	case <-ctx.Done():
@@ -163,7 +190,7 @@ func token(args []string) error {
 	_ = fs.Parse(args)
 	rest := fs.Args()
 	if len(rest) == 0 {
-		return errors.New("usage: doormutex-hub token create|list|revoke [NAME]")
+		return errors.New(tokenUsage)
 	}
 	cfg, err := loadConfig(*cfgPath)
 	if err != nil {
@@ -175,8 +202,15 @@ func token(args []string) error {
 	}
 	defer func() { _ = st.Close() }()
 	switch {
-	case rest[0] == "create" && len(rest) == 2:
-		tok, err := st.CreateToken(rest[1])
+	case rest[0] == "create" && (len(rest) == 2 || len(rest) == 3):
+		profile := ""
+		if len(rest) == 3 {
+			profile = rest[2]
+			if _, ok := cfg.Profile(profile); !ok {
+				return fmt.Errorf("unknown profile %q", profile)
+			}
+		}
+		tok, err := st.CreateToken(rest[1], profile)
 		if err != nil {
 			return err
 		}
@@ -192,13 +226,84 @@ func token(args []string) error {
 			if last == "" {
 				last = "never"
 			}
-			fmt.Printf("%-20s created %s  last used %s\n", t.Name, t.CreatedAt, last)
+			scope := t.Profile
+			if scope == "" {
+				scope = "all profiles"
+			}
+			fmt.Printf("%-20s %-14s created %s  last used %s\n", t.Name, scope, t.CreatedAt, last)
 		}
 	case rest[0] == "revoke" && len(rest) == 2:
 		return st.RevokeToken(rest[1])
 	default:
-		return errors.New("usage: doormutex-hub token create|list|revoke [NAME]")
+		return errors.New(tokenUsage)
 	}
+	return nil
+}
+
+const tokenUsage = "usage: doormutex-hub token create NAME [PROFILE] | list | revoke NAME"
+
+func oauthConfig(cfg *config.Config) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID: cfg.Google.ClientID, ClientSecret: cfg.Google.ClientSecret,
+		Endpoint: google.Endpoint, Scopes: []string{google.Scope},
+	}
+}
+
+func googleAccounts(p config.Profile) []google.Account {
+	out := make([]google.Account, 0, len(p.Calendar.Accounts))
+	for _, a := range p.Calendar.Accounts {
+		out = append(out, google.Account{Name: a.Name, Calendars: a.Calendars, Mirror: a.Mirror})
+	}
+	return out
+}
+
+const googleUsage = "usage: doormutex-hub google login|logout PROFILE ACCOUNT"
+
+// googleCmd signs a Google account in or out. The running hub picks up the
+// token at its next calendar refresh.
+func googleCmd(args []string) error {
+	fs := flag.NewFlagSet("google", flag.ExitOnError)
+	cfgPath := configFlag(fs)
+	_ = fs.Parse(args)
+	rest := fs.Args()
+	if len(rest) != 3 || (rest[0] != "login" && rest[0] != "logout") {
+		return errors.New(googleUsage)
+	}
+	cfg, err := loadConfig(*cfgPath)
+	if err != nil {
+		return err
+	}
+	p, ok := cfg.Profile(rest[1])
+	if !ok {
+		return fmt.Errorf("unknown profile %q", rest[1])
+	}
+	if p.Calendar.Provider != "google" || !slices.ContainsFunc(p.Calendar.Accounts, func(a config.GoogleAccount) bool { return a.Name == rest[2] }) {
+		return fmt.Errorf("profile %s has no Google account %q in calendar.accounts", p.ID, rest[2])
+	}
+	st, err := store.Open(cfg.Database)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = st.Close() }()
+	key := google.TokenKey(p.ID, rest[2])
+	if rest[0] == "logout" {
+		return st.Put(key, nil)
+	}
+	if err := cfg.GoogleReady(); err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	tok, err := google.Login(ctx, *oauthConfig(cfg), os.Stdin, os.Stdout)
+	if err != nil {
+		return err
+	}
+	if err := st.Put(key, tok); err != nil {
+		return err
+	}
+	fmt.Printf("Google account %q of profile %q is connected. The hub reads it at the next calendar refresh.\n", rest[2], p.ID)
 	return nil
 }
 

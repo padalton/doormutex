@@ -7,9 +7,9 @@
 
 The state is detected automatically (microphone/camera, Google Calendar, working hours, screen lock) and can be overridden at any time from a KDE widget, a Stream Deck or the web UI. Open source & open hardware: software, firmware, PCB (KiCad) and a 3D-printed enclosure (OpenSCAD).
 
-> **Status: early development.** This README is the project definition and feature set (as of 2026-10-29). The repo is public from day one so anyone can follow the project as it grows. The hub core (M0) is in [`hub/`](hub/).
+> **Status: early development.** This README is the project definition and feature set (as of 2026-10-30). The repo is public from day one so anyone can follow the project as it grows. Software: [`hub/`](hub/) (with web UI), [`companion/`](companion/), [`plasmoid/`](plasmoid/).
 >
-> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
 
 ## Signals
 
@@ -159,6 +159,10 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) and goodbye before shutdown/suspend |
 | `POST` / `DELETE /api/v1/signals/{source}` | webhook signals with TTL |
 | `GET /api/v1/events` | live updates (Server-Sent Events) |
+| `GET /api/v1/profiles` | profiles the token may see, with their state |
+| `GET` / `PUT /api/v1/settings` | light per calendar event kind, warning timing (saved, overrides the config) |
+| `PUT` / `DELETE /api/v1/message` | e-ink message |
+| `GET /api/v1/calendar`, `GET /api/v1/history` | calendar account health, recent status changes |
 
 ## State logic
 
@@ -194,18 +198,39 @@ One hub, several **profiles** – one per person and light. Each profile has its
 - **The e-ink shows a short message** ("Gaming until 21:00").
 - **The office profile can also run without a companion,** controlled only via HA (light and message) – for setups where the companion can't run.
 
+**Configuration** (see [`hub/config.example.yaml`](hub/config.example.yaml)):
+
+```yaml
+profiles:
+  - id: office
+    mode: office # companion, calendar, working hours
+  - id: teen
+    name: Teen room
+    mode: room # no companion, no working hours, off by default
+```
+
+```bash
+doormutex-hub token create teen-phone teen   # works only for profile "teen"
+doormutex-hub token create widget            # all profiles, choose with ?profile=
+```
+
+The API serves the token's profile without any extra parameter, so the same client works for every profile. `GET /api/v1/profiles` lists the profiles a token may see.
+
 Where room mode runs for people *without* a homelab (no Docker, no HA) is still open – see [open questions](#open-questions).
 
 ## Signal sources
 
 ### Companion (Linux)
 
+Implemented in [`companion/`](companion/) – install as a systemd user service, see its README.
+
 - **Microphone:** PipeWire capture streams (`media.class = Stream/Input/Audio`) in state "running". Ignored:
   - level meters (pavucontrol, the Plasma volume applet)
   - recordings of outputs (monitor sources, e.g. screen recording)
   - apps on a configurable ignore list
 - **Camera:** open `/dev/video*` devices and PipeWire video streams.
-- **Screen lock:** logind `LockedHint` or `org.freedesktop.ScreenSaver`.
+- **Screen lock:** logind `LockedHint` of the user's graphical session (a systemd user service has no session of its own).
+- **Goodbye:** before suspend and shutdown (logind delay inhibitor) and when the service stops; silence without a goodbye is a fault.
 - **Notifications** on every state change, with the reason ("🔴 microphone in use – Firefox") and quick actions ("wrong detection", "clear override").
 - **Reference setup:** CachyOS, KDE Plasma 6 (Wayland), PipeWire.
 
@@ -229,7 +254,7 @@ Where room mode runs for people *without* a homelab (no Docker, no HA) is still 
 - **Calendar and microphone/camera complement each other:** a call known from the calendar gives the last call ahead of time; microphone/camera catch spontaneous calls and always win.
 - **Focus time and out of office only exist in Google Workspace accounts** and only on primary calendars – in a private Gmail calendar there are plain events only.
 - **Privacy:** location and description are only read to find video links; titles and contents are never stored or shown. Before connecting a work account, check the employer's IT policy.
-- **M0 status:** the hub has a calendar interface with a fake implementation; the Google provider comes next.
+- **Set-up:** [docs/google-calendar.md](docs/google-calendar.md) – OAuth client, `doormutex-hub google login <profile> <account>`, mirrored copies. `GET /api/v1/calendar` shows the health of every account.
 
 #### Google sign-in for self-hosters
 
@@ -242,7 +267,7 @@ Two separate problems:
 
 - **Project homepage with its own domain** (GitHub Pages + custom domain, verified in Search Console): description, logo, screenshots, privacy policy, terms of service, docs and web flasher.
 - **Stage 1 – for the reference build:** an own OAuth client whose branding points to the project homepage. It can then be published and the 7-day limit is gone. Until verification Google shows a warning at sign-in and caps unverified apps at 100 users.
-- **Stage 2 – for everyone else:** a **shared project OAuth client**, verified by Google. `calendar.readonly` is a "sensitive" scope, not a "restricted" one: it needs a justification and a demo video, but no paid security assessment. After that, nobody needs their own Google Cloud console.
+- **Stage 2 – for everyone else:** a **shared project OAuth client**, verified by Google. `calendar.events.readonly` is a "sensitive" scope, not a "restricted" one: it needs a justification and a demo video, but no paid security assessment. After that, nobody needs their own Google Cloud console.
   - **Sign-in via the companion:** client type "desktop app", loopback redirect to `127.0.0.1`. Google explicitly does not treat the client secret of installed apps as a secret, so it may live in open-source code.
   - **Sign-in via the web UI without companion:** a **redirect relay** on the homepage, modelled on `my.home-assistant.io`. Google redirects to `https://<homepage>/oauth/callback`, and the static page forwards code and `state` to the hub address this browser stored locally before. The target never comes from URL parameters, otherwise the relay would be an open redirect. Still open: web clients need the client secret for every token refresh in the hub. To be checked before stage 2 starts.
 - **Fallback without OAuth:** the calendar's secret iCal address – without `eventType` and attendees, and Google sometimes updates the feed with a long delay.
@@ -278,6 +303,8 @@ Any tool can set a claim with a TTL via `POST /api/v1/signals/<name>`. Example o
 
 ### KDE Plasma widget
 
+Implemented in [`plasmoid/`](plasmoid/) – install with `kpackagetool6`, see its README.
+
 - **Panel:** a mini traffic light as icon (the active lamp lights up), tooltip with reason and "until".
 - **Right-click menu:** "open web UI", "auto", quick overrides.
 - **Popup:**
@@ -307,37 +334,49 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 ### Web UI
 
-State and override, day view, rules (light per calendar event kind, phase timing), calendar accounts, working hours, profiles and tokens, device health (battery, Wi-Fi, firmware), history.
+<p><img src="docs/images/web-now.png" alt="Web UI: now" width="260"> <img src="docs/images/web-settings.png" alt="Web UI: settings" width="260"></p>
+
+Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
+
+- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until changed) or *auto*; e-ink message; pomodoro
+- **Day:** today's planned slots as a bar and a list
+- **Settings:** light per calendar event kind, warning timing (StVO or a lead time), calendar account health
+- **History:** recent status changes
+- **Profiles:** a selector when the token may see several profiles
+
+Later: working hours, profiles and tokens, device health (battery, Wi-Fi, firmware).
 
 ### Phone (iPhone and Android)
 
-No native app – so no Apple developer account and no app store:
+No native app – so no Apple developer account and no app store. Step-by-step: [docs/apple-shortcuts.md](docs/apple-shortcuts.md).
 
 - **Web app:** the web UI can be added to the home screen ("Add to Home Screen") and then opens like an app. Within the home network plain HTTP is enough for controlling the light; push notifications need HTTPS (on iOS from 16.4, for web apps on the home screen).
 - **Apple Shortcuts:** a shortcut calls the hub API with the profile's token. That gives Siri ("traffic light red"), the Action Button and home-screen widgets – and automations such as "when the *Do Not Disturb* focus turns on → light red". The iPhone's focus mode then switches the light.
 
 ## Home Assistant & MQTT
 
-The hub only creates entities via MQTT discovery (one device, device-based discovery) – everyone builds their own automations.
+The hub only creates entities via MQTT discovery (one device per profile, device-based discovery) – everyone builds their own automations. Entity IDs contain the profile, e.g. `sensor.doormutex_office_status` or `sensor.doormutex_teen_status`.
 
 | Entity | Type | Content |
 |---|---|---|
-| `sensor.doormutex_status` | enum | `free`, `working`, `dnd`, `away` – attributes: reason, detail, phase, light, since, until |
-| `event.doormutex_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
-| `sensor.doormutex_slot_start` / `…_slot_end` | timestamp | current slot |
-| `sensor.doormutex_next_free_start` / `…_next_free_end` | timestamp | next free slot |
+| `sensor.doormutex_office_status` | enum | `free`, `working`, `dnd`, `away` – attributes: reason, detail, phase, light, since, until, message |
+| `event.doormutex_office_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
+| `sensor.doormutex_office_slot_start` / `…_slot_end` | timestamp | current slot |
+| `sensor.doormutex_office_next_free_start` / `…_next_free_end` | timestamp | next free slot |
 | `sensor.doormutex_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
 | `binary_sensor.doormutex_charging` | binary | charging / on USB (announced by the light itself) |
 | diagnostics | – | Wi-Fi signal, firmware version, online |
-| `select.doormutex_override` | select | planned: `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home |
-| `text.doormutex_message` | text | planned: short message for the e-ink |
+| `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` |
+| `text.doormutex_office_message` | text | short message for the e-ink (one line, ≤ 64 characters) |
 
 | Topic | Content |
 |---|---|
-| `doormutex/state` | retained JSON (see below), same document as `GET /api/v1/status` |
-| `doormutex/event` | `status_changed` events for the HA event entity (not retained) |
+| `doormutex/<profile>/state` | retained JSON (see below), same document as `GET /api/v1/status` |
+| `doormutex/<profile>/event` | `status_changed` events for the HA event entity (not retained) |
+| `doormutex/<profile>/override/set` | command from HA: `auto`, `free`, `working`, `dnd`, `away` |
+| `doormutex/<profile>/message/set` | command from HA: e-ink message, empty clears it |
 | `doormutex/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
-| `doormutex/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
+| `doormutex/<profile>/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
 | `doormutex/device/<id>/telemetry` | battery, charging, RSSI, firmware |
 | `doormutex/device/<id>/cmd` | OTA, restart, identify |
 
@@ -371,12 +410,12 @@ triggers:
     to: "on"
 conditions:
   - condition: state
-    entity_id: sensor.doormutex_status
+    entity_id: sensor.doormutex_office_status
     state: ["dnd", "working"]
 actions:
   - variables:
       # Hue yellow looks greenish – orange reads as traffic-light yellow
-      colour: "{{ 'red' if is_state('sensor.doormutex_status', 'dnd') else 'orange' }}"
+      colour: "{{ 'red' if is_state('sensor.doormutex_office_status', 'dnd') else 'orange' }}"
   - action: scene.create
     data:
       scene_id: stairs_before
@@ -644,7 +683,7 @@ doormutex/
 
 | Milestone | Content |
 |---|---|
-| **M0 – software core** | Hub (override, working hours, calendar, rules, MQTT/HA) ✅ in review, then the rule changes from the review, profiles, Google Calendar, web UI/web app, companion and Plasma widget. A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
+| **M0 – software core** | Hub ✅ (merged). In review as stacked PRs #3–#8: review rules, profiles + room mode, Google Calendar, web UI, companion, Plasma widget. A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
 | **M1a – breadboard** | [Prototype from ready-made modules](docs/breadboard.md): firmware, LEDs + lens test, e-ink, current measurement, then battery operation. Runs in parallel to M0 |
 | **M1b – PCB + enclosure v1** | KiCad schematic + layout + review based on the measurements, JLCPCB order, tolerance test prints, enclosure v1 |
 | **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin, web flasher, OTA |
@@ -726,3 +765,8 @@ doormutex/
 | 2026-10-29 | mDNS name `doormutex[-<name>].local` | English project name, several lights per network |
 | 2026-10-29 | Project renamed from the working title office-traffic-light to **doormutex** | the old name already existed on GitHub and was too narrow for room mode; a mutex lets only one into the critical section |
 | 2026-10-30 | Implemented the review rules in the hub (PR m1-rules). Fault is reported as status `away` with phase `fault`; calendar kind `meeting` became `video_call` | `away` keeps HA automations simple (nobody to disturb is known); the kind name matches the README table |
+| 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
+| 2026-10-30 | Google Calendar: own HTTP client against the Calendar API (no Google SDK), `x/oauth2` with PKCE; scope `calendar.events.readonly`; titles are not even requested; login via loopback or pasting the redirect address; accounts fail independently (last good events are kept) | small dependency footprint, testable with `httptest`; works when the hub runs in Docker on another machine |
+| 2026-10-30 | Web UI: plain HTML/CSS/JS embedded with `go:embed`, no npm, strict CSP, service worker never caches the API; runtime settings (light per event kind, phase timing) saved in the hub and override the config | nothing to build or install, nothing loaded from outside the hub; the settings belong where people change them |
+| 2026-10-30 | Companion: separate Go module, polls `pw-dump` every 2 s instead of a PipeWire client library, camera also via `/proc/*/fd`, logind via D-Bus (`godbus`), heartbeat on change and every 30 s | no cgo, no PipeWire headers; `pw-dump` costs a few milliseconds; V4L2 apps (Zoom, Chrome) don't show up in PipeWire |
+| 2026-10-30 | Plasma widget: plain QML with `XMLHttpRequest`, reads the SSE stream from a streaming request and polls as a fallback; token in the Plasma config | no compiled plugin, installs with `kpackagetool6`; KWallet would be nicer (open question) |

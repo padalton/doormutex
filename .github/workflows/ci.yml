@@ -54,6 +54,41 @@ jobs:
           version: v2.15.0
           working-directory: hub
 
+  companion:
+    name: Companion · test + lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        run: go build -o /dev/null ./cmd/doormutex-companion
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.15.0
+          working-directory: companion
+
+  plasmoid:
+    name: Plasmoid · package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check metadata
+        run: python3 -c "import json; m = json.load(open('plasmoid/package/metadata.json')); assert m['KPlugin']['Id'] == 'org.doormutex.trafficlight'"
+      - name: Pack
+        run: cd plasmoid/package && zip -qr ../doormutex.plasmoid .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doormutex.plasmoid
+          path: plasmoid/doormutex.plasmoid
+
   hub-docker:
     name: Hub · docker build
     runs-on: ubuntu-latest
@@ -64,5 +99,7 @@ jobs:
       - name: Smoke test
         run: |
           docker run -d --name hub -p 127.0.0.1:8080:8080 doormutex-hub:ci
-          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8080/healthz && exit 0; sleep 1; done
-          docker logs hub; exit 1
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:8080/healthz && break; sleep 1; done
+          TOKEN=$(docker exec hub doormutex-hub token create ci)
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://127.0.0.1:8080/api/v1/profiles | tee /dev/stderr | grep -q '"id":"office"' \
+            || { docker logs hub; exit 1; }

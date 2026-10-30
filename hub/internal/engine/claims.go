@@ -58,7 +58,11 @@ func Claims(now, from, to time.Time, in Inputs) []Claim {
 	}
 
 	// 7 – default.
-	cs = append(cs, Claim{Status: status.Free, Priority: PrioDefault, Reason: ReasonDefault,
+	def := in.Rules.Default
+	if def == "" {
+		def = status.Free
+	}
+	cs = append(cs, Claim{Status: def, Priority: PrioDefault, Reason: ReasonDefault,
 		Start: from, End: to, planned: true})
 	return cs
 }

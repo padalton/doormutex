@@ -1,12 +1,14 @@
-// Package mqttpub publishes the hub state to MQTT and announces the
-// entities to Home Assistant via MQTT discovery.
+// Package mqttpub publishes the hub state to MQTT, announces the entities
+// to Home Assistant via MQTT discovery and accepts commands from HA.
 //
-// Topics (base = "doormutex" by default):
+// Topics (base = "doormutex" by default, one set per profile):
 //
-//	<base>/state       retained JSON state, the same document as GET /api/v1/status
-//	<base>/event       status_changed events (not retained), for HA event entities
-//	<base>/hub/online  "online"/"offline", retained; "offline" is the Last Will
-//	<base>/display     reserved for the rendered E-Ink bitmap (not published yet)
+//	<base>/hub/online            "online"/"offline", retained; "offline" is the Last Will
+//	<base>/<profile>/state       retained JSON state, the same document as GET /api/v1/status
+//	<base>/<profile>/event       status_changed events (not retained), for HA event entities
+//	<base>/<profile>/override/set  command: auto | free | working | dnd | away
+//	<base>/<profile>/message/set   command: e-ink message (empty clears it)
+//	<base>/<profile>/display     reserved for the rendered e-ink bitmap (not published yet)
 package mqttpub
 
 import (
@@ -14,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,27 +39,53 @@ type Config struct {
 	Version         string
 }
 
-// Topics derived from the base topic.
-type Topics struct {
-	State, Event, Online, Display string
+// Controller is what HA commands act on; *service.Service implements it.
+type Controller interface {
+	SetOverride(service.OverrideRequest) (engine.State, error)
+	ClearOverride() engine.State
+	SetMessage(text string, ttl time.Duration) (engine.State, error)
 }
 
-// TopicsFor returns the topic names for a base topic.
-func TopicsFor(base string) Topics {
+// Profile is one person and light published to MQTT.
+type Profile struct {
+	ID, Name string
+	Ctl      Controller // nil: no HA control entities
+}
+
+// Topics of one profile.
+type Topics struct {
+	State, Event, OverrideSet, MessageSet, Display string
+}
+
+// TopicsFor returns the topic names of a profile.
+func TopicsFor(base, profile string) Topics {
+	p := base + "/" + profile
 	return Topics{
-		State:   base + "/state",
-		Event:   base + "/event",
-		Online:  base + "/hub/online",
-		Display: base + "/display",
+		State:       p + "/state",
+		Event:       p + "/event",
+		OverrideSet: p + "/override/set",
+		MessageSet:  p + "/message/set",
+		Display:     p + "/display",
 	}
 }
 
-// Publisher implements service.Publisher.
+// OnlineTopic is the hub's availability topic.
+func OnlineTopic(base string) string { return base + "/hub/online" }
+
+// Client is the MQTT connection shared by all profiles.
+type Client struct {
+	cfg      Config
+	client   mqtt.Client
+	log      *slog.Logger
+	profiles map[string]*Publisher
+	order    []string
+}
+
+// Publisher implements service.Publisher for one profile.
 type Publisher struct {
-	cfg    Config
-	topics Topics
-	client mqtt.Client
-	log    *slog.Logger
+	c       *Client
+	profile Profile
+	topics  Topics
 
 	mu   sync.Mutex
 	last []byte // last state payload, re-sent on reconnect
@@ -66,11 +95,15 @@ const qos = 1
 
 // Connect connects to the broker. It returns once the first connection
 // attempt succeeded; afterwards the client reconnects on its own.
-func Connect(cfg Config, log *slog.Logger) (*Publisher, error) {
+func Connect(cfg Config, profiles []Profile, log *slog.Logger) (*Client, error) {
 	if log == nil {
 		log = slog.Default()
 	}
-	p := &Publisher{cfg: cfg, topics: TopicsFor(cfg.BaseTopic), log: log}
+	c := &Client{cfg: cfg, log: log, profiles: map[string]*Publisher{}}
+	for _, p := range profiles {
+		c.profiles[p.ID] = &Publisher{c: c, profile: p, topics: TopicsFor(cfg.BaseTopic, p.ID)}
+		c.order = append(c.order, p.ID)
+	}
 	o := mqtt.NewClientOptions().
 		AddBroker(cfg.URL).
 		SetClientID(cfg.ClientID).
@@ -81,40 +114,96 @@ func Connect(cfg Config, log *slog.Logger) (*Publisher, error) {
 		SetAutoReconnect(true).
 		SetConnectRetry(true).
 		SetMaxReconnectInterval(time.Minute).
-		SetWill(p.topics.Online, "offline", qos, true).
-		SetOnConnectHandler(func(mqtt.Client) { p.onConnect() }).
+		SetWill(OnlineTopic(cfg.BaseTopic), "offline", qos, true).
+		SetOnConnectHandler(func(mqtt.Client) { c.onConnect() }).
 		SetConnectionLostHandler(func(_ mqtt.Client, err error) { log.Warn("mqtt connection lost", "err", err) })
-	p.client = mqtt.NewClient(o)
-	tok := p.client.Connect()
+	c.client = mqtt.NewClient(o)
+	tok := c.client.Connect()
 	if !tok.WaitTimeout(15 * time.Second) {
-		return p, errors.New("mqtt: connect timeout (keeps retrying in the background)")
+		return c, errors.New("mqtt: connect timeout (keeps retrying in the background)")
 	}
 	if err := tok.Error(); err != nil {
 		return nil, fmt.Errorf("mqtt: %w", err)
 	}
-	return p, nil
+	return c, nil
 }
 
-func (p *Publisher) onConnect() {
-	p.log.Info("mqtt connected", "broker", p.cfg.URL)
-	p.publish(p.topics.Online, true, []byte("online"))
-	if p.cfg.Discovery {
-		topic, payload := Discovery(p.cfg)
-		p.publish(topic, true, payload)
-	}
-	p.mu.Lock()
-	last := p.last
-	p.mu.Unlock()
-	if last != nil {
-		p.publish(p.topics.State, true, last)
-	}
-}
+// Publisher returns the publisher of a profile (nil if unknown).
+func (c *Client) Publisher(profile string) *Publisher { return c.profiles[profile] }
 
-func (p *Publisher) publish(topic string, retained bool, payload []byte) {
-	tok := p.client.Publish(topic, qos, retained, payload)
+func (c *Client) onConnect() {
+	c.log.Info("mqtt connected", "broker", c.cfg.URL)
+	c.publish(OnlineTopic(c.cfg.BaseTopic), true, []byte("online"))
+	for _, id := range c.order {
+		p := c.profiles[id]
+		if c.cfg.Discovery {
+			topic, payload := Discovery(c.cfg, p.profile)
+			c.publish(topic, true, payload)
+		}
+		p.mu.Lock()
+		last := p.last
+		p.mu.Unlock()
+		if last != nil {
+			c.publish(p.topics.State, true, last)
+		}
+	}
+	filters := map[string]byte{
+		c.cfg.BaseTopic + "/+/override/set": qos,
+		c.cfg.BaseTopic + "/+/message/set":  qos,
+	}
+	tok := c.client.SubscribeMultiple(filters, c.onCommand)
 	go func() {
 		if tok.WaitTimeout(10*time.Second) && tok.Error() != nil {
-			p.log.Warn("mqtt publish failed", "topic", topic, "err", tok.Error())
+			c.log.Warn("mqtt subscribe failed", "err", tok.Error())
+		}
+	}()
+}
+
+// onCommand handles <base>/<profile>/override/set and …/message/set.
+func (c *Client) onCommand(_ mqtt.Client, m mqtt.Message) {
+	rest, ok := strings.CutPrefix(m.Topic(), c.cfg.BaseTopic+"/")
+	if !ok {
+		return
+	}
+	id, cmd, _ := strings.Cut(rest, "/")
+	p := c.profiles[id]
+	if p == nil || p.profile.Ctl == nil {
+		c.log.Warn("mqtt command for unknown profile", "topic", m.Topic())
+		return
+	}
+	payload := strings.TrimSpace(string(m.Payload()))
+	var err error
+	switch cmd {
+	case "override/set":
+		err = applyOverride(p.profile.Ctl, payload)
+	case "message/set":
+		_, err = p.profile.Ctl.SetMessage(payload, 0)
+	default:
+		return
+	}
+	if err != nil {
+		c.log.Warn("mqtt command rejected", "topic", m.Topic(), "payload", payload, "err", err)
+		return
+	}
+	c.log.Info("mqtt command", "profile", id, "command", cmd, "payload", payload)
+}
+
+// applyOverride maps the HA select: "auto" clears the override, a status
+// sets it until changed again.
+func applyOverride(ctl Controller, payload string) error {
+	if payload == "auto" {
+		ctl.ClearOverride()
+		return nil
+	}
+	_, err := ctl.SetOverride(service.OverrideRequest{Status: status.Status(payload), Mode: service.ModeIndefinite})
+	return err
+}
+
+func (c *Client) publish(topic string, retained bool, payload []byte) {
+	tok := c.client.Publish(topic, qos, retained, payload)
+	go func() {
+		if tok.WaitTimeout(10*time.Second) && tok.Error() != nil {
+			c.log.Warn("mqtt publish failed", "topic", topic, "err", tok.Error())
 		}
 	}()
 }
@@ -123,19 +212,19 @@ func (p *Publisher) publish(topic string, retained bool, payload []byte) {
 func (p *Publisher) PublishState(st engine.State) {
 	b, err := json.Marshal(st)
 	if err != nil {
-		p.log.Error("marshal state", "err", err)
+		p.c.log.Error("marshal state", "err", err)
 		return
 	}
 	p.mu.Lock()
 	p.last = b
 	p.mu.Unlock()
-	if p.client.IsConnectionOpen() {
-		p.publish(p.topics.State, true, b)
+	if p.c.client.IsConnectionOpen() {
+		p.c.publish(p.topics.State, true, b)
 	}
 }
 
-// ChangeEvent is the payload on <base>/event; event_type is what HA's
-// MQTT event entity expects.
+// ChangeEvent is the payload on <base>/<profile>/event; event_type is what
+// HA's MQTT event entity expects.
 type ChangeEvent struct {
 	EventType string        `json:"event_type"`
 	From      status.Status `json:"from"`
@@ -146,17 +235,17 @@ type ChangeEvent struct {
 }
 
 // PublishChange implements service.Publisher.
-func (p *Publisher) PublishChange(c service.Change) {
-	b, _ := json.Marshal(ChangeEvent{EventType: "status_changed", From: c.From, To: c.To, Reason: c.Reason, Detail: c.Detail, At: c.At})
-	if p.client.IsConnectionOpen() {
-		p.publish(p.topics.Event, false, b)
+func (p *Publisher) PublishChange(ch service.Change) {
+	b, _ := json.Marshal(ChangeEvent{EventType: "status_changed", From: ch.From, To: ch.To, Reason: ch.Reason, Detail: ch.Detail, At: ch.At})
+	if p.c.client.IsConnectionOpen() {
+		p.c.publish(p.topics.Event, false, b)
 	}
 }
 
 // Close announces "offline" and disconnects cleanly.
-func (p *Publisher) Close() {
-	if p.client.IsConnectionOpen() {
-		p.client.Publish(p.topics.Online, qos, true, "offline").WaitTimeout(2 * time.Second)
+func (c *Client) Close() {
+	if c.client.IsConnectionOpen() {
+		c.client.Publish(OnlineTopic(c.cfg.BaseTopic), qos, true, "offline").WaitTimeout(2 * time.Second)
 	}
-	p.client.Disconnect(500)
+	c.client.Disconnect(500)
 }

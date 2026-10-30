@@ -1,0 +1,19 @@
+# systemd user unit – install with:
+#   install -Dm755 doormutex-companion ~/.local/bin/doormutex-companion
+#   install -Dm644 doormutex-companion.service ~/.config/systemd/user/doormutex-companion.service
+#   systemctl --user daemon-reload && systemctl --user enable --now doormutex-companion
+[Unit]
+Description=doormutex companion (microphone, camera and screen lock for the traffic light)
+Documentation=https://github.com/padalton/doormutex/tree/main/companion
+PartOf=graphical-session.target
+After=graphical-session.target pipewire.service
+
+[Service]
+ExecStart=%h/.local/bin/doormutex-companion run
+Restart=on-failure
+RestartSec=5
+# Leave time for the goodbye to the hub when the session ends.
+TimeoutStopSec=5
+
+[Install]
+WantedBy=graphical-session.target

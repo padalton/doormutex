@@ -1,0 +1,19 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "KPlugin": {
+        "Id": "org.doormutex.trafficlight",
+        "Name": "doormutex",
+        "Description": "Traffic light for your door: state, override, pomodoro and today's plan",
+        "Icon": "user-busy",
+        "Category": "System Information",
+        "License": "Apache-2.0",
+        "Version": "0.1.0",
+        "Website": "https://github.com/padalton/doormutex",
+        "Authors": [
+            {
+                "Name": "The doormutex contributors"
+            }
+        ]
+    }
+}
