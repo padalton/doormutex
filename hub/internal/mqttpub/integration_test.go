@@ -15,6 +15,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
+	"github.com/padalton/doormutex/hub/internal/eink"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/status"
@@ -148,7 +149,7 @@ func TestIntegrationMosquitto(t *testing.T) {
 		BaseTopic: "doormutex", DiscoveryPrefix: "homeassistant", Discovery: true, Version: "test",
 	}
 	ctl := &fakeCtl{}
-	client, err := Connect(cfg, []Profile{{ID: "office", Name: "Office", Ctl: ctl}, {ID: "teen", Name: "Teen room"}},
+	client, err := Connect(cfg, []Profile{{ID: "office", Name: "Office", Ctl: ctl, Display: &eink.Display{}, Lang: func() string { return "de" }}, {ID: "teen", Name: "Teen room"}},
 		slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
@@ -156,8 +157,9 @@ func TestIntegrationMosquitto(t *testing.T) {
 	pub := client.Publisher("office")
 
 	until := time.Date(2026, 10, 28, 14, 30, 0, 0, time.UTC)
-	pub.PublishState(engine.State{Status: status.DND, Phase: status.PhaseNormal, Light: status.LightRed,
-		Reason: engine.ReasonCalendar, Since: until.Add(-30 * time.Minute), Until: &until, Updated: until.Add(-5 * time.Minute)})
+	st := engine.State{Status: status.DND, Phase: status.PhaseNormal, Light: status.LightRed,
+		Reason: engine.ReasonCalendar, Since: until.Add(-30 * time.Minute), Until: &until, Updated: until.Add(-5 * time.Minute)}
+	pub.PublishState(st)
 	pub.PublishChange(service.Change{From: status.Working, To: status.DND, Reason: engine.ReasonCalendar, At: until.Add(-30 * time.Minute)})
 
 	col.wait(t, "doormutex/hub/online", func(b []byte) bool { return string(b) == "online" })
@@ -171,6 +173,20 @@ func TestIntegrationMosquitto(t *testing.T) {
 		var ev ChangeEvent
 		return json.Unmarshal(b, &ev) == nil && ev.EventType == "status_changed" && ev.To == status.DND
 	})
+
+	// The e-ink frame: retained, 5000 bytes, and not sent again when only
+	// the evaluation time changed.
+	col.wait(t, "doormutex/office/display", func(b []byte) bool { return len(b) == 5000 })
+	st.Updated = st.Updated.Add(time.Minute)
+	pub.PublishState(st)
+	col.wait(t, "doormutex/office/state", func(b []byte) bool { return strings.Contains(string(b), st.Updated.Format(time.RFC3339)) })
+	time.Sleep(300 * time.Millisecond)
+	col.mu.Lock()
+	frames := len(col.msgs["doormutex/office/display"])
+	col.mu.Unlock()
+	if frames != 1 {
+		t.Fatalf("display published %d times, want once", frames)
+	}
 
 	// The state must be retained: a late subscriber gets it immediately.
 	late := &collector{msgs: map[string][][]byte{}}
@@ -201,5 +217,5 @@ func TestIntegrationMosquitto(t *testing.T) {
 	px.cut()
 	col.wait(t, "doormutex/hub/online", func(b []byte) bool { return string(b) == "offline" })
 	client.client.Disconnect(0)
-	fmt.Println("integration: online, discovery, retained state, event, HA commands and Last Will verified against", broker)
+	fmt.Println("integration: online, discovery, retained state, e-ink frame, event, HA commands and Last Will verified against", broker)
 }
