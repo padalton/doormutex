@@ -43,6 +43,22 @@ doormutex-companion google login work
 
 Opens the browser with Google's sign-in (`xdg-open`); Google redirects back to the companion on `127.0.0.1`, which hands the code to the hub. The hub keeps the client secret and stores the refresh token encrypted. Details: [docs/google-calendar.md](../docs/google-calendar.md).
 
+## Controls from the command line
+
+The companion's hub address and token also drive the light from scripts, KDE global shortcuts or Stream Deck "run command" keys:
+
+```bash
+doormutex-companion set red            # until the next automatic change
+doormutex-companion set red 30m        # or 1h30m …
+doormutex-companion set green event    # until the current event ends; also: workday, forever
+doormutex-companion set auto           # back to automatic
+doormutex-companion pomodoro 25        # 25/5 (50 → 50/10, or "45m 15m"); add "yellow" for a yellow work phase
+doormutex-companion pomodoro stop
+doormutex-companion status
+```
+
+**KDE shortcut:** *System Settings → Keyboard → Shortcuts → Add New → Command or Script* → `doormutex-companion set red 30m`.
+
 ## Development
 
 ```bash
