@@ -1,0 +1,43 @@
+{
+  "status.dnd": "Do not disturb",
+  "status.working": "Working",
+  "status.free": "Come in",
+  "status.away": "Not here",
+  "fault": "Fault",
+  "fault.text": "The PC companion is not responding.",
+  "offline": "Offline",
+  "offline.text": "No connection to the hub. The light blinks yellow.",
+
+  "until": "until {time}",
+  "until.open": "until further notice",
+  "free_from": "free from {time}",
+  "updated": "updated {time}",
+
+  "reason.override": "set by hand",
+  "reason.pomodoro": "pomodoro",
+  "reason.pomodoro_break": "pomodoro break",
+  "reason.microphone": "microphone in use",
+  "reason.camera": "camera in use",
+  "reason.screen_locked": "screen locked",
+  "reason.pc_off": "PC off",
+  "reason.companion_lost": "companion not responding",
+  "reason.companion_offline": "PC not running",
+  "reason.calendar": "appointment",
+  "reason.work_hours": "working hours",
+  "reason.signal": "signal",
+  "reason.default": "nothing planned",
+
+  "kind.video_call": "video call",
+  "kind.focus": "focus time",
+  "kind.out_of_office": "out of office",
+  "kind.other": "appointment",
+
+  "day.0": "Sun",
+  "day.1": "Mon",
+  "day.2": "Tue",
+  "day.3": "Wed",
+  "day.4": "Thu",
+  "day.5": "Fri",
+  "day.6": "Sat",
+  "date": "Jan 2"
+}
