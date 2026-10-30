@@ -248,6 +248,7 @@ Implemented in [`companion/`](companion/) – install as a systemd user service,
   | Out of office, timed | `eventType: outOfOffice` | 🔴 `dnd` – in the reference setup private appointments are blocked as OOO in the work calendar. If the PC is locked, the light is off anyway |
   | Out of office, all day | `eventType: outOfOffice`, all-day | day off (vacation): no working hours that day |
   | Other event | – | 🟡 `working` – e.g. a phone call on the mobile, which the companion can't see |
+  | Tentative | invitation answered "maybe" or not answered yet (`responseStatus` `tentative` / `needsAction`) | 🟡 `working`, whatever the kind – or "like the kind", or ignored |
   | Ignored | working location, birthdays, other all-day events, events marked "free", declined events | – |
 
 - **Overlapping events:** the strictest status wins (`dnd` before `working`), not the one that started last.

@@ -46,6 +46,7 @@ type Profile struct {
 	WorkHours map[string][]string `yaml:"work_hours"`
 	Rules     struct {
 		Calendar      map[string]string `yaml:"calendar"`
+		Tentative     string            `yaml:"tentative"`   // "maybe" invitations: a status, kind or ignore
 		LastCall      *engine.Lead      `yaml:"last_call"`   // "stvo" or a duration
 		EndingSoon    *engine.Lead      `yaml:"ending_soon"` // "stvo" or a duration
 		MediaDebounce *Duration         `yaml:"media_debounce"`
@@ -253,6 +254,12 @@ func (c *Config) Inputs(p Profile) (engine.Inputs, error) {
 			return engine.Inputs{}, fmt.Errorf("profile %s: rules.calendar.%s: %w", p.ID, kind, err)
 		}
 		r.CalendarStatus[calendar.Kind(kind)] = s
+	}
+	if p.Rules.Tentative != "" {
+		if err := engine.CheckTentative(p.Rules.Tentative); err != nil {
+			return engine.Inputs{}, fmt.Errorf("profile %s: rules.%w", p.ID, err)
+		}
+		r.Tentative = p.Rules.Tentative
 	}
 	if p.Rules.LastCall != nil {
 		r.LastCall = *p.Rules.LastCall

@@ -49,4 +49,8 @@ func TestHubUsesGoogleEvents(t *testing.T) {
 	if s := svc.Evaluate(); s.Status != status.Working || s.Detail != "focus" {
 		t.Fatalf("during focus time: %+v", s)
 	}
+	now = time.Date(2026, 10, 28, 16, 10, 0, 0, vienna) // work account: Meet call answered "maybe"
+	if s := svc.Evaluate(); s.Status != status.Working || s.Detail != "video_call" {
+		t.Fatalf("during the tentative call: %+v", s)
+	}
 }

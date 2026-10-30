@@ -215,6 +215,7 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 // SettingsBody is the body of PUT /api/v1/settings; omitted fields stay.
 type SettingsBody struct {
 	Calendar   map[calendar.Kind]string `json:"calendar,omitempty"`
+	Tentative  *string                  `json:"tentative,omitempty"`
 	LastCall   *engine.Lead             `json:"last_call,omitempty"`
 	EndingSoon *engine.Lead             `json:"ending_soon,omitempty"`
 }
@@ -224,7 +225,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &b) {
 		return
 	}
-	st, err := svc(r).UpdateSettings(service.SettingsUpdate{Calendar: b.Calendar, LastCall: b.LastCall, EndingSoon: b.EndingSoon})
+	st, err := svc(r).UpdateSettings(service.SettingsUpdate{Calendar: b.Calendar, Tentative: b.Tentative, LastCall: b.LastCall, EndingSoon: b.EndingSoon})
 	switch {
 	case err == nil:
 		writeJSON(w, http.StatusOK, st)

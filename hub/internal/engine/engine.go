@@ -192,6 +192,7 @@ func (l *Lead) UnmarshalText(b []byte) error {
 // Rules are the tunables of the decision logic.
 type Rules struct {
 	CalendarStatus   map[calendar.Kind]status.Status // missing kind → event ignored
+	Tentative        string                          // tentative events: a status, TentativeKind or TentativeIgnore
 	LastCall         Lead                            // warning before a meeting starts
 	EndingSoon       Lead                            // red+yellow before a meeting ends
 	MediaDebounce    time.Duration                   // mic/cam must be active this long
@@ -203,6 +204,43 @@ type Rules struct {
 	Lookback         time.Duration                   // how far back to find "since"
 }
 
+// Settings for tentative events (answered "maybe" or not yet) besides a status.
+const (
+	TentativeKind   = "kind"   // like an accepted event of the same kind
+	TentativeIgnore = "ignore" // skip them
+)
+
+// CheckTentative validates the setting for tentative events.
+func CheckTentative(v string) error {
+	if v == TentativeKind || v == TentativeIgnore {
+		return nil
+	}
+	if _, err := status.Parse(v); err != nil {
+		return fmt.Errorf("tentative: want a status, %q or %q", TentativeKind, TentativeIgnore)
+	}
+	return nil
+}
+
+// EventStatus returns the status of a timed calendar event; ok is false
+// if the rules ignore it. Tentative events get the Tentative status – if
+// their kind isn't ignored altogether.
+func (r Rules) EventStatus(e calendar.Event) (st status.Status, ok bool) {
+	st, ok = r.CalendarStatus[e.Kind]
+	if !ok || e.AllDay || e.Transparent || !e.End.After(e.Start) {
+		return "", false
+	}
+	if e.Tentative {
+		switch r.Tentative {
+		case "", TentativeKind:
+		case TentativeIgnore:
+			return "", false
+		default:
+			st = status.Status(r.Tentative)
+		}
+	}
+	return st, true
+}
+
 // DefaultRules returns the defaults documented in the README.
 func DefaultRules() Rules {
 	return Rules{
@@ -212,6 +250,7 @@ func DefaultRules() Rules {
 			calendar.KindOutOfOffice: status.DND, // timed; all-day out of office is a day off
 			calendar.KindOther:       status.Working,
 		},
+		Tentative:        string(status.Working),
 		MediaDebounce:    10 * time.Second,
 		MediaHold:        2 * time.Minute,
 		StaleAfter:       90 * time.Second,

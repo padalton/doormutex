@@ -537,7 +537,13 @@ func TestSettings(t *testing.T) {
 	if err != nil || again.Settings().Calendar[calendar.KindFocus] != "dnd" {
 		t.Fatalf("not persisted: %+v %v", again.Settings(), err)
 	}
-	for _, bad := range []string{`{"calendar":{"party":"dnd"}}`, `{"calendar":{"other":"purple"}}`, `{"last_call":"2h"}`} {
+	if !strings.Contains(string(b), `"tentative":"working"`) {
+		t.Errorf("tentative default missing: %s", b)
+	}
+	if resp, b := f.do(t, http.MethodPut, "/api/v1/settings", `{"tentative":"kind"}`); resp.StatusCode != http.StatusOK || !strings.Contains(string(b), `"tentative":"kind"`) {
+		t.Errorf("tentative kind: %d %s", resp.StatusCode, b)
+	}
+	for _, bad := range []string{`{"calendar":{"party":"dnd"}}`, `{"calendar":{"other":"purple"}}`, `{"last_call":"2h"}`, `{"tentative":"maybe"}`} {
 		if resp, _ := f.do(t, http.MethodPut, "/api/v1/settings", bad); resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("%s: %d", bad, resp.StatusCode)
 		}

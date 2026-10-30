@@ -66,6 +66,7 @@ curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/api/v1/calendar | jq
 | `eventType: outOfOffice`, timed | `out_of_office` | red |
 | `eventType: outOfOffice`, all day | day off | no working hours |
 | everything else | `other` | yellow |
+| answered "maybe" or not answered yet (`tentative`, `needsAction`) | its kind, marked tentative | yellow – setting *Tentative* in the web UI: a status, "like the event kind" or ignore |
 | cancelled, declined, working location, birthdays, other all-day events, "free" (transparent) events | ignored | – |
 
 Focus time and out of office only exist in Workspace accounts.

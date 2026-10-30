@@ -307,7 +307,8 @@ var videoLink = regexp.MustCompile(`(?i)\b(?:https?://)?(?:[a-z0-9-]+\.)*(?:` +
 
 // classify turns a Google event into a hub event; ok is false for events
 // the hub ignores (cancelled, declined, working location, birthdays,
-// mirrored copies of a connected account).
+// mirrored copies of a connected account). Invitations answered with
+// "maybe" or not answered yet are marked tentative.
 func (p *Provider) classify(it item, a Account) (calendar.Event, bool) {
 	if it.Status == "cancelled" {
 		return calendar.Event{}, false
@@ -318,6 +319,11 @@ func (p *Provider) classify(it item, a Account) (calendar.Event, bool) {
 		}
 	}
 	e := calendar.Event{ID: it.ID, Transparent: it.Transparency == "transparent"}
+	for _, at := range it.Attendees {
+		if at.Self && (at.ResponseStatus == "tentative" || at.ResponseStatus == "needsAction") {
+			e.Tentative = true
+		}
+	}
 	if it.Start.Date != "" {
 		s, err1 := time.ParseInLocation("2006-01-02", it.Start.Date, p.o.Location)
 		en, err2 := time.ParseInLocation("2006-01-02", it.End.Date, p.o.Location)

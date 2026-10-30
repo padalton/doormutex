@@ -514,6 +514,14 @@ components:
           description: Status per event kind, or `ignore`.
           propertyNames: { enum: [video_call, focus, out_of_office, other] }
           additionalProperties: { type: string, enum: [free, working, dnd, away, ignore] }
+        tentative:
+          type: string
+          enum: [free, working, dnd, away, kind, ignore]
+          default: working
+          description: |
+            Invitations answered "maybe" or not answered yet: this status
+            (whatever their kind), `kind` = like an accepted event, or
+            `ignore`. Kinds set to `ignore` stay ignored.
         last_call: { $ref: "#/components/schemas/Lead" }
         ending_soon: { $ref: "#/components/schemas/Lead" }
 

@@ -26,8 +26,8 @@ func Claims(now, from, to time.Time, in Inputs) []Claim {
 
 	// 4 – calendar.
 	for _, e := range in.Events {
-		st, ok := in.Rules.CalendarStatus[e.Kind]
-		if !ok || e.AllDay || e.Transparent || !e.End.After(e.Start) {
+		st, ok := in.Rules.EventStatus(e)
+		if !ok {
 			continue
 		}
 		cs = append(cs, Claim{Status: st, Priority: PrioCalendar, Reason: ReasonCalendar,

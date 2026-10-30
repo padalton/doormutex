@@ -177,6 +177,19 @@ async function renderSettings() {
     sel.addEventListener("change", () => saveSettings({ calendar: { [kind]: sel.value } }));
     kinds.append(l, sel);
   }
+  {
+    const l = document.createElement("label");
+    l.textContent = "Tentative (maybe, not answered)";
+    l.htmlFor = "tentative";
+    const sel = document.createElement("select");
+    sel.id = "tentative";
+    for (const v of ["dnd", "working", "free", "away", "kind", "ignore"]) {
+      const text = v === "kind" ? "like the event kind" : v === "ignore" ? "ignore" : STATUS[v].text;
+      sel.append(new Option(text, v, false, st.tentative === v));
+    }
+    sel.addEventListener("change", () => saveSettings({ tentative: sel.value }));
+    kinds.append(l, sel);
+  }
   for (const id of ["last_call", "ending_soon"]) {
     const sel = $(`#${id}`);
     sel.replaceChildren();

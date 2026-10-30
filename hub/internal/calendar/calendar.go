@@ -30,6 +30,7 @@ type Event struct {
 	End         time.Time `json:"end" yaml:"end"`
 	AllDay      bool      `json:"all_day,omitempty" yaml:"all_day"`
 	Transparent bool      `json:"transparent,omitempty" yaml:"transparent"` // shown as "free"
+	Tentative   bool      `json:"tentative,omitempty" yaml:"tentative"`     // answered "maybe" or not yet
 	Kind        Kind      `json:"kind" yaml:"kind"`
 }
 

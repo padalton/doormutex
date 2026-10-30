@@ -56,7 +56,8 @@ const Ignore = "ignore"
 // Settings are the rules people change at runtime (web UI). They are
 // persisted and override the config file.
 type Settings struct {
-	Calendar   map[calendar.Kind]string `json:"calendar"` // status or "ignore"
+	Calendar   map[calendar.Kind]string `json:"calendar"`  // status or "ignore"
+	Tentative  string                   `json:"tentative"` // status, "kind" or "ignore"
 	LastCall   engine.Lead              `json:"last_call"`
 	EndingSoon engine.Lead              `json:"ending_soon"`
 }
@@ -426,7 +427,7 @@ func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 func (s *Service) currentEventEndLocked(now time.Time) (time.Time, bool) {
 	var end time.Time
 	for _, e := range s.events {
-		if _, ok := s.base.Rules.CalendarStatus[e.Kind]; !ok || e.AllDay || e.Transparent {
+		if _, ok := s.base.Rules.EventStatus(e); !ok {
 			continue
 		}
 		if !now.Before(e.Start) && now.Before(e.End) && e.End.After(end) {
@@ -498,7 +499,10 @@ func (s *Service) Settings() Settings {
 
 func (s *Service) settingsLocked() Settings {
 	r := s.base.Rules
-	out := Settings{Calendar: map[calendar.Kind]string{}, LastCall: r.LastCall, EndingSoon: r.EndingSoon}
+	out := Settings{Calendar: map[calendar.Kind]string{}, Tentative: r.Tentative, LastCall: r.LastCall, EndingSoon: r.EndingSoon}
+	if out.Tentative == "" {
+		out.Tentative = engine.TentativeKind
+	}
 	for _, k := range calendar.Kinds {
 		out.Calendar[k] = Ignore
 		if st, ok := r.CalendarStatus[k]; ok {
@@ -511,6 +515,7 @@ func (s *Service) settingsLocked() Settings {
 // SettingsUpdate changes some settings; nil fields stay as they are.
 type SettingsUpdate struct {
 	Calendar   map[calendar.Kind]string
+	Tentative  *string
 	LastCall   *engine.Lead
 	EndingSoon *engine.Lead
 }
@@ -527,9 +532,17 @@ func (s *Service) UpdateSettings(u SettingsUpdate) (Settings, error) {
 			}
 		}
 	}
+	if u.Tentative != nil {
+		if err := engine.CheckTentative(*u.Tentative); err != nil {
+			return Settings{}, fmt.Errorf("%w: %w", ErrInvalid, err)
+		}
+	}
 	s.mu.Lock()
 	next := s.settingsLocked()
 	maps.Copy(next.Calendar, u.Calendar)
+	if u.Tentative != nil {
+		next.Tentative = *u.Tentative
+	}
 	if u.LastCall != nil {
 		next.LastCall = *u.LastCall
 	}
@@ -552,6 +565,9 @@ func (s *Service) applyLocked(st Settings) {
 		}
 	}
 	s.base.Rules.CalendarStatus = cs
+	if st.Tentative != "" { // settings saved before tentative existed keep the default
+		s.base.Rules.Tentative = st.Tentative
+	}
 	s.base.Rules.LastCall, s.base.Rules.EndingSoon = st.LastCall, st.EndingSoon
 }
 
