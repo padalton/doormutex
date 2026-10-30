@@ -59,6 +59,8 @@
   "now.message_placeholder": "z. B. Zocken bis 21:00",
   "now.show": "Anzeigen",
   "now.clear": "Löschen",
+  "now.eink": "E-Ink-Schild an der Ampel",
+  "now.eink_alt": "Vorschau des E-Ink-Schilds",
   "now.pomodoro": "Pomodoro",
   "now.stop": "Stopp",
 
@@ -87,6 +89,8 @@
   "settings.stvo_help": "StVO: Grün blinkt 4 s, Gelb 3 s, Rot-Gelb 2 s – wie auf der Straße. Eine Vorlaufzeit macht daraus eine echte Vorwarnung.",
   "settings.pomodoro": "Pomodoro",
   "settings.pomodoro_work": "Licht beim Arbeiten",
+  "settings.eink": "E-Ink-Schild",
+  "settings.eink_language": "Sprache am Schild",
   "settings.accounts": "Kalenderkonten",
   "settings.no_calendar": "Kein Kalender eingerichtet.",
   "settings.provider": "Anbieter: {provider}",

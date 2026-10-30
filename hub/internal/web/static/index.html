@@ -81,6 +81,10 @@
       <button type="submit" data-i18n="now.show">Show</button>
       <button type="button" id="message-clear" data-i18n="now.clear">Clear</button>
     </form>
+    <figure class="eink-frame">
+      <img id="eink" class="eink" width="200" height="200" alt="Preview of the e-ink sign" data-i18n-alt="now.eink_alt">
+      <figcaption class="muted" data-i18n="now.eink">E-ink sign</figcaption>
+    </figure>
 
     <h2 data-i18n="now.pomodoro">Pomodoro</h2>
     <div class="row">
@@ -113,6 +117,11 @@
     <form id="pomodoro-settings" class="grid">
       <label for="pomodoro_work_status" data-i18n="settings.pomodoro_work">Light while working</label>
       <select id="pomodoro_work_status"></select>
+    </form>
+    <h2 data-i18n="settings.eink">E-ink sign</h2>
+    <form id="eink-settings" class="grid">
+      <label for="eink_language" data-i18n="settings.eink_language">Language on the sign</label>
+      <select id="eink_language"></select>
     </form>
     <p id="settings-info" class="muted"></p>
     <h2 data-i18n="settings.accounts">Calendar accounts</h2>

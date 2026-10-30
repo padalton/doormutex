@@ -59,6 +59,8 @@
   "now.message_placeholder": "e.g. Gaming until 21:00",
   "now.show": "Show",
   "now.clear": "Clear",
+  "now.eink": "E-ink sign on the light",
+  "now.eink_alt": "Preview of the e-ink sign",
   "now.pomodoro": "Pomodoro",
   "now.stop": "Stop",
 
@@ -87,6 +89,8 @@
   "settings.stvo_help": "StVO: green blinks 4 s, yellow 3 s, red+yellow 2 s – like on the road. A lead time turns it into a real warning.",
   "settings.pomodoro": "Pomodoro",
   "settings.pomodoro_work": "Light while working",
+  "settings.eink": "E-ink sign",
+  "settings.eink_language": "Language on the sign",
   "settings.accounts": "Calendar accounts",
   "settings.no_calendar": "No calendar configured.",
   "settings.provider": "Provider: {provider}",
