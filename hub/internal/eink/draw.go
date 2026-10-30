@@ -202,7 +202,7 @@ func triangle(ax, ay, bx, by, cx, cy float64) shape {
 		d1, d2, d3 := side(ax, ay, bx, by, x, y), side(bx, by, cx, cy, x, y), side(cx, cy, ax, ay, x, y)
 		neg := d1 < 0 || d2 < 0 || d3 < 0
 		pos := d1 > 0 || d2 > 0 || d3 > 0
-		return !(neg && pos)
+		return !neg || !pos
 	}
 }
 
