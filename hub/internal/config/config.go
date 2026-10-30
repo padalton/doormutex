@@ -51,7 +51,8 @@ type Profile struct {
 		EndingSoon    *engine.Lead      `yaml:"ending_soon"` // "stvo" or a duration
 		MediaDebounce *Duration         `yaml:"media_debounce"`
 		MediaHold     *Duration         `yaml:"media_hold"`
-		Default       string            `yaml:"default"` // status when nothing applies
+		Default       string            `yaml:"default"`              // status when nothing applies
+		PomodoroWork  string            `yaml:"pomodoro_work_status"` // dnd (default) or working
 	} `yaml:"rules"`
 	Presence struct {
 		RequireCompanion *bool     `yaml:"require_companion"`
@@ -271,6 +272,13 @@ func (c *Config) Inputs(p Profile) (engine.Inputs, error) {
 		if r.Default, err = status.Parse(p.Rules.Default); err != nil {
 			return engine.Inputs{}, fmt.Errorf("profile %s: rules.default: %w", p.ID, err)
 		}
+	}
+	switch p.Rules.PomodoroWork {
+	case "":
+	case string(status.DND), string(status.Working):
+		r.PomodoroWork = status.Status(p.Rules.PomodoroWork)
+	default:
+		return engine.Inputs{}, fmt.Errorf("profile %s: rules.pomodoro_work_status: want dnd or working", p.ID)
 	}
 	set := func(dst *time.Duration, v *Duration) {
 		if v != nil {

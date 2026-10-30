@@ -319,6 +319,18 @@ func TestPomodoroAndTimeline(t *testing.T) {
 	if resp, _ := f.do(t, http.MethodPut, "/api/v1/pomodoro", `{"work":"10s"}`); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("short pomodoro accepted: %d", resp.StatusCode)
 	}
+	// Yellow pomodoro: the setting applies when the request doesn't say.
+	if resp, b := f.do(t, http.MethodPut, "/api/v1/settings", `{"pomodoro_work_status":"working"}`); resp.StatusCode != http.StatusOK {
+		t.Fatalf("setting: %d %s", resp.StatusCode, b)
+	}
+	_, b = f.do(t, http.MethodPut, "/api/v1/pomodoro", `{"work":"25m"}`)
+	if st := decodeState(t, b); st.Status != status.Working || st.Reason != engine.ReasonPomodoro {
+		t.Fatalf("yellow pomodoro: %+v", st)
+	}
+	if resp, _ := f.do(t, http.MethodPut, "/api/v1/settings", `{"pomodoro_work_status":"free"}`); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("free pomodoro accepted: %d", resp.StatusCode)
+	}
+	f.do(t, http.MethodPut, "/api/v1/pomodoro", `{"work":"50m","break":"10m","cycles":1,"work_status":"dnd"}`)
 
 	from := url.QueryEscape(f.clk.now().Format(time.RFC3339))
 	to := url.QueryEscape(f.clk.now().Add(8 * time.Hour).Format(time.RFC3339))

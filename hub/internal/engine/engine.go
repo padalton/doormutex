@@ -200,6 +200,7 @@ type Rules struct {
 	StaleAfter       time.Duration                   // companion silent this long → away
 	RequireCompanion bool                            // no companion heartbeat → away
 	Default          status.Status                   // when nothing else applies; empty means free
+	PomodoroWork     status.Status                   // pomodoro work phases unless the request says; empty means dnd
 	Horizon          time.Duration                   // how far ahead to plan
 	Lookback         time.Duration                   // how far back to find "since"
 }

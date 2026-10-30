@@ -155,7 +155,7 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `GET /api/v1/status` | current state incl. reason, slot, next free slot |
 | `GET /api/v1/timeline?from=…&to=…` | planned slots from calendar, working hours and timers |
 | `PUT` / `DELETE /api/v1/override` | set an override (status + duration or end) / clear it |
-| `PUT` / `DELETE /api/v1/pomodoro` | start / stop a pomodoro timer (work phase red by default) |
+| `PUT` / `DELETE /api/v1/pomodoro` | start / stop a pomodoro timer (work phase red by default; setting `pomodoro_work_status` or `work_status` per request for yellow) |
 | `POST /api/v1/signals/companion` | companion heartbeat (microphone, camera, lock) and goodbye before shutdown/suspend |
 | `POST` / `DELETE /api/v1/signals/{source}` | webhook signals with TTL |
 | `GET /api/v1/events` | live updates (Server-Sent Events) |
@@ -312,7 +312,7 @@ Implemented in [`plasmoid/`](plasmoid/) – install with `kpackagetool6`, see it
   - detected state with source ("microphone in use", "calendar: meeting until 14:30")
   - override: red / yellow / green / off for 15 min, 30 min, 1 h, 2 h, until the event ends, until end of work day, until the next automatic change, or indefinite
   - "auto" clears the override
-  - pomodoro, e.g. 25/5 or 50/10 (work phase red, break green – configurable)
+  - pomodoro, e.g. 25/5 or 50/10 (work phase red, break green – yellow work phase as a setting in the web UI or per start in the widget)
   - day bar: today's slots as a coloured bar
 - Works in the panel and on the desktop; distributed via the KDE Store ("Get New Widgets").
 - **Other desktops:** the web UI can be installed as a PWA; a GNOME extension would be a nice community project.

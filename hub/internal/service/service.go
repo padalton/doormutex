@@ -60,6 +60,7 @@ type Settings struct {
 	Tentative  string                   `json:"tentative"` // status, "kind" or "ignore"
 	LastCall   engine.Lead              `json:"last_call"`
 	EndingSoon engine.Lead              `json:"ending_soon"`
+	Pomodoro   status.Status            `json:"pomodoro_work_status"` // dnd or working
 }
 
 // Message is a short text for the e-ink, optionally with an expiry.
@@ -458,13 +459,17 @@ func (s *Service) SetPomodoro(r PomodoroRequest) (engine.State, error) {
 	if r.Work < time.Minute || r.Work > 4*time.Hour || r.Break < 0 || r.Break > time.Hour || r.Cycles < 0 || r.Cycles > 24 {
 		return engine.State{}, fmt.Errorf("%w: work 1m–4h, break 0–1h, cycles 0–24", ErrInvalid)
 	}
+	s.mu.Lock()
+	if r.WorkStatus == "" {
+		r.WorkStatus = s.base.Rules.PomodoroWork
+	}
 	if r.WorkStatus == "" {
 		r.WorkStatus = status.DND
 	}
-	if r.WorkStatus != status.Working && r.WorkStatus != status.DND {
-		return engine.State{}, fmt.Errorf("%w: work_status must be working or dnd", ErrInvalid)
+	if err := CheckPomodoroWork(r.WorkStatus); err != nil {
+		s.mu.Unlock()
+		return engine.State{}, err
 	}
-	s.mu.Lock()
 	f := engine.Pomodoro{Start: s.now(), Work: r.Work, Break: r.Break, Cycles: r.Cycles, WorkStatus: r.WorkStatus}
 	s.pomodoro, s.override = &f, nil
 	s.persist(keyPomodoro, f)
@@ -503,6 +508,10 @@ func (s *Service) settingsLocked() Settings {
 	if out.Tentative == "" {
 		out.Tentative = engine.TentativeKind
 	}
+	out.Pomodoro = r.PomodoroWork
+	if out.Pomodoro == "" {
+		out.Pomodoro = status.DND
+	}
 	for _, k := range calendar.Kinds {
 		out.Calendar[k] = Ignore
 		if st, ok := r.CalendarStatus[k]; ok {
@@ -518,6 +527,15 @@ type SettingsUpdate struct {
 	Tentative  *string
 	LastCall   *engine.Lead
 	EndingSoon *engine.Lead
+	Pomodoro   *status.Status
+}
+
+// CheckPomodoroWork validates the status of pomodoro work phases.
+func CheckPomodoroWork(s status.Status) error {
+	if s != status.Working && s != status.DND {
+		return fmt.Errorf("%w: pomodoro work status must be working or dnd", ErrInvalid)
+	}
+	return nil
 }
 
 // UpdateSettings validates, applies and persists a settings change.
@@ -537,11 +555,19 @@ func (s *Service) UpdateSettings(u SettingsUpdate) (Settings, error) {
 			return Settings{}, fmt.Errorf("%w: %w", ErrInvalid, err)
 		}
 	}
+	if u.Pomodoro != nil {
+		if err := CheckPomodoroWork(*u.Pomodoro); err != nil {
+			return Settings{}, err
+		}
+	}
 	s.mu.Lock()
 	next := s.settingsLocked()
 	maps.Copy(next.Calendar, u.Calendar)
 	if u.Tentative != nil {
 		next.Tentative = *u.Tentative
+	}
+	if u.Pomodoro != nil {
+		next.Pomodoro = *u.Pomodoro
 	}
 	if u.LastCall != nil {
 		next.LastCall = *u.LastCall
@@ -565,8 +591,12 @@ func (s *Service) applyLocked(st Settings) {
 		}
 	}
 	s.base.Rules.CalendarStatus = cs
-	if st.Tentative != "" { // settings saved before tentative existed keep the default
+	// Settings saved by an older hub lack the newer fields: keep the defaults.
+	if st.Tentative != "" {
 		s.base.Rules.Tentative = st.Tentative
+	}
+	if st.Pomodoro != "" {
+		s.base.Rules.PomodoroWork = st.Pomodoro
 	}
 	s.base.Rules.LastCall, s.base.Rules.EndingSoon = st.LastCall, st.EndingSoon
 }

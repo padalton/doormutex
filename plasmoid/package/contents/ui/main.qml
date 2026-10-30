@@ -15,6 +15,7 @@ PlasmoidItem {
     readonly property string hub: String(Plasmoid.configuration.hubUrl).replace(/\/+$/, "")
     readonly property string token: Plasmoid.configuration.token
     readonly property string profile: Plasmoid.configuration.profile
+    readonly property string pomodoroWorkStatus: Plasmoid.configuration.pomodoroWorkStatus
 
     readonly property var statusText: ({
         "dnd": i18n("Do not disturb"), "working": i18n("Working"),
@@ -83,7 +84,12 @@ PlasmoidItem {
         request("PUT", "/api/v1/override", b, null)
     }
     function clearOverride() { request("DELETE", "/api/v1/override", null, null) }
-    function startPomodoro(work, brk) { request("PUT", "/api/v1/pomodoro", { work: work, "break": brk, cycles: 4 }, null) }
+    // workStatus: "dnd", "working" or "" for the hub's setting.
+    function startPomodoro(work, brk, workStatus) {
+        const b = { work: work, "break": brk, cycles: 4 }
+        if (workStatus) b.work_status = workStatus
+        request("PUT", "/api/v1/pomodoro", b, null)
+    }
     function stopPomodoro() { request("DELETE", "/api/v1/pomodoro", null, null) }
     function setMessage(text) { request(text === "" ? "DELETE" : "PUT", "/api/v1/message", text === "" ? null : { text: text }, null) }
 

@@ -197,6 +197,10 @@ async function renderSettings() {
     for (const v of opts) sel.append(new Option(v === "stvo" ? "StVO (seconds)" : v.replace("m", " min"), v, false, st[id] === v));
     sel.onchange = () => saveSettings({ [id]: sel.value });
   }
+  const pomo = $("#pomodoro_work_status");
+  pomo.replaceChildren(...["dnd", "working"].map((v) =>
+    new Option(`${v === "dnd" ? "Red" : "Yellow"} – ${STATUS[v].text}`, v, false, st.pomodoro_work_status === v)));
+  pomo.onchange = () => saveSettings({ pomodoro_work_status: pomo.value });
   const acc = $("#accounts");
   acc.replaceChildren();
   if (!cal.accounts.length) {

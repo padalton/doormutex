@@ -233,7 +233,7 @@ paths:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     put:
       summary: Start a pomodoro timer
-      description: Replaces a running override. Work phases show `work_status` (default `dnd`), breaks show `free`.
+      description: Replaces a running override. Work phases show `work_status` (default from the setting `pomodoro_work_status`, which defaults to `dnd`), breaks show `free`.
       operationId: startPomodoro
       requestBody:
         required: true
@@ -524,6 +524,11 @@ components:
             `ignore`. Kinds set to `ignore` stay ignored.
         last_call: { $ref: "#/components/schemas/Lead" }
         ending_soon: { $ref: "#/components/schemas/Lead" }
+        pomodoro_work_status:
+          type: string
+          enum: [dnd, working]
+          default: dnd
+          description: Light during pomodoro work phases when a request has no `work_status`.
 
     MessageRequest:
       type: object
@@ -590,7 +595,7 @@ components:
         work_status:
           type: string
           enum: [working, dnd]
-          default: dnd
+          description: Omitted = the setting `pomodoro_work_status` (default `dnd`).
 
     Media:
       type: object

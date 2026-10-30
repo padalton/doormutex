@@ -27,6 +27,13 @@ PlasmaExtras.Representation {
         })
     }
 
+    // The yellow button wins; unchecked means red if the widget preset is
+    // yellow, otherwise the preset (empty: the hub's setting).
+    function pomodoroStatus() {
+        if (yellowPomodoro.checked) return "working"
+        return root.pomodoroWorkStatus === "working" ? "dnd" : root.pomodoroWorkStatus
+    }
+
     Connections {
         target: root
         function onExpandedChanged() {
@@ -151,11 +158,20 @@ PlasmaExtras.Representation {
         RowLayout {
             PlasmaComponents3.Button {
                 text: "🍅 25 / 5"
-                onClicked: root.startPomodoro("25m", "5m")
+                onClicked: root.startPomodoro("25m", "5m", full.pomodoroStatus())
             }
             PlasmaComponents3.Button {
                 text: "🍅 50 / 10"
-                onClicked: root.startPomodoro("50m", "10m")
+                onClicked: root.startPomodoro("50m", "10m", full.pomodoroStatus())
+            }
+            PlasmaComponents3.ToolButton {
+                id: yellowPomodoro
+                // Yellow instead of red for this pomodoro; preset from the widget settings.
+                text: i18n("yellow")
+                checkable: true
+                checked: root.pomodoroWorkStatus === "working"
+                QQC2.ToolTip.text: i18n("Yellow (working) instead of red while the pomodoro runs")
+                QQC2.ToolTip.visible: hovered
             }
             PlasmaComponents3.Button {
                 text: i18n("Stop")
