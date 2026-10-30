@@ -17,7 +17,7 @@ docker compose exec hub doormutex-hub token create teen-phone teen
 
 It shows the light, the reason and until when; it sets red/yellow/green/off for a time, shows a message on the e-ink and starts a pomodoro. *Settings* changes the light per calendar event kind and the warning timing.
 
-Within the home network plain HTTP is enough. Push notifications to the web app would need HTTPS (iOS 16.4 or later).
+Within the home network plain HTTP is enough on iOS. Push notifications to the web app would need HTTPS (iOS 16.4 or later) – see the reverse-proxy example in the [Android guide](android.md#2-web-app-on-the-home-screen).
 
 ## 3. Shortcuts
 
@@ -28,14 +28,14 @@ Create one shortcut per action in the *Shortcuts* app:
 3. *Show More*:
    - Method: **PUT**
    - Headers: `Authorization` = `Bearer <token>`
-   - Request Body: **JSON** with `status` = `dnd` and `mode` = `indefinite`
+   - Request Body: **JSON** with `status` = `dnd` and `mode` = `next_change` (until the next automatic change; in room mode without companion use `indefinite`)
 4. Name the shortcut, e.g. **Light red**. Siri now runs it with "Hey Siri, light red".
 
 | Shortcut | Method | URL | JSON body |
 |---|---|---|---|
-| Light red | PUT | `/api/v1/override` | `status: dnd`, `mode: indefinite` |
+| Light red | PUT | `/api/v1/override` | `status: dnd`, `mode: next_change` |
 | Light red for 1 h | PUT | `/api/v1/override` | `status: dnd`, `mode: duration`, `duration: 1h` |
-| Light green | PUT | `/api/v1/override` | `status: free`, `mode: indefinite` |
+| Light green | PUT | `/api/v1/override` | `status: free`, `mode: next_change` |
 | Light off | PUT | `/api/v1/override` | `status: away`, `mode: indefinite` |
 | Light auto | DELETE | `/api/v1/override` | – |
 | Message | PUT | `/api/v1/message` | `text:` *Ask Each Time*, `ttl: 3h` |

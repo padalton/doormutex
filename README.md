@@ -9,7 +9,7 @@ The state is detected automatically (microphone/camera, Google Calendar, working
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-30). The repo is public from day one so anyone can follow the project as it grows. Software: [`hub/`](hub/) (with web UI), [`companion/`](companion/), [`plasmoid/`](plasmoid/).
 >
-> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml) · [Translating](TRANSLATING.md)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Android](docs/android.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml) · [Translating](TRANSLATING.md)
 
 ## Signals
 
@@ -350,10 +350,11 @@ Later: working hours, profiles and tokens, device health (battery, Wi-Fi, firmwa
 
 ### Phone (iPhone and Android)
 
-No native app – so no Apple developer account and no app store. Step-by-step: [docs/apple-shortcuts.md](docs/apple-shortcuts.md).
+No native app – so no Apple developer account, no app store, nothing to maintain per platform. Step-by-step: [iPhone](docs/apple-shortcuts.md) · [Android](docs/android.md).
 
-- **Web app:** the web UI can be added to the home screen ("Add to Home Screen") and then opens like an app. Within the home network plain HTTP is enough for controlling the light; push notifications need HTTPS (on iOS from 16.4, for web apps on the home screen).
-- **Apple Shortcuts:** a shortcut calls the hub API with the profile's token. That gives Siri ("traffic light red"), the Action Button and home-screen widgets – and automations such as "when the *Do Not Disturb* focus turns on → light red". The iPhone's focus mode then switches the light.
+- **Web app:** the web UI can be added to the home screen and then opens like an app. On iOS plain HTTP in the home network is enough; **Android's Chrome installs web apps only over HTTPS** – a reverse proxy with an internal hostname and a DNS-challenge certificate does it (example in the Android guide). Installed on Android, a long-press on the icon offers *Red*, *Green* and *Automatic* (app shortcuts).
+- **iPhone – Apple Shortcuts:** a shortcut calls the hub API with the profile's token. That gives Siri ("traffic light red"), the Action Button and home-screen widgets – and automations such as "when the *Do Not Disturb* focus turns on → light red".
+- **Android – HTTP Shortcuts, MacroDroid/Tasker:** the open-source app *HTTP Shortcuts* puts API calls on home-screen icons, widgets and **Quick Settings tiles**; MacroDroid or Tasker switch the light with the phone's Do Not Disturb or a mode such as "Gaming". Voice via Google Assistant / Google Home goes through Home Assistant scripts.
 
 ## Home Assistant & MQTT
 

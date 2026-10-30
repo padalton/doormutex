@@ -11,5 +11,10 @@
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Red – do not disturb", "short_name": "Red", "url": "./?action=dnd", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Green – come in", "short_name": "Green", "url": "./?action=free", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Automatic", "short_name": "Auto", "url": "./?action=auto", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }

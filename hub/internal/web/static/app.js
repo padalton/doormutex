@@ -380,9 +380,25 @@ async function start() {
     const cur = list.find((p) => p.id === profile);
     if (cur) renderState(cur.state);
     connect();
+    runShortcut();
   } catch (err) {
     if (err.message !== "unauthorized") $("#login-error").textContent = String(err.message || err);
   }
+}
+
+// App shortcuts (long-press on the home-screen icon, see the manifest) open
+// ./?action=dnd|working|free|away|auto. The app – not the server – then
+// sets the light: a red/yellow/green/off lasts until the next automatic
+// change. The parameter is removed so a reload doesn't repeat it.
+function runShortcut() {
+  const params = new URLSearchParams(location.search);
+  const action = params.get("action");
+  if (!action) return;
+  params.delete("action");
+  const rest = params.toString();
+  history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+  if (action === "auto") act(() => api("DELETE", "/api/v1/override"));
+  else if (COLOR[action]) act(() => api("PUT", "/api/v1/override", { status: action, mode: "next_change" }));
 }
 
 // A link like https://hub/#token=dm_… sets up a phone in one tap; the
