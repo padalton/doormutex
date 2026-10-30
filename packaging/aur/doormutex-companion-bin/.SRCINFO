@@ -1,0 +1,21 @@
+pkgbase = doormutex-companion-bin
+	pkgdesc = Desktop companion for the doormutex traffic light (microphone, camera, screen lock) with the KDE Plasma widget
+	pkgver = 0.0.0
+	pkgrel = 1
+	url = https://github.com/padalton/doormutex
+	arch = x86_64
+	arch = aarch64
+	license = Apache-2.0
+	depends = pipewire
+	depends = systemd
+	optdepends = plasma-workspace: the Plasma 6 panel widget
+	provides = doormutex-companion
+	conflicts = doormutex-companion
+	options = !strip
+	options = !debug
+	source_x86_64 = https://github.com/padalton/doormutex/releases/download/v0.0.0/doormutex-companion_0.0.0_linux_amd64.tar.gz
+	sha256sums_x86_64 = SKIP
+	source_aarch64 = https://github.com/padalton/doormutex/releases/download/v0.0.0/doormutex-companion_0.0.0_linux_arm64.tar.gz
+	sha256sums_aarch64 = SKIP
+
+pkgname = doormutex-companion-bin
