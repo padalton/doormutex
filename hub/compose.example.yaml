@@ -13,6 +13,10 @@ services:
       DOORMUTEX_CONFIG: /config/config.yaml
       # DOORMUTEX_MQTT_PASSWORD: set via an .env file, never commit it
       DOORMUTEX_MQTT_PASSWORD: ${DOORMUTEX_MQTT_PASSWORD:-}
+      # Key for the Google tokens in the database (openssl rand -base64 32).
+      # Without it the hub creates /data/secret.key – then keep that file out
+      # of the backups of /data/hub.db, or the encryption protects nothing.
+      DOORMUTEX_SECRET_KEY: ${DOORMUTEX_SECRET_KEY:-}
     volumes:
       - ./config.yaml:/config/config.yaml:ro
       - hub-data:/data

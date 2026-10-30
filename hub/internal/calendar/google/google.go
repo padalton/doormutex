@@ -23,6 +23,8 @@ import (
 
 	"golang.org/x/oauth2"
 
+	"github.com/padalton/doormutex/hub/internal/secret"
+
 	"github.com/padalton/doormutex/hub/internal/calendar"
 )
 
@@ -149,7 +151,10 @@ func (p *Provider) account(ctx context.Context, a Account, from, to time.Time) (
 	key := TokenKey(p.o.Profile, a.Name)
 	var tok oauth2.Token
 	if err := p.o.Tokens.Get(key, &tok); err != nil {
-		return nil, fmt.Errorf("%w – run: doormutex-hub google login %s %s", ErrNotConnected, p.o.Profile, a.Name)
+		if errors.Is(err, secret.ErrDecrypt) {
+			return nil, fmt.Errorf("stored token: %w – sign in again", err)
+		}
+		return nil, fmt.Errorf("%w – sign in with: doormutex-companion google login %s (or on the hub: doormutex-hub google login %s %s)", ErrNotConnected, a.Name, p.o.Profile, a.Name)
 	}
 	if p.o.HTTP != nil {
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, p.o.HTTP)

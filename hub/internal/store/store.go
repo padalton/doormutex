@@ -204,6 +204,24 @@ func (s *Store) Get(key string, v any) error {
 	return json.Unmarshal([]byte(raw), v)
 }
 
+// Keys returns the keys that start with prefix, sorted.
+func (s *Store) Keys(prefix string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT key FROM kv WHERE substr(key, 1, ?) = ? ORDER BY key`, len(prefix), prefix)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var k string
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		out = append(out, k)
+	}
+	return out, rows.Err()
+}
+
 // HistoryEntry is one status change.
 type HistoryEntry struct {
 	Profile string    `json:"-"`
