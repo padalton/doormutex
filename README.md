@@ -332,6 +332,7 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 - The lamp keys show live which lamp is on. Pressing one sets an override (duration via a duration key or long press).
 - Free keys stay available for other things.
+- **Until the plugin exists:** "run command" keys calling `doormutex-companion set red 30m` etc. – see [docs/stream-deck.md](docs/stream-deck.md), which also compares OpenDeck and StreamController.
 
 ### Web UI
 
@@ -787,3 +788,4 @@ doormutex/
 | 2026-10-30 | Mounting by magnets for steel: in the foot (newel post) and optionally a side wall (railing, eye level); anti-slip pad, fall protection | the reference spot is a steel stair-railing post at the end of a ~5 m hallway |
 | 2026-10-30 | E-ink 1.54″ only needs to be readable right in front of the light | the colour is read from 5 m, the text up close |
 | 2026-10-30 | Reference cells: Panasonic 18650 in good condition, checked with an analysing charger (discharge/refresh) | protection circuitry stays mandatory for everyone else's cells |
+| 2026-10-30 | Companion CLI controls (`set`, `status`, `pomodoro`); Stream Deck plugin stays Elgato SDK (OpenDeck on Linux), run-command keys until then | shortcuts and Stream Deck work today without a plugin; one plugin codebase for every OS |

@@ -6,6 +6,9 @@
 //	doormutex-companion [run] [-config path]   run (default; e.g. as a systemd user service)
 //	doormutex-companion check [-config path]   print what it detects once and test the hub connection
 //	doormutex-companion google login ACCOUNT    sign a Google account of the hub profile in (browser on this desktop)
+//	doormutex-companion set LIGHT [UNTIL]       set the light by hand, e.g. "set red 30m", "set auto" (shortcuts, Stream Deck)
+//	doormutex-companion status                  print the current state
+//	doormutex-companion pomodoro 25|50|stop     start or stop a pomodoro
 package main
 
 import (
@@ -63,10 +66,16 @@ func main() {
 		err = check(*cfgPath)
 	case "google":
 		err = googleCmd(*cfgPath, fs.Args())
+	case "set":
+		err = setCmd(*cfgPath, fs.Args())
+	case "status":
+		err = statusCmd(*cfgPath)
+	case "pomodoro":
+		err = pomodoroCmd(*cfgPath, fs.Args())
 	case "version":
 		fmt.Println(version)
 	default:
-		err = fmt.Errorf("unknown command %q (want run, check, google, version)", cmd)
+		err = fmt.Errorf("unknown command %q (want run, check, google, set, status, pomodoro, version)", cmd)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "doormutex-companion:", err)
