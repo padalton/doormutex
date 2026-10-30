@@ -7,6 +7,7 @@
 package engine
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -20,9 +21,9 @@ import (
 type Priority int
 
 const (
-	PrioManual    Priority = 1 // override, focus timer
-	PrioMedia     Priority = 2 // microphone or camera in use
-	PrioPresence  Priority = 3 // screen locked, companion silent
+	PrioMedia     Priority = 1 // microphone or camera in use – beats everything
+	PrioPresence  Priority = 2 // screen locked, PC off, companion silent
+	PrioManual    Priority = 3 // override, pomodoro timer
 	PrioCalendar  Priority = 4
 	PrioWorkHours Priority = 5
 	PrioSignal    Priority = 6 // generic webhook signals
@@ -32,12 +33,14 @@ const (
 // Reason codes reported in the state.
 const (
 	ReasonOverride         = "override"
-	ReasonFocus            = "focus"
-	ReasonFocusBreak       = "focus_break"
+	ReasonPomodoro         = "pomodoro"
+	ReasonPomodoroBreak    = "pomodoro_break"
 	ReasonMicrophone       = "microphone"
 	ReasonCamera           = "camera"
 	ReasonScreenLocked     = "screen_locked"
-	ReasonCompanionOffline = "companion_offline"
+	ReasonPCOff            = "pc_off"            // the companion signed off (shutdown, suspend)
+	ReasonCompanionLost    = "companion_lost"    // silent without signing off → fault
+	ReasonCompanionOffline = "companion_offline" // never seen, or silent outside working hours
 	ReasonCalendar         = "calendar"
 	ReasonWorkHours        = "work_hours"
 	ReasonSignal           = "signal"
@@ -62,9 +65,9 @@ type Override struct {
 	Until  time.Time     `json:"until,omitzero"`
 }
 
-// Focus is a pomodoro timer: Work, then Break, repeated Cycles times
+// Pomodoro is a timer: Work, then Break, repeated Cycles times
 // (0 = until stopped). WorkStatus is shown during work phases.
-type Focus struct {
+type Pomodoro struct {
 	Start      time.Time     `json:"start"`
 	Work       time.Duration `json:"work"`
 	Break      time.Duration `json:"break"`
@@ -72,8 +75,8 @@ type Focus struct {
 	WorkStatus status.Status `json:"work_status"`
 }
 
-// End returns when the focus session ends (zero if unlimited).
-func (f Focus) End() time.Time {
+// End returns when the pomodoro session ends (zero if unlimited).
+func (f Pomodoro) End() time.Time {
 	if f.Cycles <= 0 {
 		return time.Time{}
 	}
@@ -89,11 +92,54 @@ type Signal struct {
 	Expires time.Time     `json:"expires"`
 }
 
+// StVO timings (Austrian road traffic regulations, § 38): green blinks
+// four times before yellow, yellow shows about 3 s before red, red+yellow
+// about 2 s before green.
+const (
+	StVOLastCall   = 4 * time.Second
+	StVOEndingSoon = 2 * time.Second
+	AmberTime      = 3 * time.Second
+)
+
+// Lead is how long a warning phase lasts before the change. Zero means
+// StVO timing; a positive value turns the phase into a real warning.
+type Lead time.Duration
+
+// Or returns the lead time, or stvo if it is zero.
+func (l Lead) Or(stvo time.Duration) time.Duration {
+	if l <= 0 {
+		return stvo
+	}
+	return time.Duration(l)
+}
+
+// MarshalText implements encoding.TextMarshaler: "stvo" or a duration.
+func (l Lead) MarshalText() ([]byte, error) {
+	if l <= 0 {
+		return []byte("stvo"), nil
+	}
+	return []byte(time.Duration(l).String()), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (l *Lead) UnmarshalText(b []byte) error {
+	if string(b) == "stvo" || len(b) == 0 {
+		*l = 0
+		return nil
+	}
+	d, err := time.ParseDuration(string(b))
+	if err != nil || d <= 0 || d > time.Hour {
+		return fmt.Errorf("lead time %q: want \"stvo\" or a duration between 1s and 1h", b)
+	}
+	*l = Lead(d)
+	return nil
+}
+
 // Rules are the tunables of the decision logic.
 type Rules struct {
 	CalendarStatus   map[calendar.Kind]status.Status // missing kind → event ignored
-	LastCall         time.Duration                   // green blinks this long before a meeting
-	EndingSoon       time.Duration                   // red+yellow this long before a meeting ends
+	LastCall         Lead                            // warning before a meeting starts
+	EndingSoon       Lead                            // red+yellow before a meeting ends
 	MediaDebounce    time.Duration                   // mic/cam must be active this long
 	MediaHold        time.Duration                   // keep red this long after mic/cam stop
 	StaleAfter       time.Duration                   // companion silent this long → away
@@ -106,13 +152,11 @@ type Rules struct {
 func DefaultRules() Rules {
 	return Rules{
 		CalendarStatus: map[calendar.Kind]status.Status{
-			calendar.KindMeeting:     status.DND,
+			calendar.KindVideoCall:   status.DND,
 			calendar.KindFocus:       status.Working,
-			calendar.KindOutOfOffice: status.Away,
-			calendar.KindOther:       status.DND,
+			calendar.KindOutOfOffice: status.DND, // timed; all-day out of office is a day off
+			calendar.KindOther:       status.Working,
 		},
-		LastCall:         5 * time.Minute,
-		EndingSoon:       5 * time.Minute,
 		MediaDebounce:    10 * time.Second,
 		MediaHold:        2 * time.Minute,
 		StaleAfter:       90 * time.Second,
@@ -127,7 +171,7 @@ type Inputs struct {
 	Location  *time.Location
 	Rules     Rules
 	Override  *Override
-	Focus     *Focus
+	Pomodoro  *Pomodoro
 	Companion Companion
 	Events    []calendar.Event
 	WorkWeek  schedule.Week
@@ -230,13 +274,37 @@ func Timeline(now, from, to time.Time, in Inputs) []Slot {
 	return out
 }
 
+// DayOff reports whether t falls on a day without working hours: a public
+// holiday, an extra day off or an all-day out-of-office event (vacation).
+func (in Inputs) DayOff(t time.Time) bool {
+	if in.Holidays.IsHoliday(t) {
+		return true
+	}
+	for _, e := range in.Events {
+		if e.AllDay && e.Kind == calendar.KindOutOfOffice && !t.Before(e.Start) && t.Before(e.End) {
+			return true
+		}
+	}
+	return false
+}
+
 func phase(st State, now time.Time, r Rules) status.Phase {
-	switch {
-	case st.Status == status.Free && st.Next != nil && st.Next.Status == status.DND &&
-		st.Next.Since.Sub(now) <= r.LastCall:
-		return status.PhaseLastCall
-	case st.Status == status.DND && st.Until != nil && st.Until.Sub(now) <= r.EndingSoon &&
-		st.Next != nil && (st.Next.Status == status.Free || st.Next.Status == status.Working):
+	if st.Reason == ReasonCompanionLost {
+		return status.PhaseFault
+	}
+	if st.Next != nil && st.Next.Status == status.DND {
+		left := st.Next.Since.Sub(now)
+		lastCall := r.LastCall.Or(StVOLastCall)
+		switch {
+		case st.Status == status.Free && left <= AmberTime:
+			return status.PhaseAmber
+		case st.Status == status.Free && left <= AmberTime+lastCall,
+			st.Status == status.Working && left <= lastCall:
+			return status.PhaseLastCall
+		}
+	}
+	if st.Status == status.DND && st.Until != nil && st.Until.Sub(now) <= r.EndingSoon.Or(StVOEndingSoon) &&
+		st.Next != nil && (st.Next.Status == status.Free || st.Next.Status == status.Working) {
 		return status.PhaseEndingSoon
 	}
 	return status.PhaseNormal

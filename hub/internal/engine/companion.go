@@ -7,13 +7,21 @@ import (
 	"github.com/padalton/doormutex/hub/internal/status"
 )
 
-// Report is one heartbeat from the desktop companion.
+// Goodbye values: the companion signs off before the PC goes away.
+const (
+	GoodbyeShutdown = "shutdown"
+	GoodbyeSuspend  = "suspend"
+)
+
+// Report is one heartbeat from the desktop companion. A non-empty Goodbye
+// means the companion signs off; silence after that is expected.
 type Report struct {
 	Locked     bool
 	Microphone bool
 	Camera     bool
 	MicApps    []string
 	CamApps    []string
+	Goodbye    string
 }
 
 // Activity tracks one media device over time to debounce and hold it.
@@ -47,10 +55,20 @@ type Companion struct {
 	LockedSince time.Time `json:"locked_since,omitzero"`
 	Mic         Activity  `json:"microphone"`
 	Cam         Activity  `json:"camera"`
+	SignedOff   string    `json:"signed_off,omitempty"` // goodbye reason; cleared by the next heartbeat
+	SignedOffAt time.Time `json:"signed_off_at,omitzero"`
 }
 
 // Observe applies a heartbeat.
 func (c *Companion) Observe(now time.Time, rep Report, r Rules) {
+	if rep.Goodbye != "" {
+		c.SignedOff, c.SignedOffAt = rep.Goodbye, now
+		c.Mic.observe(now, false, nil, r)
+		c.Cam.observe(now, false, nil, r)
+		c.LastSeen = now
+		return
+	}
+	c.SignedOff, c.SignedOffAt = "", time.Time{}
 	if rep.Locked && (!c.Locked || c.Stale(now, r)) {
 		c.LockedSince = now
 	}
@@ -69,7 +87,7 @@ func (c *Companion) Stale(now time.Time, r Rules) bool {
 // stopped microphone/camera. An active run has no known end; if a calendar
 // meeting is running, we assume the call ends with the meeting.
 func (c *Companion) mediaClaims(now time.Time, r Rules, meetingEnd time.Time) []Claim {
-	if c.Stale(now, r) {
+	if c.Stale(now, r) || c.SignedOff != "" {
 		return nil
 	}
 	var cs []Claim
@@ -95,21 +113,31 @@ func (c *Companion) mediaClaims(now time.Time, r Rules, meetingEnd time.Time) []
 	return cs
 }
 
-// presenceClaim returns an away claim when the screen is locked or the
-// companion went silent.
-func (c *Companion) presenceClaim(now time.Time, r Rules) *Claim {
-	if c.Stale(now, r) {
+// presenceClaims returns away claims for a PC that is off, locked or
+// whose companion went silent. Silence without a goodbye during working
+// hours is a fault until the end of the work day, then plain away.
+func (c *Companion) presenceClaims(now time.Time, r Rules, endOfWorkday func(time.Time) (time.Time, bool)) []Claim {
+	switch {
+	case c.SignedOff != "":
+		return []Claim{{Status: status.Away, Priority: PrioPresence, Reason: ReasonPCOff, Detail: c.SignedOff,
+			Start: c.SignedOffAt}}
+	case c.Stale(now, r):
 		if !r.RequireCompanion {
 			return nil
 		}
-		var start time.Time // never seen: away for the whole window
-		if !c.LastSeen.IsZero() {
-			start = c.LastSeen.Add(r.StaleAfter)
+		if c.LastSeen.IsZero() { // never seen: away for the whole window
+			return []Claim{{Status: status.Away, Priority: PrioPresence, Reason: ReasonCompanionOffline}}
 		}
-		return &Claim{Status: status.Away, Priority: PrioPresence, Reason: ReasonCompanionOffline, Start: start}
-	}
-	if c.Locked {
-		return &Claim{Status: status.Away, Priority: PrioPresence, Reason: ReasonScreenLocked, Start: c.LockedSince}
+		start := c.LastSeen.Add(r.StaleAfter)
+		if end, ok := endOfWorkday(start); ok {
+			return []Claim{
+				{Status: status.Away, Priority: PrioPresence, Reason: ReasonCompanionLost, Start: start, End: end},
+				{Status: status.Away, Priority: PrioPresence, Reason: ReasonCompanionOffline, Start: end},
+			}
+		}
+		return []Claim{{Status: status.Away, Priority: PrioPresence, Reason: ReasonCompanionOffline, Start: start}}
+	case c.Locked:
+		return []Claim{{Status: status.Away, Priority: PrioPresence, Reason: ReasonScreenLocked, Start: c.LockedSince}}
 	}
 	return nil
 }
