@@ -1,0 +1,88 @@
+menu "doormutex"
+
+    menu "Pins"
+        # Defaults for the breadboard prototype (ESP32-C6-DevKitC-1, see
+        # firmware/README.md). LEDs on LP GPIOs (0–7) so the LP core could
+        # blink them in deep sleep later; GPIO 4/5/8/9/15 are strapping
+        # pins, 0/1 stay free for a 32 kHz crystal, 12/13 are USB.
+
+        config DM_GPIO_RED
+            int "Red LED (MOSFET gate)"
+            default 2
+        config DM_GPIO_YELLOW
+            int "Yellow LED (MOSFET gate)"
+            default 3
+        config DM_GPIO_GREEN
+            int "Green LED (MOSFET gate)"
+            default 6
+
+        config DM_GPIO_I2C_SDA
+            int "I2C SDA (fuel gauge, light sensor); -1 = none"
+            default 22
+        config DM_GPIO_I2C_SCL
+            int "I2C SCL; -1 = none"
+            default 23
+
+        config DM_GPIO_CHG
+            int "Charger CHG (low = charging); -1 = not wired"
+            default -1
+        config DM_GPIO_PGOOD
+            int "Charger PGOOD (low = USB power); -1 = not wired"
+            default -1
+
+        config DM_GPIO_EINK_MOSI
+            int "E-ink DIN (MOSI)"
+            default 18
+        config DM_GPIO_EINK_SCLK
+            int "E-ink CLK"
+            default 19
+        config DM_GPIO_EINK_CS
+            int "E-ink CS"
+            default 20
+        config DM_GPIO_EINK_DC
+            int "E-ink DC"
+            default 21
+        config DM_GPIO_EINK_RST
+            int "E-ink RST"
+            default 10
+        config DM_GPIO_EINK_BUSY
+            int "E-ink BUSY"
+            default 11
+    endmenu
+
+    menu "LEDs"
+        config DM_VF_RED_MV
+            int "Red forward voltage (mV)"
+            default 2000
+        config DM_VF_YELLOW_MV
+            int "Yellow forward voltage (mV)"
+            default 2100
+        config DM_VF_GREEN_MV
+            int "Green forward voltage (mV)"
+            default 2900
+        config DM_LED_REF_MV
+            int "Supply voltage the series resistors are sized for (mV)"
+            default 3000
+            help
+                The worst case near the cell's cut-off. Above it the duty
+                is scaled down so the brightness stays even as the cell
+                drains.
+    endmenu
+
+    menu "Failsafe"
+        config DM_BOOT_GRACE_S
+            int "Dark after boot until the first state (s)"
+            default 60
+        config DM_STALE_AFTER_S
+            int "Connection loss tolerated before blinking yellow (s)"
+            default 120
+        config DM_UNTIL_GRACE_S
+            int "How far 'until' may be in the past without a new state (s)"
+            default 120
+    endmenu
+
+    config DM_TELEMETRY_INTERVAL_S
+        int "Telemetry interval (s)"
+        default 300
+
+endmenu
