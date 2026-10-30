@@ -15,6 +15,7 @@ import (
 
 	"github.com/padalton/doormutex/hub/internal/calendar"
 	"github.com/padalton/doormutex/hub/internal/calendar/google"
+	"github.com/padalton/doormutex/hub/internal/eink"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/status"
@@ -34,6 +35,7 @@ type Profile struct {
 	Calendar string // calendar provider: none, google, fake
 	Svc      *service.Service
 	Login    CalendarLogin // nil: no sign-in through the API (not Google)
+	Display  *eink.Display // e-ink frames; nil: New creates one
 }
 
 // CalendarLogin signs calendar accounts in through a client on the desktop
@@ -58,6 +60,11 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
+	for i := range profiles {
+		if profiles[i].Display == nil {
+			profiles[i].Display = &eink.Display{}
+		}
+	}
 	s := &Server{profiles: profiles, auth: auth, log: log, keepalive: 25 * time.Second, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /healthz", s.healthz)
 	s.handle("GET /api/v1/profiles", s.getProfiles)
@@ -79,6 +86,8 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	s.handle("POST /api/v1/signals/{source}", s.postSignal)
 	s.handle("DELETE /api/v1/signals/{source}", s.deleteSignal)
 	s.handle("GET /api/v1/events", s.events)
+	s.handle("GET /api/v1/eink.png", s.getEink)
+	s.handle("GET /api/v1/eink.bin", s.getEink)
 	return s
 }
 
@@ -303,6 +312,7 @@ type SettingsBody struct {
 	LastCall   *engine.Lead             `json:"last_call,omitempty"`
 	EndingSoon *engine.Lead             `json:"ending_soon,omitempty"`
 	Pomodoro   *status.Status           `json:"pomodoro_work_status,omitempty"`
+	EinkLang   *string                  `json:"eink_language,omitempty"`
 }
 
 func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
@@ -310,7 +320,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &b) {
 		return
 	}
-	st, err := svc(r).UpdateSettings(service.SettingsUpdate{Calendar: b.Calendar, Tentative: b.Tentative, LastCall: b.LastCall, EndingSoon: b.EndingSoon, Pomodoro: b.Pomodoro})
+	st, err := svc(r).UpdateSettings(service.SettingsUpdate{Calendar: b.Calendar, Tentative: b.Tentative, LastCall: b.LastCall, EndingSoon: b.EndingSoon, Pomodoro: b.Pomodoro, EinkLang: b.EinkLang})
 	switch {
 	case err == nil:
 		writeJSON(w, http.StatusOK, st)
@@ -591,4 +601,55 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 
 func writeError(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, ErrorBody{Error: msg})
+}
+
+// getEink serves the e-ink frame as a PNG preview or packed for the panel
+// (see eink.Pack). The ETag lets the device skip unchanged frames.
+func (s *Server) getEink(w http.ResponseWriter, r *http.Request) {
+	p := r.Context().Value(profileKey{}).(*Profile)
+	q := r.URL.Query()
+	lang := q.Get("lang")
+	if lang == "" {
+		lang = p.Svc.EinkLanguage()
+	} else if !eink.Supported(lang) {
+		writeError(w, http.StatusBadRequest, "lang: one of "+strings.Join(eink.Languages(), ", "))
+		return
+	}
+	var fr eink.Frame
+	switch q.Get("screen") {
+	case "", "state":
+		var bat *eink.Battery
+		if v := q.Get("battery"); v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 || n > 100 {
+				writeError(w, http.StatusBadRequest, "battery: 0 to 100")
+				return
+			}
+			bat = &eink.Battery{Percent: n, Charging: q.Get("charging") == "true" || q.Get("charging") == "1"}
+		}
+		fr = p.Display.Frame(p.Svc.State(), lang, bat)
+	case "offline":
+		fr = eink.OfflineFrame(lang)
+	default:
+		writeError(w, http.StatusBadRequest, "screen: state or offline")
+		return
+	}
+	png := strings.HasSuffix(r.URL.Path, ".png")
+	etag := fr.ETag
+	if png {
+		etag = strings.TrimSuffix(etag, `"`) + `-png"`
+	}
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Cache-Control", "no-cache")
+	if inm := r.Header.Get("If-None-Match"); inm != "" && slices.Contains(strings.Split(strings.ReplaceAll(inm, " ", ""), ","), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	if png {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(eink.PNG(fr.Image))
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	_, _ = w.Write(fr.Bits)
 }

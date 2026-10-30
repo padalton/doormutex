@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/padalton/doormutex/hub/internal/calendar"
+	"github.com/padalton/doormutex/hub/internal/eink"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/status"
 	"github.com/padalton/doormutex/hub/internal/store"
@@ -61,6 +62,7 @@ type Settings struct {
 	LastCall   engine.Lead              `json:"last_call"`
 	EndingSoon engine.Lead              `json:"ending_soon"`
 	Pomodoro   status.Status            `json:"pomodoro_work_status"` // dnd or working
+	EinkLang   string                   `json:"eink_language"`        // language of the e-ink sign
 }
 
 // Message is a short text for the e-ink, optionally with an expiry.
@@ -93,6 +95,7 @@ type Service struct {
 	hasState  bool
 	subs      map[chan engine.State]struct{}
 	pubs      []Publisher
+	einkLang  string
 }
 
 // Options configure a Service.
@@ -512,6 +515,10 @@ func (s *Service) settingsLocked() Settings {
 	if out.Pomodoro == "" {
 		out.Pomodoro = status.DND
 	}
+	out.EinkLang = s.einkLang
+	if out.EinkLang == "" {
+		out.EinkLang = "en"
+	}
 	for _, k := range calendar.Kinds {
 		out.Calendar[k] = Ignore
 		if st, ok := r.CalendarStatus[k]; ok {
@@ -528,6 +535,7 @@ type SettingsUpdate struct {
 	LastCall   *engine.Lead
 	EndingSoon *engine.Lead
 	Pomodoro   *status.Status
+	EinkLang   *string
 }
 
 // CheckPomodoroWork validates the status of pomodoro work phases.
@@ -560,6 +568,9 @@ func (s *Service) UpdateSettings(u SettingsUpdate) (Settings, error) {
 			return Settings{}, err
 		}
 	}
+	if u.EinkLang != nil && !eink.Supported(*u.EinkLang) {
+		return Settings{}, fmt.Errorf("%w: eink_language: one of %s", ErrInvalid, strings.Join(eink.Languages(), ", "))
+	}
 	s.mu.Lock()
 	next := s.settingsLocked()
 	maps.Copy(next.Calendar, u.Calendar)
@@ -575,12 +586,42 @@ func (s *Service) UpdateSettings(u SettingsUpdate) (Settings, error) {
 	if u.EndingSoon != nil {
 		next.EndingSoon = *u.EndingSoon
 	}
+	if u.EinkLang != nil {
+		next.EinkLang = *u.EinkLang
+	}
 	s.applyLocked(next)
 	s.persist(keySettings, next)
 	out := s.settingsLocked()
 	s.mu.Unlock()
 	s.Evaluate()
+	if u.EinkLang != nil {
+		s.republish() // the state is the same, the e-ink frame is not
+	}
 	return out, nil
+}
+
+// EinkLanguage is the language of the e-ink sign.
+func (s *Service) EinkLanguage() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.einkLang == "" {
+		return "en"
+	}
+	return s.einkLang
+}
+
+// republish sends the current state to the publishers again.
+func (s *Service) republish() {
+	s.mu.Lock()
+	st, ok := s.state, s.hasState
+	pubs := slices.Clone(s.pubs)
+	s.mu.Unlock()
+	if !ok {
+		return
+	}
+	for _, p := range pubs {
+		p.PublishState(st)
+	}
 }
 
 func (s *Service) applyLocked(st Settings) {
@@ -597,6 +638,9 @@ func (s *Service) applyLocked(st Settings) {
 	}
 	if st.Pomodoro != "" {
 		s.base.Rules.PomodoroWork = st.Pomodoro
+	}
+	if st.EinkLang != "" {
+		s.einkLang = st.EinkLang
 	}
 	s.base.Rules.LastCall, s.base.Rules.EndingSoon = st.LastCall, st.EndingSoon
 }

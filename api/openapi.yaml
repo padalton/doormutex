@@ -239,6 +239,62 @@ paths:
         "200": { $ref: "#/components/responses/State" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/v1/eink.png:
+    parameters:
+      - { $ref: "#/components/parameters/Profile" }
+      - { $ref: "#/components/parameters/EinkLang" }
+      - { $ref: "#/components/parameters/EinkScreen" }
+      - { $ref: "#/components/parameters/EinkBattery" }
+      - { $ref: "#/components/parameters/EinkCharging" }
+    get:
+      summary: E-ink sign as an image (preview)
+      description: |
+        The 200×200 black-and-white frame of the 1.54″ sign as a 1-bit PNG –
+        the same content as `eink.bin`. The footer shows the time the content
+        last changed, so the frame (and its ETag) only changes with the content.
+      operationId: getEinkPNG
+      responses:
+        "200":
+          description: The frame.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+        "304": { description: Unchanged (If-None-Match). }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/eink.bin:
+    parameters:
+      - { $ref: "#/components/parameters/Profile" }
+      - { $ref: "#/components/parameters/EinkLang" }
+      - { $ref: "#/components/parameters/EinkScreen" }
+      - { $ref: "#/components/parameters/EinkBattery" }
+      - { $ref: "#/components/parameters/EinkCharging" }
+    get:
+      summary: E-ink sign for the panel
+      description: |
+        The frame in the panel's memory layout, ready for the SSD1681
+        black/white RAM (command 0x24): 5000 bytes, rows top to bottom,
+        25 bytes per row, the leftmost pixel in the most significant bit,
+        **1 = white, 0 = black**. Send `If-None-Match` with the last ETag to
+        skip unchanged frames. With MQTT the hub also publishes the frame
+        retained on `<base>/<profile>/display` whenever it changes (without
+        battery – the device draws its own).
+      operationId: getEinkBin
+      responses:
+        "200":
+          description: The frame.
+          headers:
+            ETag: { $ref: "#/components/headers/ETag" }
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary, minLength: 5000, maxLength: 5000 }
+        "304": { description: Unchanged (If-None-Match). }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
   /api/v1/status:
     parameters: [{ $ref: "#/components/parameters/Profile" }]
     get:
@@ -443,7 +499,32 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
 
+  headers:
+    ETag:
+      description: Strong ETag of the frame's content.
+      schema: { type: string }
+
   parameters:
+    EinkLang:
+      name: lang
+      in: query
+      description: Language of the frame; default the setting `eink_language`.
+      schema: { type: string, enum: [en, de] }
+    EinkScreen:
+      name: screen
+      in: query
+      description: "`state` (default) or `offline` – the screen the device keeps in flash for when it loses the hub."
+      schema: { type: string, enum: [state, offline], default: state }
+    EinkBattery:
+      name: battery
+      in: query
+      description: Battery level in percent to draw in the footer; omitted = no battery.
+      schema: { type: integer, minimum: 0, maximum: 100 }
+    EinkCharging:
+      name: charging
+      in: query
+      description: With `battery`, draw the charging bolt.
+      schema: { type: boolean }
     Account:
       name: account
       in: path
@@ -621,6 +702,11 @@ components:
           enum: [dnd, working]
           default: dnd
           description: Light during pomodoro work phases when a request has no `work_status`.
+        eink_language:
+          type: string
+          enum: [en, de]
+          default: en
+          description: Language of the e-ink sign (it has no browser to ask).
 
     MessageRequest:
       type: object
