@@ -4,7 +4,7 @@
 #   docker compose -f compose.example.yaml exec hub doormutex-hub token create companion office
 services:
   hub:
-    image: ghcr.io/padalton/doormutex-hub:latest
+    image: ghcr.io/padalton/doormutex-hub:latest # :edge follows main
     build: .
     restart: unless-stopped
     ports:

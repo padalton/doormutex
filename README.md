@@ -670,7 +670,7 @@ doormutex/
 ```
 
 - **CI/CD (GitHub Actions):**
-  - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅ – later a multi-arch image (amd64/arm64) on GHCR
+  - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅, multi-arch image (amd64/arm64) on GHCR: `:edge` from main, `:X.Y.Z`/`:latest` from release tags ✅
   - releases from a tag `vX.Y.Z` with [GoReleaser](.goreleaser.yaml) ✅: hub and companion for Linux amd64/arm64, companion as `.deb`/`.rpm`/`.pkg.tar.zst`, checksums signed keyless (Sigstore) – see [RELEASING.md](RELEASING.md)
   - AUR package [`doormutex-companion-bin`](packaging/aur/) built from the release files ✅
   - widget as `.plasmoid` for the KDE Store ✅ (release asset; the upload stays manual)
