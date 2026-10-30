@@ -40,3 +40,6 @@ enclosure/**/out/
 .idea/
 *.swp
 .DS_Store
+
+# Release builds (GoReleaser, packaging/prepare.py)
+/build/
