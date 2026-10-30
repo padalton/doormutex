@@ -475,7 +475,7 @@ flowchart LR
 
 ### Battery & safety
 
-The light runs on used 18650 cells from old vapes. That makes the protection circuitry mandatory, not optional:
+The light runs on a single 18650 cell. In the reference build these are Panasonic cells in good condition, checked with an analysing charger; others will use cells from old vapes. Either way the protection circuitry is mandatory, not optional:
 
 | Protection against | Implementation |
 |---|---|
@@ -615,7 +615,7 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
   - **Verification:** the breadboard test with 5 mm LEDs and lens test prints confirms it.
 - **Printing:** at ~190 mm the enclosure fits the MK3S (250 × 210 mm) in one piece. Visors, lenses, back cover and wall mount are separate parts.
 - **PCB as the back wall:** ~40 × 175 mm, the LEDs sit directly behind the chambers. No cables, no extra boards. Larger than 100 × 100 mm costs only a few dollars more at JLCPCB.
-- **Mounting:** at ~200 g adhesive strips hold. On a staircase with kids, screws or cable ties are still the sturdier choice.
+- **Mounting:** at ~200 g adhesive strips hold. On a staircase with kids, screws or cable ties are still the sturdier choice. **Magnets** for steel: in the foot (standing on a steel newel post) and optionally in a side wall (on a steel railing or handrail, at eye level) – details and holding-force estimate in [hardware/README.md](hardware/README.md#magnet-mount).
 - **Larger variants** via parameters. With 2.13″ (approx. 59 × 29 mm) the enclosure becomes ~70 mm wide and ~240 mm tall – tight on the MK3S. With 2.9″ (approx. 79 × 37 mm) it becomes ~100 mm wide and ~365 mm tall; it must be split into chambers, and 72 mm lenses need LED rings.
 - **Lenses in transparent PETG**, printed as separate flat parts, 0.8–1.2 mm thick, with a diffuser structure on the inside. Plus:
   - a white reflector cone behind the lens
@@ -636,10 +636,10 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
   - a smooth surface for removable adhesive strips (tesa Powerstrips, Command),
   - slots for cable ties.
 
-  The light hooks in from above (dovetail + snap) and lifts off for charging or swapping the cell. Optionally a clamp for the stair railing.
+  The light hooks in from above (dovetail + snap) and lifts off for charging or swapping the cell. Optionally a clamp for the stair railing, or **magnets** in the foot and side wall for steel railings (reference setup: a steel newel post at the end of a ~5 m hallway).
 - **Parametric with OpenSCAD + BOSL2:** scale, display size, mount type and tolerances are adjustable. The files are Customizer-compatible and therefore also work with the OpenSCAD configurator on MakerWorld.
 - **Iteration:**
-  1. tolerance test print: hook-in, snap, lens seat, USB-C cut-out, inserts
+  1. tolerance test print: hook-in, snap, lens seat, USB-C cut-out, inserts, magnet pockets (holding force on the real railing)
   2. lens light test
   3. enclosure v1 → photos → adjustments
 - **Tooling:** a recent OpenSCAD with the Manifold backend (a snapshot/nightly if needed) – renders orders of magnitude faster.
@@ -649,7 +649,9 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 - Everything runs locally. The only external connection is the Google Calendar API.
 - The companion only sends yes/no signals and app names, never audio or video.
 - Event titles stay in the hub. E-ink, MQTT and HA only see categories such as "meeting".
-- One API token per client (companion, widget, Stream Deck, webhooks), stored hashed; MQTT with user and password, TLS optional.
+- One API token per client (companion, widget, Stream Deck, webhooks), stored hashed. A token can be limited to one profile (a teenager's phone); tokens without a profile are admin tokens for all profiles.
+- Google refresh tokens are stored encrypted (AES-256-GCM, key from `DOORMUTEX_SECRET_KEY` or a key file kept out of the database backups); the client secret and the tokens never leave the hub – not even during sign-in through the companion.
+- MQTT with user and password, TLS optional. Commands on MQTT (HA `select`/`text`) rely on the broker's ACLs.
 
 ## Open source
 
@@ -686,7 +688,7 @@ doormutex/
 
 | Milestone | Content |
 |---|---|
-| **M0 – software core** | Hub ✅ (merged). In review as stacked PRs #3–#8: review rules, profiles + room mode, Google Calendar, web UI, companion, Plasma widget. A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
+| **M0 – software core** | Hub, review rules, profiles + room mode, Google Calendar, web UI, companion, Plasma widget ✅ (#1–#8, landed on `main` with #10). Review decisions: `next_change` override, tentative events, encrypted tokens, sign-in through the companion, English/German, Android guide (#11). A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
 | **M1a – breadboard** | [Prototype from ready-made modules](docs/breadboard.md): firmware, LEDs + lens test, e-ink, current measurement, then battery operation. Runs in parallel to M0 |
 | **M1b – PCB + enclosure v1** | KiCad schematic + layout + review based on the measurements, JLCPCB order, tolerance test prints, enclosure v1 |
 | **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin, web flasher, OTA |
@@ -694,14 +696,11 @@ doormutex/
 
 ## Open questions
 
-1. **Mounting spot:** photos of the stairs and hallway. How long is the line of sight? It drives LED brightness and enclosure size.
-2. **E-ink:** 1.54″ (decided 2026-10-29). Check on the breadboard whether the text is readable from the top of the stairs.
-3. **Cells:** which 18650s are they (type, age)? Is there a charger with capacity test?
-4. **Router:** does it support Wi-Fi 6 with TWT (make/model)?
-5. **Homelab:** is there a reverse proxy with an HTTPS domain? No longer needed for OAuth (desktop client + loopback), but needed for push notifications to the web app.
-6. **Project domain:** which domain for the homepage (needed for Google OAuth branding)?
-7. **Room mode without a homelab:** proposal: a standalone mode in which the light hosts its own web UI and API at `doormutex-<name>.local` (ESP-IDF HTTP server, setup via a Wi-Fi QR code on the e-ink, pairing code against siblings). Alternatives: a Home Assistant add-on or a hosted service. Decide before the firmware architecture is fixed.
-8. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing are proposals – check on the breadboard whether they read well from the stairs.
+1. **Railing for the magnet mount:** is the steel magnetic (a fridge magnet sticks)? Stainless steel railings often aren't. Profile and size of the newel post and the handrail (round/square, mm) – the foot and the side wall follow their shape.
+2. **Project domain and homepage:** which domain, where hosted (needed for Google OAuth branding and long-lived tokens)?
+3. **Packaging:** AUR package and/or binary releases from CI for the companion and the hub.
+4. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing – check on the breadboard whether they read well from the end of the hallway.
+5. **Wi-Fi:** which access point will the light use? TWT needs Wi-Fi 6 (see [hardware/README.md](hardware/README.md#wi-fi-unifi)).
 
 ## Risks
 
@@ -768,8 +767,23 @@ doormutex/
 | 2026-10-29 | mDNS name `doormutex[-<name>].local` | English project name, several lights per network |
 | 2026-10-29 | Project renamed from the working title office-traffic-light to **doormutex** | the old name already existed on GitHub and was too narrow for room mode; a mutex lets only one into the critical section |
 | 2026-10-30 | Implemented the review rules in the hub (PR m1-rules). Fault is reported as status `away` with phase `fault`; calendar kind `meeting` became `video_call` | `away` keeps HA automations simple (nobody to disturb is known); the kind name matches the README table |
-| 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
+| 2026-10-30 | Profiles: one service per profile, profile chosen by the token or `?profile=`; MQTT topics and HA devices per profile (`doormutex/<profile>/…`, `sensor.doormutex_<profile>_…`); HA control via `select` (indefinite override – refined below, `auto` clears) and `text` (message) | the same client works for every profile; a teenager's token can't touch the office |
 | 2026-10-30 | Google Calendar: own HTTP client against the Calendar API (no Google SDK), `x/oauth2` with PKCE; scope `calendar.events.readonly`; titles are not even requested; login via loopback or pasting the redirect address; accounts fail independently (last good events are kept) | small dependency footprint, testable with `httptest`; works when the hub runs in Docker on another machine |
 | 2026-10-30 | Web UI: plain HTML/CSS/JS embedded with `go:embed`, no npm, strict CSP, service worker never caches the API; runtime settings (light per event kind, phase timing) saved in the hub and override the config | nothing to build or install, nothing loaded from outside the hub; the settings belong where people change them |
 | 2026-10-30 | Companion: separate Go module, polls `pw-dump` every 2 s instead of a PipeWire client library, camera also via `/proc/*/fd`, logind via D-Bus (`godbus`), heartbeat on change and every 30 s | no cgo, no PipeWire headers; `pw-dump` costs a few milliseconds; V4L2 apps (Zoom, Chrome) don't show up in PipeWire |
-| 2026-10-30 | Plasma widget: plain QML with `XMLHttpRequest`, reads the SSE stream from a streaming request and polls as a fallback; token in the Plasma config | no compiled plugin, installs with `kpackagetool6`; KWallet would be nicer (open question) |
+| 2026-10-30 | Plasma widget: plain QML with `XMLHttpRequest`, reads the SSE stream from a streaming request and polls as a fallback; token in the Plasma config | no compiled plugin, installs with `kpackagetool6`; KWallet decided against (below) |
+| 2026-10-30 | Confirmed: a fault is `status: away` + `phase: fault` (no fifth status); red+yellow 2 s; amber (3 s yellow) also in lead-time mode, after the lead-time warning | review of the overnight report |
+| 2026-10-30 | New override mode `next_change`: ends as soon as the automatic status changes. HA's `select` uses it when the profile requires the companion; without the companion (HA-only, room mode) HA or the web UI is in charge and the status stays until changed | with the companion the PC knows best; HA should only bridge until the next real change |
+| 2026-10-30 | MQTT commands rely on the broker's ACLs – fine for now | the broker is in the home network and needs a login |
+| 2026-10-30 | Room mode without a homelab: keep it simple for now – no hosted service, no HA add-on; the hub is needed | revisit with the firmware (standalone web UI on the light) |
+| 2026-10-30 | Google: 7-day token expiry in "Testing" accepted until the project homepage exists; refresh tokens encrypted at rest (AES-256-GCM) | security matters for open source; a database backup alone doesn't reveal the tokens |
+| 2026-10-30 | Google sign-in through the companion with a loopback redirect, no pasting: the hub keeps verifier, secret and token, the companion only relays the code; `doormutex-hub google login` stays for headless set-ups | the browser runs on the desktop, the hub in Docker elsewhere |
+| 2026-10-30 | Tentative invitations ("maybe", not answered) are yellow by default, whatever the kind; setting: a status, like the kind, or ignore | a maybe isn't a commitment – but it isn't free time either |
+| 2026-10-30 | Pomodoro work phase red by default, yellow as a setting (web UI) and per start (widget) | flexible without changing the default |
+| 2026-10-30 | Profile-scoped tokens may change their own profile's settings; tokens without a profile are admin tokens for all profiles | the teenager configures their own light, never the office |
+| 2026-10-30 | Widget token in the Plasma config like other widgets, no KWallet | simple; the token only controls the light |
+| 2026-10-30 | Languages: English primary, German maintained; JSON catalogs (web app, companion) and gettext (widget), Weblate-ready; community translations via pull requests ([TRANSLATING.md](TRANSLATING.md)) | most of the family speaks German; the formats work with Weblate when needed |
+| 2026-10-30 | Android first-class next to the iPhone, still without a native app: installable web app (needs HTTPS → reverse proxy) with app shortcuts, HTTP Shortcuts for widgets and Quick Settings tiles, MacroDroid/Tasker for Do Not Disturb, voice via HA | most of the family uses Android; no store, nothing per platform to maintain |
+| 2026-10-30 | Mounting by magnets for steel: in the foot (newel post) and optionally a side wall (railing, eye level); anti-slip pad, fall protection | the reference spot is a steel stair-railing post at the end of a ~5 m hallway |
+| 2026-10-30 | E-ink 1.54″ only needs to be readable right in front of the light | the colour is read from 5 m, the text up close |
+| 2026-10-30 | Reference cells: Panasonic 18650 in good condition, checked with an analysing charger (discharge/refresh) | protection circuitry stays mandatory for everyone else's cells |
