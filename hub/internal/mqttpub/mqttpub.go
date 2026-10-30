@@ -8,10 +8,11 @@
 //	<base>/<profile>/event       status_changed events (not retained), for HA event entities
 //	<base>/<profile>/override/set  command: auto | free | working | dnd | away
 //	<base>/<profile>/message/set   command: e-ink message (empty clears it)
-//	<base>/<profile>/display     reserved for the rendered e-ink bitmap (not published yet)
+//	<base>/<profile>/display     retained e-ink frame (5000 bytes, see eink.Pack), sent when it changes
 package mqttpub
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
+	"github.com/padalton/doormutex/hub/internal/eink"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/status"
@@ -50,7 +52,9 @@ type Controller interface {
 // Profile is one person and light published to MQTT.
 type Profile struct {
 	ID, Name string
-	Ctl      Controller // nil: no HA control entities
+	Ctl      Controller    // nil: no HA control entities
+	Display  *eink.Display // nil: no e-ink frames
+	Lang     func() string // e-ink language; nil: English
 }
 
 // Topics of one profile.
@@ -88,8 +92,9 @@ type Publisher struct {
 	profile Profile
 	topics  Topics
 
-	mu   sync.Mutex
-	last []byte // last state payload, re-sent on reconnect
+	mu      sync.Mutex
+	last    []byte // last state payload, re-sent on reconnect
+	display []byte // last e-ink frame, re-sent on reconnect
 }
 
 const qos = 1
@@ -142,10 +147,13 @@ func (c *Client) onConnect() {
 			c.publish(topic, true, payload)
 		}
 		p.mu.Lock()
-		last := p.last
+		last, display := p.last, p.display
 		p.mu.Unlock()
 		if last != nil {
 			c.publish(p.topics.State, true, last)
+		}
+		if display != nil {
+			c.publish(p.topics.Display, true, display)
 		}
 	}
 	filters := map[string]byte{
@@ -222,6 +230,28 @@ func (p *Publisher) PublishState(st engine.State) {
 	p.mu.Unlock()
 	if p.c.client.IsConnectionOpen() {
 		p.c.publish(p.topics.State, true, b)
+	}
+	p.publishDisplay(st)
+}
+
+// publishDisplay sends the e-ink frame when it differs from the last one,
+// so the device only wakes its panel for real changes. Without battery:
+// the device knows its own and draws it.
+func (p *Publisher) publishDisplay(st engine.State) {
+	if p.profile.Display == nil {
+		return
+	}
+	lang := "en"
+	if p.profile.Lang != nil {
+		lang = p.profile.Lang()
+	}
+	bits := p.profile.Display.Frame(st, lang, nil).Bits
+	p.mu.Lock()
+	same := bytes.Equal(bits, p.display)
+	p.display = bits
+	p.mu.Unlock()
+	if !same && p.c.client.IsConnectionOpen() {
+		p.c.publish(p.topics.Display, true, bits)
 	}
 }
 

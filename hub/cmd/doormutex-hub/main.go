@@ -30,6 +30,7 @@ import (
 	"github.com/padalton/doormutex/hub/internal/calendar"
 	"github.com/padalton/doormutex/hub/internal/calendar/google"
 	"github.com/padalton/doormutex/hub/internal/config"
+	"github.com/padalton/doormutex/hub/internal/eink"
 	"github.com/padalton/doormutex/hub/internal/mqttpub"
 	"github.com/padalton/doormutex/hub/internal/secret"
 	"github.com/padalton/doormutex/hub/internal/service"
@@ -131,7 +132,7 @@ func serve(args []string) error {
 		if err != nil {
 			return err
 		}
-		profiles = append(profiles, api.Profile{ID: p.ID, Name: p.Name, Mode: p.Mode, Calendar: p.Calendar.Provider, Svc: svc, Login: login})
+		profiles = append(profiles, api.Profile{ID: p.ID, Name: p.Name, Mode: p.Mode, Calendar: p.Calendar.Provider, Svc: svc, Login: login, Display: &eink.Display{}})
 	}
 	if tokens, _ := st.ListTokens(); len(tokens) == 0 {
 		log.Warn("no API tokens yet – create one per client with: doormutex-hub token create <name> [<profile>]")
@@ -143,7 +144,7 @@ func serve(args []string) error {
 	if cfg.MQTT.URL != "" {
 		var mp []mqttpub.Profile
 		for _, p := range profiles {
-			mp = append(mp, mqttpub.Profile{ID: p.ID, Name: p.Name, Ctl: p.Svc})
+			mp = append(mp, mqttpub.Profile{ID: p.ID, Name: p.Name, Ctl: p.Svc, Display: p.Display, Lang: p.Svc.EinkLanguage})
 		}
 		client, err := mqttpub.Connect(mqttpub.Config{
 			URL: cfg.MQTT.URL, Username: cfg.MQTT.Username, Password: cfg.MQTT.Password,

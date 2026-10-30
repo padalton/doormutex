@@ -53,11 +53,14 @@ Environment: `DOORMUTEX_CONFIG`, `DOORMUTEX_MQTT_URL`, `DOORMUTEX_MQTT_PASSWORD`
 | `internal/secret` | AES-256-GCM encryption of the Google tokens at rest |
 | `internal/service` | live state of one profile: inputs, expiry, message, change fan-out to SSE and MQTT |
 | `internal/api` | REST + SSE handlers, bearer-token auth, profile selection |
+| `internal/eink` | renders the 1.54″ e-ink sign (200×200, black and white): PNG preview and the panel's memory layout; golden images in `testdata/` (`go test ./internal/eink -update` rewrites them – look at the diff) |
 | `internal/web` | embedded web UI / PWA (no build step) |
 | `internal/store` | SQLite (pure Go): tokens, override/pomodoro, history |
 | `internal/mqttpub` | MQTT publisher with Last Will, HA device discovery per profile, HA commands (select/text) |
 | `internal/config` | YAML config |
 | `cmd/doormutex-hub` | the binary |
+
+The e-ink renderer embeds the [Go fonts](https://go.dev/blog/go-fonts) (BSD-3-Clause, © The Go Authors) through `golang.org/x/image`, so every hub renders the same pixels without system fonts.
 
 ## Development
 

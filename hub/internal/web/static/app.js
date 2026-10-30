@@ -11,6 +11,7 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 const COLOR = { dnd: "c-dnd", working: "c-working", free: "c-free", away: "c-away" };
 const KINDS = ["video_call", "focus", "out_of_office", "other"];
 const LEADS = ["stvo", "1m", "3m", "5m", "10m"];
+const EINK_LANGS = ["en", "de"]; // catalogs of the hub's e-ink renderer (hub/internal/eink/i18n)
 
 let token = "";
 let profile = "";
@@ -60,6 +61,7 @@ async function loadLanguage() {
   for (const el of $$("[data-i18n-placeholder]")) el.placeholder = t(el.dataset.i18nPlaceholder);
   for (const el of $$("[data-i18n-title]")) el.title = t(el.dataset.i18nTitle);
   for (const el of $$("[data-i18n-aria]")) el.setAttribute("aria-label", t(el.dataset.i18nAria));
+  for (const el of $$("[data-i18n-alt]")) el.alt = t(el.dataset.i18nAlt);
   timeFmt = new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit" });
   dayFmt = new Intl.DateTimeFormat(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" });
 }
@@ -163,6 +165,27 @@ function renderState(st) {
   $("#pomo-info").textContent = !p ? ""
     : t(p.end ? "state.pomodoro_until" : "state.pomodoro", { work: fmtDur(p.work), break: fmtDur(p.break), time: fmtTime(p.end) });
   document.title = `${statusText(st.status)} · doormutex`;
+  renderEink();
+}
+
+// renderEink shows the e-ink frame the hub renders for the light. An <img>
+// can't send the token, so it is fetched and shown as a blob URL; the
+// browser revalidates with the ETag, so an unchanged frame isn't sent again.
+let einkURL = "";
+let einkSeq = 0;
+async function renderEink() {
+  const seq = ++einkSeq;
+  try {
+    const url = new URL("/api/v1/eink.png", location.origin);
+    if (profile) url.searchParams.set("profile", profile);
+    const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, cache: "no-cache" });
+    if (!resp.ok || seq !== einkSeq) return;
+    const blob = await resp.blob();
+    if (seq !== einkSeq) return;
+    if (einkURL) URL.revokeObjectURL(einkURL);
+    einkURL = URL.createObjectURL(blob);
+    $("#eink").src = einkURL;
+  } catch { /* offline: keep the last frame */ }
 }
 
 async function renderDay() {
@@ -235,6 +258,13 @@ async function renderSettings() {
   pomo.replaceChildren(...["dnd", "working"].map((v) =>
     new Option(`${t(`color.${v}`)} – ${statusText(v)}`, v, false, st.pomodoro_work_status === v)));
   pomo.onchange = () => saveSettings({ pomodoro_work_status: pomo.value });
+
+  const eink = $("#eink_language");
+  eink.replaceChildren(...EINK_LANGS.map((v) => new Option(languages[v] || v, v, false, st.eink_language === v)));
+  eink.onchange = async () => {
+    await saveSettings({ eink_language: eink.value });
+    renderEink();
+  };
 
   const acc = $("#accounts");
   acc.replaceChildren();
