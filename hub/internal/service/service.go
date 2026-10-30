@@ -284,7 +284,7 @@ func (s *Service) Evaluate() engine.State {
 }
 
 func (s *Service) expireLocked(now time.Time) {
-	if o := s.override; o != nil && !o.Until.IsZero() && !o.Until.After(now) {
+	if o := s.override; o != nil && (!o.Until.IsZero() && !o.Until.After(now) || o.Ended(now, s.inputsLocked())) {
 		s.override = nil
 		s.persist(keyOverride, nil)
 	}
@@ -350,7 +350,19 @@ const (
 	ModeEndOfEvent   = "end_of_event"
 	ModeEndOfWorkday = "end_of_workday"
 	ModeIndefinite   = "indefinite"
+	ModeNextChange   = "next_change" // until the automatic status changes
 )
+
+// RemoteOverrideMode is the mode for overrides from Home Assistant's
+// select: with a required desktop companion the next automatic change
+// ends it; without one (HA-only, room mode) HA or the web UI is the
+// controller and it stays until changed.
+func (s *Service) RemoteOverrideMode() string {
+	if s.base.Rules.RequireCompanion {
+		return ModeNextChange
+	}
+	return ModeIndefinite
+}
 
 // OverrideRequest sets a manual status.
 type OverrideRequest struct {
@@ -396,9 +408,13 @@ func (s *Service) SetOverride(r OverrideRequest) (engine.State, error) {
 		}
 		ov.Until = end
 	case ModeIndefinite:
+	case ModeNextChange:
+		in := s.inputsLocked()
+		in.Pomodoro = nil // replaced by the override
+		ov.UntilChange, ov.Base = true, engine.Automatic(now, in)
 	default:
 		s.mu.Unlock()
-		return engine.State{}, fmt.Errorf("%w: mode must be one of duration, until, end_of_event, end_of_workday, indefinite", ErrInvalid)
+		return engine.State{}, fmt.Errorf("%w: mode must be one of duration, until, end_of_event, end_of_workday, next_change, indefinite", ErrInvalid)
 	}
 	s.override, s.pomodoro = &ov, nil
 	s.persist(keyOverride, ov)

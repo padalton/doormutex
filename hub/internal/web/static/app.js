@@ -123,7 +123,7 @@ function renderState(st) {
   msg.textContent = st.message || "";
   if (document.activeElement !== $("#message")) $("#message").value = st.message || "";
   $("#override-info").textContent = st.override
-    ? `Override ${STATUS[st.override.status]?.text || st.override.status}${st.override.until ? ` until ${fmtTime(st.override.until)}` : " until changed"}`
+    ? `Override ${STATUS[st.override.status]?.text || st.override.status}${st.override.until ? ` until ${fmtTime(st.override.until)}` : st.override.until_change ? " until the next automatic change" : " until changed"}`
     : "Automatic";
   $("#pomo-info").textContent = st.pomodoro
     ? `Pomodoro ${st.pomodoro.work.replace("m0s", " min")} / ${st.pomodoro.break.replace("m0s", " min")}${st.pomodoro.end ? ` until ${fmtTime(st.pomodoro.end)}` : ""}`

@@ -60,11 +60,30 @@ type Claim struct {
 	planned  bool // known in advance (calendar, work hours, timers) vs. live
 }
 
-// Override is a manual status. A zero Until means indefinite.
+// Override is a manual status. A zero Until means indefinite – unless
+// UntilChange is set: then it ends as soon as the automatic status (what
+// the light would show without the override) differs from Base.
 type Override struct {
-	Status status.Status `json:"status"`
-	Start  time.Time     `json:"start"`
-	Until  time.Time     `json:"until,omitzero"`
+	Status      status.Status `json:"status"`
+	Start       time.Time     `json:"start"`
+	Until       time.Time     `json:"until,omitzero"`
+	UntilChange bool          `json:"until_change,omitempty"`
+	Base        status.Status `json:"base,omitempty"` // automatic status when it was set
+}
+
+// Ended reports whether an until-change override is over: the automatic
+// status at now differs from the one it was set on.
+func (o Override) Ended(now time.Time, in Inputs) bool {
+	if !o.UntilChange {
+		return false
+	}
+	return Automatic(now, in) != o.Base
+}
+
+// Automatic returns the status at now without the override.
+func Automatic(now time.Time, in Inputs) status.Status {
+	in.Override = nil
+	return Evaluate(now, in).Status
 }
 
 // Pomodoro is a timer: Work, then Break, repeated Cycles times
@@ -425,7 +444,8 @@ func equalOverride(a, b *Override) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.Status == b.Status && a.Start.Equal(b.Start) && a.Until.Equal(b.Until)
+	return a.Status == b.Status && a.Start.Equal(b.Start) && a.Until.Equal(b.Until) &&
+		a.UntilChange == b.UntilChange && a.Base == b.Base
 }
 
 func equalPomodoro(a, b *Pomodoro) bool {

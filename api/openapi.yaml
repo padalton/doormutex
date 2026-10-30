@@ -199,8 +199,10 @@ paths:
       summary: Set a manual status
       description: |
         Replaces a running pomodoro timer. Every override ends unless mode is
-        `indefinite`. Microphone/camera and a locked PC beat an override; it
-        applies again afterwards while it is still valid.
+        `indefinite`; `next_change` ends it as soon as the automatic status
+        (what the light would show without the override) changes.
+        Microphone/camera and a locked PC beat an override; it applies again
+        afterwards while it is still valid.
       operationId: setOverride
       requestBody:
         required: true
@@ -210,6 +212,7 @@ paths:
             examples:
               thirtyMinutes: { value: { status: dnd, mode: duration, duration: 30m } }
               untilEndOfWorkday: { value: { status: working, mode: end_of_workday } }
+              untilNextChange: { value: { status: dnd, mode: next_change } }
       responses:
         "200": { $ref: "#/components/responses/State" }
         "400": { $ref: "#/components/responses/BadRequest" }
@@ -443,7 +446,13 @@ components:
       properties:
         status: { $ref: "#/components/schemas/Status" }
         start: { type: string, format: date-time }
-        until: { type: string, format: date-time, description: Omitted if indefinite. }
+        until: { type: string, format: date-time, description: Omitted if indefinite or until_change. }
+        until_change:
+          type: boolean
+          description: Ends as soon as the automatic status differs from `base` (mode `next_change`).
+        base:
+          allOf: [{ $ref: "#/components/schemas/Status" }]
+          description: Automatic status when a `next_change` override was set.
 
     Pomodoro:
       type: object
@@ -550,7 +559,10 @@ components:
         status: { $ref: "#/components/schemas/Status" }
         mode:
           type: string
-          enum: [duration, until, end_of_event, end_of_workday, indefinite]
+          enum: [duration, until, end_of_event, end_of_workday, next_change, indefinite]
+          description: |
+            `next_change` lasts until the automatic status changes (e.g. the
+            screen is locked, a meeting starts, the work day ends).
         duration:
           type: string
           description: Required for mode `duration`, 1s to 7 days.

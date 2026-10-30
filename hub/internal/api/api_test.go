@@ -190,6 +190,32 @@ func TestOverrideFlow(t *testing.T) {
 	}
 }
 
+func TestNextChangeOverride(t *testing.T) {
+	f := newFixture(t)
+	resp, b := f.do(t, http.MethodPut, "/api/v1/override", `{"status":"dnd","mode":"next_change"}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT override: %d %s", resp.StatusCode, b)
+	}
+	st := decodeState(t, b)
+	if st.Status != status.DND || st.Override == nil || !st.Override.UntilChange || st.Override.Base != status.Working {
+		t.Fatalf("after override: %+v %+v", st, st.Override)
+	}
+	// Still working hours: the automatic status is unchanged, red stays.
+	f.clk.add(6 * time.Hour)
+	if st := f.svc.Evaluate(); st.Status != status.DND {
+		t.Fatalf("before the change: %s", st.Status)
+	}
+	// 17:00 the work day ends – the automatic status changes, the
+	// override is over.
+	f.clk.add(time.Hour + time.Minute)
+	if st := f.svc.Evaluate(); st.Status != status.Free || st.Override != nil {
+		t.Fatalf("after the change: %+v", st)
+	}
+	if mode := f.teen.RemoteOverrideMode(); mode != service.ModeIndefinite {
+		t.Errorf("room profile remote mode %q", mode)
+	}
+}
+
 func TestOverrideValidation(t *testing.T) {
 	f := newFixture(t)
 	for _, body := range []string{

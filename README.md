@@ -65,7 +65,7 @@ Content: reason, until when, what comes next, hints such as "camera on" (don't w
   - working hours (incl. Austrian public holidays) → yellow
   - PC locked → off
   - otherwise → green
-- **Manual override with duration:** from 15 min to "until end of work day" or indefinite; "auto" resets
+- **Manual override with duration:** from 15 min to "until end of work day", "until the next automatic change" or indefinite; "auto" resets
 - **KDE Plasma widget** (panel and desktop): see the detected state and its reason, override with a time, pomodoro
 - **Desktop notification** on every state change
 - **Last call** and **failsafe** (see Signals)
@@ -172,7 +172,7 @@ Every source contributes a *claim*: status, priority and validity. The best vali
 |---|---|---|---|
 | 1 | Microphone or camera in use | `dnd` | counts after ≥ 10 s (debounce), holds for 2 min (reconnects, chat after the call) |
 | 2 | PC locked, shut down or suspended | `away` | the companion signs off; silence without a goodbye is a fault (see below) |
-| 3 | Manual override (widget, Stream Deck, web UI, phone, HA) or pomodoro | any | always ends: after a duration, "until the event ends", "until end of work day" – or explicitly indefinite |
+| 3 | Manual override (widget, Stream Deck, web UI, phone, HA) or pomodoro | any | always ends: after a duration, "until the event ends", "until end of work day", "until the next automatic change" – or explicitly indefinite |
 | 4 | Calendar event | by event kind | see [Google Calendar](#google-calendar) |
 | 5 | Working hours | `working` | weekly plan, public holidays, extra days off |
 | 6 | Webhook signals (optional) | usually `working` | with TTL |
@@ -309,7 +309,7 @@ Implemented in [`plasmoid/`](plasmoid/) – install with `kpackagetool6`, see it
 - **Right-click menu:** "open web UI", "auto", quick overrides.
 - **Popup:**
   - detected state with source ("microphone in use", "calendar: meeting until 14:30")
-  - override: red / yellow / green / off for 15 min, 30 min, 1 h, 2 h, until the event ends, until end of work day, or indefinite
+  - override: red / yellow / green / off for 15 min, 30 min, 1 h, 2 h, until the event ends, until end of work day, until the next automatic change, or indefinite
   - "auto" clears the override
   - pomodoro, e.g. 25/5 or 50/10 (work phase red, break green – configurable)
   - day bar: today's slots as a coloured bar
@@ -366,7 +366,7 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `sensor.doormutex_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
 | `binary_sensor.doormutex_charging` | binary | charging / on USB (announced by the light itself) |
 | diagnostics | – | Wi-Fi signal, firmware version, online |
-| `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` |
+| `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` – in office mode with the companion only until the next automatic change (screen locked, meeting, end of work day); without the companion (HA-only, room mode) HA or the web UI is in charge and it stays until changed |
 | `text.doormutex_office_message` | text | short message for the e-ink (one line, ≤ 64 characters) |
 
 | Topic | Content |
