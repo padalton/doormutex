@@ -670,7 +670,7 @@ doormutex/
 ```
 
 - **CI/CD (GitHub Actions):**
-  - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅ – later a multi-arch image (amd64/arm64) on GHCR
+  - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅, multi-arch image (amd64/arm64) on GHCR: `:edge` from main, `:X.Y.Z`/`:latest` from release tags ✅
   - companion binaries, later an AUR package
   - widget as `.plasmoid` for the KDE Store
   - Stream Deck plugin package
