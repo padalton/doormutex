@@ -82,6 +82,15 @@ jobs:
       - uses: actions/checkout@v5
       - name: Check metadata
         run: python3 -c "import json; m = json.load(open('plasmoid/package/metadata.json')); assert m['KPlugin']['Id'] == 'org.doormutex.trafficlight'"
+      - name: Translations are compiled
+        run: |
+          sudo apt-get install -y -qq gettext >/dev/null
+          for mo in plasmoid/package/contents/locale/*/LC_MESSAGES/*.mo; do msgunfmt "$mo" > "$mo.committed"; done
+          plasmoid/translate/update.sh compile
+          for mo in plasmoid/package/contents/locale/*/LC_MESSAGES/*.mo; do
+            msgunfmt "$mo" | diff -u "$mo.committed" - || { echo "::error::$mo is out of date – run plasmoid/translate/update.sh"; exit 1; }
+            rm "$mo.committed"
+          done
       - name: Pack
         run: cd plasmoid/package && zip -qr ../doormutex.plasmoid .
       - uses: actions/upload-artifact@v4

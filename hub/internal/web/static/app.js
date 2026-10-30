@@ -4,36 +4,12 @@
 
 const TOKEN_KEY = "doormutex.token";
 const PROFILE_KEY = "doormutex.profile";
+const LANG_KEY = "doormutex.lang";
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
-const STATUS = {
-  dnd: { text: "Do not disturb", color: "c-dnd" },
-  working: { text: "Working", color: "c-working" },
-  free: { text: "Come in", color: "c-free" },
-  away: { text: "Not here", color: "c-away" },
-};
-const REASON = {
-  override: "set by hand",
-  pomodoro: "pomodoro",
-  pomodoro_break: "pomodoro break",
-  microphone: "microphone in use",
-  camera: "camera in use",
-  screen_locked: "screen locked",
-  pc_off: "PC off",
-  companion_lost: "companion not responding",
-  companion_offline: "PC not running",
-  calendar: "calendar",
-  work_hours: "working hours",
-  signal: "signal",
-  default: "nothing planned",
-};
-const KIND = {
-  video_call: "Video call (Meet, Zoom, Teams …)",
-  focus: "Focus time",
-  out_of_office: "Out of office (timed)",
-  other: "Other events",
-};
+const COLOR = { dnd: "c-dnd", working: "c-working", free: "c-free", away: "c-away" };
+const KINDS = ["video_call", "focus", "out_of_office", "other"];
 const LEADS = ["stvo", "1m", "3m", "5m", "10m"];
 
 let token = "";
@@ -42,14 +18,71 @@ let events = null;
 let state = null;
 let mode = { mode: "duration", duration: "1h" };
 
-const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
-const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+// ---- translations: i18n/<lang>.json, English as fallback for missing keys
+
+let lang = "en";
+let languages = { en: "English" };
+let fallback = {};
+let catalog = {};
+
+// t returns the text for key with {name} placeholders filled in.
+function t(key, vars = {}) {
+  const s = catalog[key] ?? fallback[key] ?? key;
+  return s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
+async function fetchJSON(path) {
+  const resp = await fetch(path);
+  if (!resp.ok) throw new Error(`${path}: ${resp.status}`);
+  return resp.json();
+}
+
+// pickLanguage: the choice on this device, else the first browser language
+// with a catalog, else English.
+function pickLanguage() {
+  const chosen = load(LANG_KEY);
+  if (chosen && languages[chosen]) return chosen;
+  for (const l of navigator.languages || [navigator.language || "en"]) {
+    const base = l.toLowerCase().split("-")[0];
+    if (languages[l]) return l;
+    if (languages[base]) return base;
+  }
+  return "en";
+}
+
+async function loadLanguage() {
+  try { languages = await fetchJSON("i18n/languages.json"); } catch { /* offline: keep English */ }
+  try { fallback = await fetchJSON("i18n/en.json"); } catch { fallback = {}; }
+  lang = pickLanguage();
+  catalog = lang === "en" ? fallback : await fetchJSON(`i18n/${lang}.json`).catch(() => ({}));
+  document.documentElement.lang = lang;
+  for (const el of $$("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for (const el of $$("[data-i18n-placeholder]")) el.placeholder = t(el.dataset.i18nPlaceholder);
+  for (const el of $$("[data-i18n-title]")) el.title = t(el.dataset.i18nTitle);
+  for (const el of $$("[data-i18n-aria]")) el.setAttribute("aria-label", t(el.dataset.i18nAria));
+  timeFmt = new Intl.DateTimeFormat(lang, { hour: "2-digit", minute: "2-digit" });
+  dayFmt = new Intl.DateTimeFormat(lang, { weekday: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+const statusText = (s) => (["dnd", "working", "free", "away"].includes(s) ? t(`status.${s}`) : s);
+const reasonText = (r) => (catalog[`reason.${r}`] ?? fallback[`reason.${r}`] ? t(`reason.${r}`) : r);
+const kindText = (k) => (catalog[`kind.${k}`] ?? fallback[`kind.${k}`] ? t(`kind.${k}`) : k);
+
+let timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+let dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" });
 
 function fmtTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   const sameDay = d.toDateString() === new Date().toDateString();
   return (sameDay ? timeFmt : dayFmt).format(d);
+}
+
+// fmtDur turns "25m0s" or "5m" into "25 min".
+function fmtDur(s) {
+  const m = /^(?:(\d+)h)?(?:(\d+)m)?(?:0s)?$/.exec(s || "");
+  if (!m) return s;
+  return t("duration.min", { n: Number(m[1] || 0) * 60 + Number(m[2] || 0) });
 }
 
 function store(key, value) {
@@ -74,7 +107,7 @@ async function api(method, path, body) {
   });
   const data = await resp.json().catch(() => ({}));
   if (resp.status === 401) {
-    logout("The token is no longer valid.");
+    logout(t("login.invalid"));
     throw new Error("unauthorized");
   }
   if (!resp.ok) throw new Error(data.error || resp.statusText);
@@ -107,28 +140,29 @@ function renderLight(light) {
 function renderState(st) {
   state = st;
   renderLight(st.light);
-  const s = STATUS[st.status] || { text: st.status };
-  $("#status-text").textContent = st.phase === "fault" ? "Fault – companion not responding" : s.text;
-  $("#status-until").textContent = st.until ? `until ${fmtTime(st.until)}` : "until further notice";
-  let reason = REASON[st.reason] || st.reason;
-  if (st.detail && st.reason !== "calendar") reason += ` – ${st.detail}`;
-  if (st.reason === "calendar" && st.detail) reason += ` – ${KIND[st.detail] || st.detail}`;
+  $("#status-text").textContent = st.phase === "fault" ? t("status.fault") : statusText(st.status);
+  $("#status-until").textContent = st.until ? t("state.until", { time: fmtTime(st.until) }) : t("state.until_further_notice");
+  let reason = reasonText(st.reason);
+  if (st.reason === "calendar" && st.detail) reason += ` – ${kindText(st.detail)}`;
+  else if (st.detail) reason += ` – ${st.detail}`;
   $("#status-reason").textContent = reason;
   const next = [];
-  if (st.next) next.push(`then ${(STATUS[st.next.status] || {}).text || st.next.status}`);
-  if (st.next_free && st.status !== "free") next.push(`free from ${fmtTime(st.next_free.start)}`);
+  if (st.next) next.push(t("state.then", { status: statusText(st.next.status) }));
+  if (st.next_free && st.status !== "free") next.push(t("state.free_from", { time: fmtTime(st.next_free.start) }));
   $("#status-next").textContent = next.join(" · ");
   const msg = $("#status-message");
   msg.hidden = !st.message;
   msg.textContent = st.message || "";
   if (document.activeElement !== $("#message")) $("#message").value = st.message || "";
-  $("#override-info").textContent = st.override
-    ? `Override ${STATUS[st.override.status]?.text || st.override.status}${st.override.until ? ` until ${fmtTime(st.override.until)}` : st.override.until_change ? " until the next automatic change" : " until changed"}`
-    : "Automatic";
-  $("#pomo-info").textContent = st.pomodoro
-    ? `Pomodoro ${st.pomodoro.work.replace("m0s", " min")} / ${st.pomodoro.break.replace("m0s", " min")}${st.pomodoro.end ? ` until ${fmtTime(st.pomodoro.end)}` : ""}`
-    : "";
-  document.title = `${s.text} · doormutex`;
+  const o = st.override;
+  $("#override-info").textContent = !o ? t("state.automatic")
+    : o.until ? t("state.override_until", { status: statusText(o.status), time: fmtTime(o.until) })
+    : o.until_change ? t("state.override_next_change", { status: statusText(o.status) })
+    : t("state.override_indefinite", { status: statusText(o.status) });
+  const p = st.pomodoro;
+  $("#pomo-info").textContent = !p ? ""
+    : t(p.end ? "state.pomodoro_until" : "state.pomodoro", { work: fmtDur(p.work), break: fmtDur(p.break), time: fmtTime(p.end) });
+  document.title = `${statusText(st.status)} · doormutex`;
 }
 
 async function renderDay() {
@@ -145,14 +179,14 @@ async function renderDay() {
     const a = Math.max(new Date(s.since), from);
     const b = Math.min(new Date(s.until), to);
     const seg = document.createElement("div");
-    seg.className = `seg ${STATUS[s.status]?.color || ""}`;
+    seg.className = `seg ${COLOR[s.status] || ""}`;
     seg.style.width = `${((b - a) / span) * 100}%`;
-    seg.title = `${STATUS[s.status]?.text} ${timeFmt.format(a)}–${timeFmt.format(b)}`;
+    seg.title = `${statusText(s.status)} ${timeFmt.format(a)}–${timeFmt.format(b)}`;
     bar.append(seg);
     const li = document.createElement("li");
     const dot = document.createElement("span");
-    dot.className = `dot ${STATUS[s.status]?.color || ""}`;
-    li.append(dot, `${timeFmt.format(a)}–${timeFmt.format(b)}  ${STATUS[s.status]?.text || s.status} (${REASON[s.reason] || s.reason})`);
+    dot.className = `dot ${COLOR[s.status] || ""}`;
+    li.append(dot, `${timeFmt.format(a)}–${timeFmt.format(b)}  ${statusText(s.status)} (${reasonText(s.reason)})`);
     list.append(li);
   }
   const mark = document.createElement("div");
@@ -161,67 +195,84 @@ async function renderDay() {
   bar.append(mark);
 }
 
+// statusSelect builds a <select> of statuses plus extra choices.
+function statusSelect(id, current, extra = {}) {
+  const sel = document.createElement("select");
+  sel.id = id;
+  for (const v of ["dnd", "working", "free", "away"]) sel.append(new Option(statusText(v), v, false, current === v));
+  for (const [v, text] of Object.entries(extra)) sel.append(new Option(text, v, false, current === v));
+  return sel;
+}
+
+function labelFor(id, text) {
+  const l = document.createElement("label");
+  l.textContent = text;
+  l.htmlFor = id;
+  return l;
+}
+
 async function renderSettings() {
   const [st, cal] = await Promise.all([api("GET", "/api/v1/settings"), api("GET", "/api/v1/calendar")]);
   const kinds = $("#kinds");
   kinds.replaceChildren();
-  for (const [kind, label] of Object.entries(KIND)) {
-    const l = document.createElement("label");
-    l.textContent = label;
-    l.htmlFor = `kind-${kind}`;
-    const sel = document.createElement("select");
-    sel.id = `kind-${kind}`;
-    for (const v of ["dnd", "working", "free", "away", "ignore"]) {
-      sel.append(new Option(v === "ignore" ? "ignore" : STATUS[v].text, v, false, st.calendar[kind] === v));
-    }
+  for (const kind of KINDS) {
+    const sel = statusSelect(`kind-${kind}`, st.calendar[kind], { ignore: t("settings.ignore") });
     sel.addEventListener("change", () => saveSettings({ calendar: { [kind]: sel.value } }));
-    kinds.append(l, sel);
+    kinds.append(labelFor(sel.id, kindText(kind)), sel);
   }
-  {
-    const l = document.createElement("label");
-    l.textContent = "Tentative (maybe, not answered)";
-    l.htmlFor = "tentative";
-    const sel = document.createElement("select");
-    sel.id = "tentative";
-    for (const v of ["dnd", "working", "free", "away", "kind", "ignore"]) {
-      const text = v === "kind" ? "like the event kind" : v === "ignore" ? "ignore" : STATUS[v].text;
-      sel.append(new Option(text, v, false, st.tentative === v));
-    }
-    sel.addEventListener("change", () => saveSettings({ tentative: sel.value }));
-    kinds.append(l, sel);
-  }
+  const tent = statusSelect("tentative", st.tentative, { kind: t("settings.like_kind"), ignore: t("settings.ignore") });
+  tent.addEventListener("change", () => saveSettings({ tentative: tent.value }));
+  kinds.append(labelFor(tent.id, kindText("tentative")), tent);
+
   for (const id of ["last_call", "ending_soon"]) {
     const sel = $(`#${id}`);
     sel.replaceChildren();
     const opts = LEADS.includes(st[id]) ? LEADS : [...LEADS, st[id]];
-    for (const v of opts) sel.append(new Option(v === "stvo" ? "StVO (seconds)" : v.replace("m", " min"), v, false, st[id] === v));
+    for (const v of opts) sel.append(new Option(v === "stvo" ? t("settings.stvo") : fmtDur(v), v, false, st[id] === v));
     sel.onchange = () => saveSettings({ [id]: sel.value });
   }
   const pomo = $("#pomodoro_work_status");
   pomo.replaceChildren(...["dnd", "working"].map((v) =>
-    new Option(`${v === "dnd" ? "Red" : "Yellow"} – ${STATUS[v].text}`, v, false, st.pomodoro_work_status === v)));
+    new Option(`${t(`color.${v}`)} – ${statusText(v)}`, v, false, st.pomodoro_work_status === v)));
   pomo.onchange = () => saveSettings({ pomodoro_work_status: pomo.value });
+
   const acc = $("#accounts");
   acc.replaceChildren();
   if (!cal.accounts.length) {
     const li = document.createElement("li");
-    li.textContent = cal.provider === "none" ? "No calendar configured." : `Provider: ${cal.provider}`;
+    li.textContent = cal.provider === "none" ? t("settings.no_calendar") : t("settings.provider", { provider: cal.provider });
     acc.append(li);
   }
   for (const a of cal.accounts) {
     const li = document.createElement("li");
     const dot = document.createElement("span");
     dot.className = `dot ${a.connected && !a.error ? "c-free" : a.connected ? "c-working" : "c-dnd"}`;
-    const info = a.connected ? (a.last_sync ? `synced ${fmtTime(a.last_sync)}, ${a.events} events` : "connected") : "not connected";
+    const info = a.connected
+      ? (a.last_sync ? t("settings.synced", { time: fmtTime(a.last_sync), n: a.events }) : t("settings.connected"))
+      : t("settings.not_connected");
     li.append(dot, `${a.name}: ${info}${a.error ? ` – ${a.error}` : ""}`);
     acc.append(li);
   }
+  renderLanguages();
+}
+
+function renderLanguages() {
+  const sel = $("#language");
+  const chosen = load(LANG_KEY);
+  sel.replaceChildren(new Option(t("settings.language_auto"), "", false, !chosen),
+    ...Object.entries(languages).map(([code, name]) => new Option(name, code, false, chosen === code)));
+  sel.onchange = async () => {
+    store(LANG_KEY, sel.value);
+    await loadLanguage();
+    if (state) renderState(state);
+    renderSettings().catch((err) => showError(err, "#settings-info"));
+  };
 }
 
 async function saveSettings(change) {
   try {
     await api("PUT", "/api/v1/settings", change);
-    $("#settings-info").textContent = "Saved.";
+    $("#settings-info").textContent = t("settings.saved");
     setTimeout(() => { $("#settings-info").textContent = ""; }, 2000);
   } catch (err) {
     showError(err, "#settings-info");
@@ -235,8 +286,8 @@ async function renderHistory() {
   for (const e of h) {
     const li = document.createElement("li");
     const dot = document.createElement("span");
-    dot.className = `dot ${STATUS[e.status]?.color || ""}`;
-    li.append(dot, `${dayFmt.format(new Date(e.at))}  ${STATUS[e.status]?.text || e.status} (${REASON[e.reason] || e.reason}${e.detail ? `: ${e.detail}` : ""})`);
+    dot.className = `dot ${COLOR[e.status] || ""}`;
+    li.append(dot, `${dayFmt.format(new Date(e.at))}  ${statusText(e.status)} (${reasonText(e.reason)}${e.detail ? `: ${e.detail}` : ""})`);
     list.append(li);
   }
 }
@@ -268,7 +319,7 @@ async function act(fn) {
 function bind() {
   $$("nav button").forEach((b) => b.addEventListener("click", () => {
     $$("nav button").forEach((x) => x.classList.toggle("active", x === b));
-    $$(".tab").forEach((t) => { t.hidden = t.id !== `tab-${b.dataset.tab}`; });
+    $$(".tab").forEach((tab) => { tab.hidden = tab.id !== `tab-${b.dataset.tab}`; });
     const render = { day: renderDay, settings: renderSettings, history: renderHistory }[b.dataset.tab];
     if (render) render().catch((err) => showError(err));
   }));
@@ -347,5 +398,5 @@ tokenFromFragment();
 token = load(TOKEN_KEY);
 profile = load(PROFILE_KEY);
 bind();
-start();
+loadLanguage().finally(start);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -28,6 +28,7 @@ import (
 	"github.com/padalton/doormutex/companion/internal/desktop"
 	"github.com/padalton/doormutex/companion/internal/googlelogin"
 	"github.com/padalton/doormutex/companion/internal/hubclient"
+	"github.com/padalton/doormutex/companion/internal/i18n"
 	"github.com/padalton/doormutex/companion/internal/pipewire"
 )
 
@@ -45,6 +46,7 @@ type Config struct {
 }
 
 func main() {
+	agent.Texts = i18n.FromEnv()
 	args := os.Args[1:]
 	cmd := "run"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -252,10 +254,11 @@ func googleCmd(path string, args []string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	hub := &hubclient.Client{URL: cfg.Hub, Token: cfg.Token}
+	tr := i18n.FromEnv()
 	return googlelogin.Run(ctx, hub, args[1], nil, os.Stdout, googlelogin.Texts{
-		Opening: "Opening the browser – sign in with the Google account for \"" + args[1] + "\". If it doesn't open, use this address:",
-		Done:    "Google account \"" + args[1] + "\" is connected. The hub reads the calendar now.",
-		Page:    "doormutex: signed in. You can close this tab.",
-		Failed:  "Google sign-in failed",
+		Opening: tr.T("google.opening", "account", args[1]),
+		Done:    tr.T("google.done", "account", args[1]),
+		Page:    tr.T("google.page"),
+		Failed:  tr.T("google.failed"),
 	})
 }

@@ -1,0 +1,261 @@
+# German translation of the doormutex Plasma widget.
+# SPDX-FileCopyrightText: 2026 The doormutex contributors
+# SPDX-License-Identifier: Apache-2.0
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: doormutex-plasmoid\n"
+"Report-Msgid-Bugs-To: https://github.com/padalton/doormutex/issues\n"
+"PO-Revision-Date: 2026-10-30 10:00+0100\n"
+"Last-Translator: The doormutex contributors\n"
+"Language-Team: German\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Connecting…"
+msgstr "Verbinde …"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Fault – companion not responding"
+msgstr "Störung – Companion antwortet nicht"
+
+#: ../package/contents/ui/FullRepresentation.qml
+#: ../package/contents/ui/main.qml
+msgid "until %1"
+msgstr "bis %1"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "until further notice"
+msgstr "bis auf Weiteres"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "free from %1"
+msgstr "frei ab %1"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Override for"
+msgstr "Manuell für"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "1 hour"
+msgstr "1 Stunde"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "15 minutes"
+msgstr "15 Minuten"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "2 hours"
+msgstr "2 Stunden"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "30 minutes"
+msgstr "30 Minuten"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "until end of work day"
+msgstr "bis zum Arbeitsende"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "until the event ends"
+msgstr "bis zum Terminende"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "until changed"
+msgstr "bis zur Änderung"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "until the next automatic change"
+msgstr "bis zum nächsten automatischen Wechsel"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Green"
+msgstr "Grün"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Off"
+msgstr "Aus"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Red"
+msgstr "Rot"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Yellow"
+msgstr "Gelb"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Auto"
+msgstr "Auto"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "yellow"
+msgstr "gelb"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Yellow (working) instead of red while the pomodoro runs"
+msgstr "Gelb (Ich arbeite) statt Rot, solange der Pomodoro läuft"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Stop"
+msgstr "Stopp"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Message for the e-ink"
+msgstr "Nachricht fürs E-Ink"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Clear message"
+msgstr "Nachricht löschen"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "○ polling"
+msgstr "○ Abfrage"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "● live"
+msgstr "● live"
+
+#: ../package/contents/ui/FullRepresentation.qml
+msgid "Web UI"
+msgstr "Web-App"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "Hub:"
+msgstr "Hub:"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "Token:"
+msgstr "Token:"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "Profile:"
+msgstr "Profil:"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "the token's profile"
+msgstr "das Profil des Tokens"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "Pomodoro:"
+msgstr "Pomodoro:"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "as set on the hub"
+msgstr "wie am Hub eingestellt"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "red while working"
+msgstr "rot beim Arbeiten"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "yellow while working"
+msgstr "gelb beim Arbeiten"
+
+#: ../package/contents/ui/configGeneral.qml
+msgid "Create a token on the hub: doormutex-hub token create widget office"
+msgstr "Token am Hub erstellen: doormutex-hub token create widget office"
+
+#: ../package/contents/ui/main.qml
+msgid "Do not disturb"
+msgstr "Bitte nicht stören"
+
+#: ../package/contents/ui/main.qml
+msgid "Working"
+msgstr "Ich arbeite"
+
+#: ../package/contents/ui/main.qml
+msgid "Come in"
+msgstr "Herein"
+
+#: ../package/contents/ui/main.qml
+msgid "Not here"
+msgstr "Nicht da"
+
+#: ../package/contents/ui/main.qml
+msgid "pomodoro"
+msgstr "Pomodoro"
+
+#: ../package/contents/ui/main.qml
+msgid "pomodoro break"
+msgstr "Pomodoro-Pause"
+
+#: ../package/contents/ui/main.qml
+msgid "set by hand"
+msgstr "von Hand gesetzt"
+
+#: ../package/contents/ui/main.qml
+msgid "camera in use"
+msgstr "Kamera aktiv"
+
+#: ../package/contents/ui/main.qml
+msgid "microphone in use"
+msgstr "Mikrofon aktiv"
+
+#: ../package/contents/ui/main.qml
+msgid "PC off"
+msgstr "PC aus"
+
+#: ../package/contents/ui/main.qml
+msgid "screen locked"
+msgstr "Bildschirm gesperrt"
+
+#: ../package/contents/ui/main.qml
+msgid "PC not running"
+msgstr "PC läuft nicht"
+
+#: ../package/contents/ui/main.qml
+msgid "companion not responding"
+msgstr "Companion antwortet nicht"
+
+#: ../package/contents/ui/main.qml
+msgid "calendar"
+msgstr "Kalender"
+
+#: ../package/contents/ui/main.qml
+msgid "signal"
+msgstr "Signal"
+
+#: ../package/contents/ui/main.qml
+msgid "working hours"
+msgstr "Arbeitszeit"
+
+#: ../package/contents/ui/main.qml
+msgid "nothing planned"
+msgstr "nichts geplant"
+
+#: ../package/contents/ui/main.qml
+msgid "No token configured"
+msgstr "Kein Token eingerichtet"
+
+#: ../package/contents/ui/main.qml
+msgid "Hub not reachable"
+msgstr "Hub nicht erreichbar"
+
+#: ../package/contents/ui/main.qml
+msgid "doormutex: %1"
+msgstr "doormutex: %1"
+
+#: ../package/contents/ui/main.qml
+msgid "Fault"
+msgstr "Störung"
+
+#: ../package/contents/ui/main.qml
+msgid "Red for 30 min"
+msgstr "30 Min. rot"
+
+#: ../package/contents/ui/main.qml
+msgid "Green for 30 min"
+msgstr "30 Min. grün"
+
+#: ../package/contents/ui/main.qml
+msgid "Automatic"
+msgstr "Automatisch"
+
+#: ../package/contents/ui/main.qml
+msgid "Open web UI"
+msgstr "Web-App öffnen"

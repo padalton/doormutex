@@ -1,0 +1,34 @@
+{
+  "status.dnd": "Do not disturb",
+  "status.working": "Working",
+  "status.free": "Come in",
+  "status.away": "Off",
+  "status.fault": "Fault",
+
+  "reason.override": "set by hand",
+  "reason.pomodoro": "pomodoro",
+  "reason.pomodoro_break": "pomodoro break",
+  "reason.microphone": "microphone in use",
+  "reason.camera": "camera in use",
+  "reason.screen_locked": "screen locked",
+  "reason.pc_off": "PC off",
+  "reason.companion_lost": "companion not responding",
+  "reason.companion_offline": "PC not running",
+  "reason.calendar": "calendar",
+  "reason.work_hours": "working hours",
+  "reason.signal": "signal",
+  "reason.default": "nothing planned",
+
+  "kind.video_call": "video call",
+  "kind.focus": "focus time",
+  "kind.out_of_office": "out of office",
+  "kind.other": "event",
+
+  "until": "until {time}",
+  "action.auto": "Back to automatic",
+
+  "google.opening": "Opening the browser – sign in with the Google account for \"{account}\". If it doesn't open, use this address:",
+  "google.done": "Google account \"{account}\" is connected. The hub reads the calendar now.",
+  "google.page": "doormutex: signed in. You can close this tab.",
+  "google.failed": "Google sign-in failed"
+}

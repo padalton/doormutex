@@ -1,7 +1,8 @@
 // Service worker: makes the web app installable and keeps the app shell
 // available offline. The API is never cached – the state must be live.
-const CACHE = "doormutex-v1";
-const SHELL = ["./", "index.html", "app.css", "app.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "apple-touch-icon.png"];
+const CACHE = "doormutex-v2";
+const SHELL = ["./", "index.html", "app.css", "app.js", "manifest.webmanifest", "icon.svg", "icon-192.png", "apple-touch-icon.png",
+  "i18n/languages.json", "i18n/en.json", "i18n/de.json"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -1,0 +1,34 @@
+{
+  "status.dnd": "Bitte nicht stören",
+  "status.working": "Ich arbeite",
+  "status.free": "Herein",
+  "status.away": "Aus",
+  "status.fault": "Störung",
+
+  "reason.override": "von Hand gesetzt",
+  "reason.pomodoro": "Pomodoro",
+  "reason.pomodoro_break": "Pomodoro-Pause",
+  "reason.microphone": "Mikrofon aktiv",
+  "reason.camera": "Kamera aktiv",
+  "reason.screen_locked": "Bildschirm gesperrt",
+  "reason.pc_off": "PC aus",
+  "reason.companion_lost": "Companion antwortet nicht",
+  "reason.companion_offline": "PC läuft nicht",
+  "reason.calendar": "Kalender",
+  "reason.work_hours": "Arbeitszeit",
+  "reason.signal": "Signal",
+  "reason.default": "nichts geplant",
+
+  "kind.video_call": "Videocall",
+  "kind.focus": "Fokuszeit",
+  "kind.out_of_office": "abwesend",
+  "kind.other": "Termin",
+
+  "until": "bis {time}",
+  "action.auto": "Zurück auf Automatik",
+
+  "google.opening": "Der Browser öffnet sich – melde dich mit dem Google-Konto für „{account}“ an. Falls er nicht aufgeht, diese Adresse verwenden:",
+  "google.done": "Google-Konto „{account}“ ist verbunden. Der Hub liest den Kalender jetzt.",
+  "google.page": "doormutex: angemeldet. Du kannst diesen Tab schließen.",
+  "google.failed": "Google-Anmeldung fehlgeschlagen"
+}

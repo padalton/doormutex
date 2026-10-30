@@ -9,7 +9,7 @@ The state is detected automatically (microphone/camera, Google Calendar, working
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-30). The repo is public from day one so anyone can follow the project as it grows. Software: [`hub/`](hub/) (with web UI), [`companion/`](companion/), [`plasmoid/`](plasmoid/).
 >
-> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml) · [Translating](TRANSLATING.md)
 
 ## Signals
 
@@ -339,9 +339,10 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
 
-- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until changed) or *auto*; e-ink message; pomodoro
+- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until the next automatic change / until changed) or *auto*; e-ink message; pomodoro
 - **Day:** today's planned slots as a bar and a list
-- **Settings:** light per calendar event kind, warning timing (StVO or a lead time), calendar account health
+- **Settings:** light per calendar event kind and for tentative invitations, warning timing (StVO or a lead time), pomodoro colour, calendar account health, language of this device
+- **Languages:** English and German; the browser's language is picked automatically and can be changed per device. More languages: [TRANSLATING.md](TRANSLATING.md)
 - **History:** recent status changes
 - **Profiles:** a selector when the token may see several profiles
 

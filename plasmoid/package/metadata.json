@@ -4,7 +4,9 @@
     "KPlugin": {
         "Id": "org.doormutex.trafficlight",
         "Name": "doormutex",
+        "Name[de]": "doormutex",
         "Description": "Traffic light for your door: state, override, pomodoro and today's plan",
+        "Description[de]": "Ampel für deine Tür: Zustand, manuell setzen, Pomodoro und Tagesplan",
         "Icon": "user-busy",
         "Category": "System Information",
         "License": "Apache-2.0",
