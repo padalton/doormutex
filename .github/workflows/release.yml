@@ -1,0 +1,83 @@
+name: Release
+
+# A pushed tag vX.Y.Z builds and publishes the GitHub release with
+# GoReleaser (.goreleaser.yaml), signs the checksums keyless with cosign
+# and – if the secret AUR_SSH_PRIVATE_KEY exists – updates the AUR package.
+# The container image is built by image.yml for the same tag.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  goreleaser:
+    name: GoReleaser
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+      id-token: write # keyless signing (Sigstore)
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # changelog since the previous tag
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: hub/go.mod
+          cache-dependency-path: |
+            hub/go.sum
+            companion/go.sum
+      - uses: sigstore/cosign-installer@v3
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checksums
+          path: dist/checksums.txt
+
+  aur:
+    name: AUR · doormutex-companion-bin
+    needs: goreleaser
+    # pre-releases (v1.2.0-rc1) don't go to the AUR
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+    steps:
+      - name: Skip without AUR key
+        if: ${{ env.AUR_KEY == '' }}
+        run: echo "::notice::secret AUR_SSH_PRIVATE_KEY not set – AUR update skipped"
+      - uses: actions/checkout@v5
+        if: ${{ env.AUR_KEY != '' }}
+      - uses: actions/download-artifact@v4
+        if: ${{ env.AUR_KEY != '' }}
+        with:
+          name: checksums
+      - name: Update and push the AUR package
+        if: ${{ env.AUR_KEY != '' }}
+        run: |
+          pacman -Syu --noconfirm --needed git openssh >/dev/null
+          useradd -m builder
+          chown -R builder .
+          su builder -c "packaging/aur/update.sh '${GITHUB_REF_NAME#v}' checksums.txt"
+          install -dm700 ~/.ssh
+          printf '%s\n' "$AUR_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur"
+          git clone ssh://aur@aur.archlinux.org/doormutex-companion-bin.git aur
+          cp packaging/aur/doormutex-companion-bin/PKGBUILD packaging/aur/doormutex-companion-bin/.SRCINFO aur/
+          cd aur
+          git config user.name "doormutex release bot"
+          git config user.email "noreply@github.com"
+          git add PKGBUILD .SRCINFO
+          if git diff --cached --quiet; then echo "AUR already up to date"; exit 0; fi
+          git commit -m "Update to ${GITHUB_REF_NAME#v}"
+          git push origin HEAD:master

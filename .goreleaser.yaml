@@ -1,0 +1,130 @@
+# GoReleaser configuration – builds the release files when a tag vX.Y.Z is
+# pushed (.github/workflows/release.yml). Test locally with:
+#   goreleaser release --snapshot --clean --skip=publish,sign
+# The container image is published separately (.github/workflows/image.yml).
+version: 2
+
+project_name: doormutex
+
+before:
+  hooks:
+    # The widget (.plasmoid zip, version stamped) and the package unit file.
+    - python3 packaging/prepare.py {{ .Version }}
+
+builds:
+  - id: hub
+    dir: hub
+    main: ./cmd/doormutex-hub
+    binary: doormutex-hub
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    goos: [linux]
+    goarch: [amd64, arm64]
+  - id: companion
+    dir: companion
+    main: ./cmd/doormutex-companion
+    binary: doormutex-companion
+    env: [CGO_ENABLED=0]
+    flags: [-trimpath]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+    goos: [linux]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: hub
+    ids: [hub]
+    name_template: "doormutex-hub_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - src: hub/README.md
+        strip_parent: true
+      - src: hub/config.example.yaml
+        strip_parent: true
+      - src: hub/compose.example.yaml
+        strip_parent: true
+  - id: companion
+    ids: [companion]
+    name_template: "doormutex-companion_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - src: companion/README.md
+        strip_parent: true
+      - src: companion/companion.example.yaml
+        strip_parent: true
+      # unit for an install to ~/.local/bin (see companion/README.md)
+      - src: companion/doormutex-companion.service
+        strip_parent: true
+      # unit for /usr/bin – used by distribution packages and the AUR
+      - src: build/systemd/doormutex-companion.service
+        dst: systemd
+        strip_parent: true
+      # the Plasma widget (install: kpackagetool6 -t Plasma/Applet -i FILE)
+      - src: build/doormutex-*.plasmoid
+        strip_parent: true
+
+nfpms:
+  - id: companion
+    ids: [companion]
+    package_name: doormutex-companion
+    vendor: The doormutex contributors
+    homepage: https://github.com/padalton/doormutex
+    maintainer: The doormutex contributors <https://github.com/padalton/doormutex/issues>
+    description: |-
+      Desktop companion for the doormutex traffic light.
+      Reports microphone, camera and screen lock to the doormutex hub and
+      signs off before suspend and shutdown. Includes the KDE Plasma 6 widget.
+    license: Apache-2.0
+    section: utils
+    formats: [deb, rpm, archlinux]
+    bindir: /usr/bin
+    contents:
+      - src: build/systemd/doormutex-companion.service
+        dst: /usr/lib/systemd/user/doormutex-companion.service
+      - src: companion/companion.example.yaml
+        dst: /usr/share/doormutex/companion.example.yaml
+      - src: build/plasmoid/
+        dst: /usr/share/plasma/plasmoids/org.doormutex.trafficlight
+        type: tree
+      - src: LICENSE
+        dst: /usr/share/licenses/doormutex-companion/LICENSE
+      - src: companion/README.md
+        dst: /usr/share/doc/doormutex-companion/README.md
+    # pw-dump comes from these packages.
+    overrides:
+      deb:
+        dependencies: [pipewire-bin]
+      rpm:
+        dependencies: [pipewire-utils]
+      archlinux:
+        dependencies: [pipewire]
+
+checksum:
+  name_template: checksums.txt
+  extra_files:
+    - glob: build/doormutex-*.plasmoid
+
+# Keyless signing of the checksum file with Sigstore (GitHub OIDC, no
+# secrets). Verify with:
+#   cosign verify-blob --bundle checksums.txt.sigstore.json \
+#     --certificate-identity-regexp '^https://github.com/padalton/doormutex/' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+
+release:
+  prerelease: auto
+  extra_files:
+    - glob: build/doormutex-*.plasmoid
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^ci:"

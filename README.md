@@ -671,8 +671,9 @@ doormutex/
 
 - **CI/CD (GitHub Actions):**
   - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅, multi-arch image (amd64/arm64) on GHCR: `:edge` from main, `:X.Y.Z`/`:latest` from release tags ✅
-  - companion binaries, later an AUR package
-  - widget as `.plasmoid` for the KDE Store
+  - releases from a tag `vX.Y.Z` with [GoReleaser](.goreleaser.yaml) ✅: hub and companion for Linux amd64/arm64, companion as `.deb`/`.rpm`/`.pkg.tar.zst`, checksums signed keyless (Sigstore) – see [RELEASING.md](RELEASING.md)
+  - AUR package [`doormutex-companion-bin`](packaging/aur/) built from the release files ✅
+  - widget as `.plasmoid` for the KDE Store ✅ (release asset; the upload stays manual)
   - Stream Deck plugin package
   - firmware build with web flasher on GitHub Pages
   - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
@@ -698,9 +699,8 @@ doormutex/
 
 1. **Railing for the magnet mount:** is the steel magnetic (a fridge magnet sticks)? Stainless steel railings often aren't. Profile and size of the newel post and the handrail (round/square, mm) – the foot and the side wall follow their shape.
 2. **Project domain and homepage:** which domain, where hosted (needed for Google OAuth branding and long-lived tokens)?
-3. **Packaging:** AUR package and/or binary releases from CI for the companion and the hub.
-4. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing – check on the breadboard whether they read well from the end of the hallway.
-5. **Wi-Fi:** which access point will the light use? TWT needs Wi-Fi 6 (see [hardware/README.md](hardware/README.md#wi-fi-unifi)).
+3. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing – check on the breadboard whether they read well from the end of the hallway.
+4. **Wi-Fi:** which access point will the light use? TWT needs Wi-Fi 6 (see [hardware/README.md](hardware/README.md#wi-fi-unifi)).
 
 ## Risks
 
@@ -787,3 +787,4 @@ doormutex/
 | 2026-10-30 | Mounting by magnets for steel: in the foot (newel post) and optionally a side wall (railing, eye level); anti-slip pad, fall protection | the reference spot is a steel stair-railing post at the end of a ~5 m hallway |
 | 2026-10-30 | E-ink 1.54″ only needs to be readable right in front of the light | the colour is read from 5 m, the text up close |
 | 2026-10-30 | Reference cells: Panasonic 18650 in good condition, checked with an analysing charger (discharge/refresh) | protection circuitry stays mandatory for everyone else's cells |
+| 2026-10-30 | Packaging in layers: GoReleaser builds the GitHub releases (archives, `.deb`/`.rpm`/`.pkg.tar.zst`, `.plasmoid`, signed checksums); the AUR package `doormutex-companion-bin` only downloads those files; the widget goes to the KDE Store as the release's `.plasmoid` | one build for every distribution, Arch/CachyOS users get updates through their AUR helper, Plasma users through Discover; the AUR and the store add almost no work per release |
