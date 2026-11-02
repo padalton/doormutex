@@ -237,6 +237,10 @@ msgid "Hub not reachable"
 msgstr ""
 
 #: ../package/contents/ui/main.qml
+msgid "No update since %1"
+msgstr ""
+
+#: ../package/contents/ui/main.qml
 msgid "doormutex: %1"
 msgstr ""
 

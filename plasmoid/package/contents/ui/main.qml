@@ -53,8 +53,9 @@ PlasmoidItem {
         return u
     }
 
-    // request calls the hub; done(data) gets the parsed JSON.
-    function request(method, path, body, done) {
+    // request calls the hub; done(data) gets the parsed JSON on success,
+    // finished() runs after every outcome.
+    function request(method, path, body, done, finished) {
         if (token === "") {
             error = i18n("No token configured")
             return
@@ -65,11 +66,12 @@ PlasmoidItem {
         if (body) xhr.setRequestHeader("Content-Type", "application/json")
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return
+            if (finished) finished()
             let data = null
             try { data = JSON.parse(xhr.responseText) } catch (e) {}
             if (xhr.status === 200) {
                 error = ""
-                if (data && data.status && data.light) hubState = data
+                if (data && data.status && data.light) { hubState = data; lastSeen = Date.now() }
                 if (done) done(data)
             } else {
                 error = xhr.status === 0 ? i18n("Hub not reachable") : (data && data.error ? data.error : "HTTP " + xhr.status)
@@ -78,7 +80,19 @@ PlasmoidItem {
         xhr.send(body ? JSON.stringify(body) : null)
     }
 
-    function refresh() { request("GET", "/api/v1/status", null, null) }
+    // One status poll at a time: a hanging request must not pile up more.
+    property bool polling: false
+    function refresh() {
+        if (polling) return
+        polling = true
+        pollGuard.restart()
+        request("GET", "/api/v1/status", null, null, function () { polling = false; pollGuard.stop() })
+    }
+    Timer {
+        id: pollGuard
+        interval: 30000
+        onTriggered: root.polling = false
+    }
     function setOverride(status, mode, duration) {
         const b = { status: status, mode: mode }
         if (mode === "duration") b.duration = duration
@@ -95,21 +109,38 @@ PlasmoidItem {
     function setMessage(text) { request(text === "" ? "DELETE" : "PUT", "/api/v1/message", text === "" ? null : { text: text }, null) }
 
     // ---- live updates: read the SSE stream with a streaming XHR.
+    //
+    // Qt (6.12) doesn't cancel an HTTP/2 stream when an XHR is aborted: the
+    // request stays open on the hub. A widget that aborts regularly fills the
+    // connection up to the proxy's stream limit (Caddy: 250), after which
+    // every request hangs. So the widget never aborts in normal operation:
+    // the hub ends each stream after a few minutes and the widget reconnects.
+    // Abort is left for config changes and a stream that went silent.
     property var stream: null
     property int streamPos: 0
+    property double streamSeen: 0 // last sign of life on the stream (opened, data, keep-alive)
+    property double lastSeen: 0   // last state received from the hub, by stream or poll
 
     function connectStream() {
-        if (stream) stream.abort()
+        // Detach before aborting: abort() reports DONE synchronously, and the
+        // handler must not take that for a dropped stream and reconnect.
+        const old = stream
+        stream = null
+        live = false
+        reconnect.stop()
+        if (old) old.abort()
         if (token === "" || hub === "") return
         const xhr = new XMLHttpRequest()
         stream = xhr
         streamPos = 0
+        streamSeen = Date.now()
         xhr.open("GET", url("/api/v1/events"))
         xhr.setRequestHeader("Authorization", "Bearer " + token)
         xhr.setRequestHeader("Accept", "text/event-stream")
         xhr.onreadystatechange = function () {
             if (xhr !== stream) return
             if (xhr.readyState === XMLHttpRequest.LOADING || xhr.readyState === XMLHttpRequest.DONE) {
+                streamSeen = Date.now()
                 const text = xhr.responseText
                 let end
                 while ((end = text.indexOf("\n\n", streamPos)) >= 0) {
@@ -117,11 +148,17 @@ PlasmoidItem {
                     streamPos = end + 2
                     const m = block.match(/^event: state\ndata: (.*)$/m)
                     if (m) {
-                        try { hubState = JSON.parse(block.substring(block.indexOf("data: ") + 6)); error = ""; live = true } catch (e) {}
+                        try {
+                            hubState = JSON.parse(block.substring(block.indexOf("data: ") + 6))
+                            error = ""
+                            live = true
+                            lastSeen = Date.now()
+                        } catch (e) {}
                     }
                 }
             }
             if (xhr.readyState === XMLHttpRequest.DONE) {
+                stream = null
                 live = false
                 reconnect.restart()
             }
@@ -134,21 +171,31 @@ PlasmoidItem {
         interval: 5000
         onTriggered: root.connectStream()
     }
+    // Config changes arrive one property at a time; open one stream for all.
+    Timer {
+        id: restartStream
+        interval: 200
+        onTriggered: root.connectStream()
+    }
 
-    // Fallback and stream renewal: poll while the stream is down, and
-    // reopen the stream every 30 minutes so its buffer doesn't grow forever.
+    // Watchdog and fallback, every 15 s:
+    // - the hub sends a keep-alive every 25 s; a stream silent for 70 s is
+    //   dead, so open a new one;
+    // - poll while the stream is down;
+    // - never show an old state as current: after a minute without news
+    //   the widget dims and says since when.
     Timer {
         interval: 15000
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: if (!root.live) root.refresh()
-    }
-    Timer {
-        interval: 30 * 60 * 1000
-        running: true
-        repeat: true
-        onTriggered: root.connectStream()
+        onTriggered: {
+            const now = Date.now()
+            if (root.stream && now - root.streamSeen > 70000) root.connectStream()
+            if (!root.live) root.refresh()
+            if (root.lastSeen > 0 && now - root.lastSeen > 60000 && root.error === "")
+                root.error = i18n("No update since %1", root.time(root.lastSeen))
+        }
     }
     Timer {
         interval: 500
@@ -158,10 +205,10 @@ PlasmoidItem {
         onRunningChanged: root.blinkOn = true
     }
 
-    Component.onCompleted: connectStream()
-    onHubChanged: connectStream()
-    onTokenChanged: connectStream()
-    onProfileChanged: connectStream()
+    Component.onCompleted: restartStream.restart()
+    onHubChanged: restartStream.restart()
+    onTokenChanged: restartStream.restart()
+    onProfileChanged: restartStream.restart()
 
     Plasmoid.icon: "user-busy"
     Plasmoid.status: hubState && hubState.status !== "away" ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus

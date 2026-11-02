@@ -51,8 +51,12 @@ type Server struct {
 	auth      Authenticator
 	log       *slog.Logger
 	keepalive time.Duration
-	mux       *http.ServeMux
-	routes    []string
+	// lifetime ends an event stream after this long; the client reconnects.
+	// Clients then never have to cancel a stream themselves, which Qt's
+	// XMLHttpRequest doesn't do cleanly over HTTP/2 (the KDE widget).
+	lifetime time.Duration
+	mux      *http.ServeMux
+	routes   []string
 }
 
 // New builds the API handler. profiles must not be empty.
@@ -65,7 +69,7 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 			profiles[i].Display = &eink.Display{}
 		}
 	}
-	s := &Server{profiles: profiles, auth: auth, log: log, keepalive: 25 * time.Second, mux: http.NewServeMux()}
+	s := &Server{profiles: profiles, auth: auth, log: log, keepalive: 25 * time.Second, lifetime: 10 * time.Minute, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /healthz", s.healthz)
 	s.handle("GET /api/v1/profiles", s.getProfiles)
 	s.handle("GET /api/v1/status", s.getStatus)
@@ -531,7 +535,8 @@ func (s *Server) deleteSignal(w http.ResponseWriter, r *http.Request) {
 }
 
 // events streams the state as Server-Sent Events: one "state" event on
-// connect and one per change, plus keep-alive comments.
+// connect and one per change, plus keep-alive comments. The stream ends
+// after s.lifetime; EventSource and the widget reconnect on their own.
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
@@ -545,9 +550,13 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	ka := time.NewTicker(s.keepalive)
 	defer ka.Stop()
+	end := time.NewTimer(s.lifetime)
+	defer end.Stop()
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-end.C:
 			return
 		case st := <-ch:
 			b, _ := json.Marshal(st)

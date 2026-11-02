@@ -172,7 +172,11 @@ func (c *Client) Follow(ctx context.Context, fn func(State)) {
 		if ctx.Err() != nil {
 			return
 		}
-		_ = err // reconnect; the light shows a fault if the hub stays away
+		// nil: the hub ended the stream on schedule (it does every few
+		// minutes); reconnect right away. Errors back off.
+		if err == nil {
+			backoff = time.Second
+		}
 		select {
 		case <-ctx.Done():
 			return
