@@ -65,7 +65,7 @@ Checked on 2026-11-02: every link below opened the right product, stock and pric
 | **DigiKey** | all electronics except the items below | 102 | free from €75, ~2 days, duties and VAT prepaid (DDP) |
 | **Opencircuit** (NL) | buck-boost, 18650 holders, protection boards | 26 | €11.50, free from €150 |
 | **Amazon.de** | e-paper module (sold by Waveshare), magnets, inserts, screws, silicone sheet, velcro | 63 | per seller |
-| Prusa (CZ) | PETG clear + black, if not at hand | 53 | varies (check the cart) |
+| Prusa (CZ) | PETG clear for the lenses; black PETG only if you have no black PLA or PETG | 26–53 | varies (check the cart) |
 
 Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module or the cell holder in stock; DigiKey has no Waveshare displays and no cell protection boards, and the Pololu regulator there is a US marketplace item (customs on delivery, doesn't count towards free shipping).
 
@@ -138,7 +138,7 @@ Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibe
 
 ### Filament (Prusa)
 
-[Prusament PETG Clear](https://www.prusa3d.com/product/prusament-petg-clear-1kg/) for the lenses and [Prusament PETG Jet Black](https://www.prusa3d.com/product/prusament-petg-jet-black-1kg/) for the shell, 1 kg each (€32.99, on sale at the time of checking).
+[Prusament PETG Clear](https://www.prusa3d.com/product/prusament-petg-clear-1kg/) for the lenses and, if you have no black PLA or PETG at hand, [Prusament PETG Jet Black](https://www.prusa3d.com/product/prusament-petg-jet-black-1kg/) for the shell (PLA works too, see [enclosure → PETG or PLA](../enclosure/README.md#petg-or-pla)), 1 kg each (€32.99, on sale at the time of checking).
 
 ### Optional – measuring
 
