@@ -297,7 +297,9 @@ Any tool can set a claim with a TTL via `POST /api/v1/signals/<name>`. Example o
 
 ### KDE Plasma widget
 
-Implemented in [`plasmoid/`](plasmoid/) – install with `kpackagetool6`, see its README.
+Implemented in [`plasmoid/`](plasmoid/) – on the [KDE Store](https://store.kde.org/p/2380911) (*Add Widgets → Get New Widgets*), with the companion packages, or with `kpackagetool6`, see its README.
+
+<p><img src="docs/images/widget-panel.png" alt="Widget in the panel with its right-click menu" width="221"> <img src="docs/images/widget-popup.png" alt="Widget popup: do not disturb until 14:00, camera in use, override and pomodoro buttons" width="411"></p>
 
 - **Panel:** a mini traffic light as icon (the active lamp lights up), tooltip with reason and "until".
 - **Right-click menu:** "open web UI", "auto", quick overrides.
@@ -307,7 +309,7 @@ Implemented in [`plasmoid/`](plasmoid/) – install with `kpackagetool6`, see it
   - "auto" clears the override
   - pomodoro, e.g. 25/5 or 50/10 (work phase red, break green – yellow work phase as a setting in the web UI or per start in the widget)
   - day bar: today's slots as a coloured bar
-- Works in the panel and on the desktop; distributed via the KDE Store ("Get New Widgets").
+- Works in the panel and on the desktop; distributed via the [KDE Store](https://store.kde.org/p/2380911) ("Get New Widgets").
 - **Other desktops:** the web UI can be installed as a PWA; a GNOME extension would be a nice community project.
 
 ### Stream Deck XL
@@ -329,7 +331,7 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 ### Web UI
 
-<p><img src="docs/images/web-now.png" alt="Web UI: now" width="260"> <img src="docs/images/web-settings.png" alt="Web UI: settings" width="260"></p>
+<p><img src="docs/images/web-now.png" alt="Web UI: now, with the override buttons and the e-ink preview" width="480"> <img src="docs/images/web-settings.png" alt="Web UI: settings" width="260"></p>
 
 Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
 
@@ -671,7 +673,7 @@ doormutex/
   - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅, multi-arch image (amd64/arm64) on GHCR: `:edge` from main, `:X.Y.Z`/`:latest` from release tags ✅
   - releases from a tag `vX.Y.Z` with [GoReleaser](.goreleaser.yaml) ✅: hub and companion for Linux amd64/arm64, companion as `.deb`/`.rpm`/`.pkg.tar.zst`, checksums signed keyless (Sigstore) – see [RELEASING.md](RELEASING.md)
   - AUR package [`doormutex-companion-bin`](packaging/aur/) built from the release files ✅
-  - widget as `.plasmoid` for the KDE Store ✅ (release asset; the upload stays manual)
+  - widget as `.plasmoid` for the [KDE Store](https://store.kde.org/p/2380911) ✅ (release asset; the upload stays manual)
   - Stream Deck plugin package
   - firmware build with web flasher on GitHub Pages
   - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
