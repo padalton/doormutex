@@ -13,7 +13,7 @@
 
 /* [Part] */
 // What to render: an assembly view or one printable part
-part = "assembly"; // [assembly, exploded, front, back, foot, side_plate, visor, diffuser]
+part = "assembly"; // [assembly, exploded, front, back, foot, side_plate, visor, diffuser, fit_test]
 
 /* [Body] */
 // Outer width; the e-ink module sets the minimum
@@ -544,6 +544,83 @@ module side_plate_placed(dx = 0)
       multmatrix([[0, 0, -sx, 0], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]]) side_plate_local();
   }
 
+// ---------------------------------------------------------------- fit test
+
+// A short print (~1.5 h, 18 g) to calibrate the fits before the shell: one row per fit,
+// each hole a step wider, the clearance (or diameter) engraved next to it.
+// The lens seat and LED holes are cut as in the front part, which prints
+// front face down: the seat lies on the bed here too. The pin is printed
+// with it and checks `tol`. See README.md → Fit test.
+fit_plate = [118, 66];
+fit_t = 1.6;                                  // plate; front_wall only around the lens seat
+fit_steps = [0.05, 0.1, 0.15, 0.2, 0.25];      // radial clearance, mm
+fit_pin_d = 6;
+fit_boss_h = cover_hole_len + 1.5;
+
+module fit_label(txt, x, y, z = fit_t)
+  translate([x, y, z - 0.4]) linear_extrude(1)
+    text(txt, size = 2.6, halign = "center", valign = "center");
+
+module fit_test() {
+  col0 = 50; dx = 12.5;                       // columns of the rows on the right
+  lens_c = [22, 25];
+  magnets = [0.1, 0.15, 0.2];
+  // [diameter, label] – str(4.0) would print "4"
+  inserts = [[3.8, "3.8"], [4.0, "4.0"], [4.2, "4.2"]];
+  m3 = [[2.4, "2.4"], [2.6, "2.6"], [2.8, "2.8"]];
+  m25 = [[2.0, "2.0"], [2.2, "2.2"], [2.4, "2.4"]];
+  difference() {
+    union() {
+      chamfered_plate([fit_plate.x, fit_plate.y], fit_t, 1);
+      translate([lens_c.x - 21, lens_c.y - 18, 0]) cube([42, 36, front_wall]);
+      // bosses for inserts and M3 screws, standoffs for M2.5
+      for (k = [0 : 5]) translate([col0 + k * dx, 42, 0]) cylinder(d = 8, h = fit_boss_h);
+      for (i = [0 : 2]) translate([62 + i * 18, 59.5, 0]) cylinder(d = 5, h = fit_t + standoff_h);
+      // magnet blocks: skin + magnet + 0.6, like the foot
+      for (i = [0 : 2]) translate([8 + i * 15 - 7.5, fit_plate.y - 16, 0]) cube([15, 15, magnet_skin + magnet_h + 0.6]);
+    }
+    // lens seat (on the bed), light opening and dowel holes – as in the front
+    translate([lens_c.x, lens_c.y, 0]) {
+      translate([0, 0, -1]) cylinder(d = light_d, h = front_wall + 2);
+      translate([0, 0, -1]) cylinder(d = lens_d + 2 * tol, h = 1 + lens_t);
+      for (sx = [-1, 1]) translate([sx * (lens_d / 2 + 3), 0, -1]) cylinder(d = dowel_d + 0.15, h = 1 + 1.5);
+    }
+    fit_label(str("lens ", tol), lens_c.x, 3);
+    // row 1: LED press fit; row 2: sliding fit for the pin
+    for (i = [0 : 4]) {
+      translate([col0 + i * dx, 10, -1]) cylinder(d = led_d + 2 * fit_steps[i], h = fit_t + 2);
+      translate([col0 + i * dx, 26, -1]) cylinder(d = fit_pin_d + 2 * (fit_steps[i] + 0.05), h = fit_t + 2);
+      fit_label(str(fit_steps[i]), col0 + i * dx, 16.8);
+      fit_label(str(fit_steps[i] + 0.05), col0 + i * dx, 32.8);
+    }
+    fit_label("LED", 111, 10);
+    fit_label("pin", 111, 26);
+    // row 3: heat-set inserts M3 (left three), self-tapping M3 (right three)
+    for (i = [0 : 2]) {
+      translate([col0 + i * dx, 42, fit_boss_h - cover_hole_len]) cylinder(d = inserts[i][0], h = cover_hole_len + 1);
+      translate([col0 + (3 + i) * dx, 42, fit_boss_h - 8]) cylinder(d = m3[i][0], h = 9);
+      fit_label(inserts[i][1], col0 + i * dx, 49.5);
+      fit_label(m3[i][1], col0 + (3 + i) * dx, 49.5);
+    }
+    // row 4: M2.5 self-tapping (modules on the back cover)
+    for (i = [0 : 2]) {
+      translate([62 + i * 18, 59.5, 1]) cylinder(d = m25[i][0], h = fit_t + standoff_h);
+      fit_label(m25[i][1], 62 + i * 18 + 7.5, 59.5);
+    }
+    // magnet pockets, open from the top: press a magnet in, then hold the
+    // skin side against the railing (pull test)
+    for (i = [0 : 2]) {
+      translate([8 + i * 15, fit_plate.y - 8.5, magnet_skin]) cylinder(d = magnet_d + 2 * magnets[i], h = 10);
+      fit_label(str(magnets[i]), 8 + i * 15, fit_plate.y - 19.5);
+    }
+  }
+  // the pin for row 2, with a grip
+  translate([fit_plate.x + 8, 10, 0]) {
+    cylinder(d = 10, h = 1.2);
+    cylinder(d = fit_pin_d, h = 10);
+  }
+}
+
 module view(e) {
   front();
   translate([0, 40 * e, 0]) back();
@@ -580,3 +657,4 @@ else if (part == "foot") foot_local();                                          
 else if (part == "side_plate") side_plate_local();                              // contact face on the bed
 else if (part == "visor") rotate([-90, 0, 0]) visor_local();                    // ring on the bed, hood up
 else if (part == "diffuser") diffuser_body();                                   // smooth side on the bed
+else if (part == "fit_test") fit_test();                                        // lens seat on the bed
