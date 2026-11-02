@@ -134,7 +134,7 @@ flowchart LR
 | Firmware | C, ESP-IDF | Wi-Fi power saving, MQTT, LEDs, e-ink, battery |
 | Project homepage | GitHub Pages (static) + own domain | Required for Google's OAuth branding (description, privacy policy, terms), plus docs, web flasher (ESP Web Tools needs HTTPS) and the OAuth redirect relay. No backend, no user data |
 | PCB | KiCad | ESP32-C6, charging, LED and e-ink drivers – assembled by JLCPCB |
-| Enclosure | OpenSCAD + BOSL2 | Miniature traffic light + removable wall mount |
+| Enclosure | OpenSCAD (plain, Manifold backend) | Miniature traffic light, magnet foot/side plate, later a removable wall mount |
 
 Home Assistant is not a separate component: the hub announces its entities via MQTT discovery and HA picks them up.
 
@@ -627,14 +627,15 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
   - tolerances as parameters, calibrated by a test print: ~0.2 mm for sliding fits, ~0.1 mm for press fits
   - screws (M2.5/M3) into printed bosses or heat-set inserts, otherwise snap fits
   - single extruder: lenses are separate parts, text and logo via colour change at a layer (M600)
-- **Back:** battery compartment behind the PCB, USB-C at the bottom (charging in place from a power bank works too), window for the light sensor, buttons behind pin holes. The ESP32-C6 antenna sits at the top edge of the PCB with no cell behind it.
+- **Back:** battery compartment behind the PCB, USB-C at the bottom (charging in place from a power bank works too), window for the light sensor (v0: in the top wall, facing the room light), buttons behind pin holes. The ESP32-C6 antenna sits at the top edge of the PCB with no cell behind it.
 - **Removable wall mount** – a separate plate with
   - keyholes for screws,
   - a smooth surface for removable adhesive strips (tesa Powerstrips, Command),
   - slots for cable ties.
 
   The light hooks in from above (dovetail + snap) and lifts off for charging or swapping the cell. Optionally a clamp for the stair railing, or **magnets** in the foot and side wall for steel railings (reference setup: a steel newel post at the end of a ~5 m hallway).
-- **Parametric with OpenSCAD + BOSL2:** scale, display size, mount type and tolerances are adjustable. The files are Customizer-compatible and therefore also work with the OpenSCAD configurator on MakerWorld.
+- **Parametric with plain OpenSCAD** (no libraries, so the Customizer and the MakerWorld configurator work without setup): scale, display size, mount type and tolerances are adjustable. BOSL2 only if the geometry ever needs it.
+- **Model v0 – breadboard build:** [`enclosure/`](enclosure/README.md) holds the first model for the ready-made modules: 45 × 192 × 45 mm (the modules need more depth than the later PCB), reflector cones with light-tight chamber walls, lenses clamped by the visors, e-ink window, USB-C at the bottom, cell holder and modules on the back cover, magnet foot and optional magnet side plate, ~118 g PETG. CI renders every part to STL and checks that no part or module overlaps another.
 - **Iteration:**
   1. tolerance test print: hook-in, snap, lens seat, USB-C cut-out, inserts, magnet pockets (holding force on the real railing)
   2. lens light test
@@ -661,7 +662,7 @@ doormutex/
 ├── streamdeck/   TypeScript – Stream Deck plugin (Elgato SDK)
 ├── firmware/     C – ESP-IDF; esphome/ with an example config for mains-powered builds
 ├── hardware/     KiCad – schematic, layout, production files
-├── enclosure/    OpenSCAD + BOSL2 – enclosure, wall mount, test prints
+├── enclosure/    OpenSCAD – enclosure, magnet foot/side plate, later wall mount and test prints
 ├── site/         project homepage (GitHub Pages) incl. web flasher
 └── docs/         docs, HA examples, build guide, photos
 ```
@@ -797,3 +798,5 @@ doormutex/
 | 2026-10-30 | The light is its own HA device (battery, voltage, charging, USB, signal, fault, identify/restart), linked to its profile's hub device; entity IDs `doormutex_<profile>_…` | several lights (office, teen) don't collide |
 | 2026-10-30 | Breadboard pins: LEDs on GPIO 2/3/6 (LP GPIOs), I²C 22/23, e-ink 18–21/10/11; strapping pins and 0/1 (32 kHz crystal) kept free – to be verified | first assignment for the prototype, lands in the schematic afterwards |
 | 2026-10-30 | ESPHome example for mains-powered builds: same topics, patterns and failsafe | the easy path for anyone without a battery |
+| 2026-10-30 | Enclosure v0 for the breadboard modules in plain OpenSCAD (no BOSL2), Manifold backend; CI renders all parts in a pinned `openscad/openscad` container and fails on warnings or overlapping parts/modules | no library to install for the Customizer/MakerWorld; the fit check catches parameter changes that make parts collide |
+| 2026-10-30 | Enclosure v0 details: 45 mm deep (modules), lenses flush in a seat and clamped by the visor ring (filament dowels), corner ribs take every screw (cover, foot, side plate), embedded magnets via print pause by default, light-sensor window in the top wall | supports-free printing and few parts; the sensor should see the room light, not the wall behind the light |

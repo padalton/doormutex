@@ -11,7 +11,7 @@ Everything in this directory and in `enclosure/` is licensed under the [CERN Ope
 
 ## Magnet mount
 
-Reference spot: the light sits on a **steel newel post of the stair railing** at the end of a ~5 m hallway. The enclosure gets magnet pockets in two places, both optional parameters in the OpenSCAD model:
+Reference spot: the light sits on a **steel newel post of the stair railing** at the end of a ~5 m hallway. The enclosure gets magnet pockets in two places, both optional parameters in the [OpenSCAD model](../enclosure/README.md) (`foot_magnets`, `side_plate`, `side_magnets`):
 
 - **Foot:** the light stands on the post. The magnets keep it from being knocked off; weight keeps it upright.
 - **Side wall:** on the railing or handrail, so the light can sit higher, at eye level. Here the magnets carry the whole weight – through friction.
