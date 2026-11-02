@@ -75,3 +75,47 @@ func TestReportEqual(t *testing.T) {
 		t.Error("Equal")
 	}
 }
+
+func TestControls(t *testing.T) {
+	var mu sync.Mutex
+	var calls []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		mu.Lock()
+		calls = append(calls, fmt.Sprintf("%s %s %v", r.Method, r.URL.Path, body))
+		mu.Unlock()
+		_, _ = fmt.Fprint(w, `{"status":"dnd","reason":"override"}`)
+	}))
+	defer srv.Close()
+
+	c := &Client{URL: srv.URL, Token: "dm_test"}
+	ctx := context.Background()
+	if st, err := c.SetOverride(ctx, OverrideRequest{Status: "dnd", Mode: "duration", Duration: "30m0s"}); err != nil || st.Reason != "override" {
+		t.Fatalf("override = %+v, %v", st, err)
+	}
+	if _, err := c.StartPomodoro(ctx, "25m", "5m", 4, "working"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.StartPomodoro(ctx, "50m", "10m", 4, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.StopPomodoro(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Status(ctx); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"PUT /api/v1/override map[duration:30m0s mode:duration status:dnd]",
+		"PUT /api/v1/pomodoro map[break:5m cycles:4 work:25m work_status:working]",
+		"PUT /api/v1/pomodoro map[break:10m cycles:4 work:50m]",
+		"DELETE /api/v1/pomodoro map[]",
+		"GET /api/v1/status map[]",
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if fmt.Sprint(calls) != fmt.Sprint(want) {
+		t.Errorf("calls:\n%q\nwant:\n%q", calls, want)
+	}
+}
