@@ -450,7 +450,9 @@ paths:
       summary: Live state stream (Server-Sent Events)
       description: |
         Sends `event: state` with a State JSON on connect and on every
-        change, plus a keep-alive comment every 25 s. Browsers cannot set
+        change, plus a keep-alive comment every 25 s. The hub ends the
+        stream after 10 minutes; clients reconnect (EventSource does this on
+        its own) instead of cancelling streams themselves. Browsers cannot set
         headers on EventSource, so the token may also be passed as
         `access_token` query parameter.
       operationId: streamEvents

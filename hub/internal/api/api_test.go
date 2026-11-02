@@ -460,6 +460,28 @@ func TestEventStream(t *testing.T) {
 	}
 }
 
+// TestEventStreamEnds checks that the hub closes a stream after its
+// lifetime, so clients reconnect instead of cancelling (see Server.lifetime).
+func TestEventStreamEnds(t *testing.T) {
+	f := newFixture(t)
+	f.api.lifetime = 200 * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, f.srv.URL+"/api/v1/events?access_token="+f.token, nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, err := io.ReadAll(resp.Body) // returns once the hub ends the stream
+	if err != nil {
+		t.Fatalf("stream did not end cleanly: %v", err)
+	}
+	if !strings.HasPrefix(string(b), "event: state\n") {
+		t.Fatalf("stream body %q", b)
+	}
+}
+
 // TestSpecMatchesRoutes checks that every operation in api/openapi.yaml is
 // served (no 404/405) and that the router serves nothing undocumented.
 func TestSpecMatchesRoutes(t *testing.T) {
