@@ -63,11 +63,11 @@ Checked on 2026-11-02: every link below opened the right product, stock and pric
 | Shop | What | approx. € | Shipping to AT |
 |---|---|---|---|
 | **DigiKey** | all electronics except the items below | 102 | free from €75, ~2 days, duties and VAT prepaid (DDP) |
-| **Botland** (PL) | buck-boost, 18650 holders, protection boards | 13 | ~€6.50 (GLS) |
+| **Opencircuit** (NL) | buck-boost, 18650 holders, protection boards | 26 | €11.50, free from €150 |
 | **Amazon.de** | e-paper module (sold by Waveshare), magnets, inserts, screws, silicone sheet, velcro | 63 | per seller |
 | Prusa (CZ) | PETG clear + black, if not at hand | 53 | varies (check the cart) |
 
-Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module or the cell holder in stock; Botland lacks the bq24074 charger and has the e-paper module only on backorder; DigiKey has no Waveshare displays, and the Pololu regulator there is a US marketplace item (customs on delivery, doesn't count towards free shipping).
+Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module or the cell holder in stock; DigiKey has no Waveshare displays and no cell protection boards, and the Pololu regulator there is a US marketplace item (customs on delivery, doesn't count towards free shipping).
 
 ### DigiKey
 
@@ -113,15 +113,15 @@ Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module 
 
 Or try the FastAdd link (fills the cart in one click; not tested from a browser yet): [add all to the DigiKey cart](https://www.digikey.at/classic/ordering/fastadd.aspx?part1=1965-ESP32-C6-DEVKITC-1-N8-ND&qty1=2&part2=1528-2891-ND&qty2=1&part3=IRLB3813PBF-ND&qty3=5&part4=732-5021-ND&qty4=10&part5=732-5022-ND&qty5=10&part6=732-5020-ND&qty6=10&part7=1568-10969-ND&qty7=1&part8=450-1650-ND&qty8=5&part9=1528-239-ND&qty9=2&part10=1528-1967-ND&qty10=1&part11=1528-1964-ND&qty11=1&part12=1528-4209-ND&qty12=2&part13=1528-4755-ND&qty13=1&part14=1528-5580-ND&qty14=1&part15=56-NTCLE350E4103FLB0-ND&qty15=2)
 
-### Botland
+### Opencircuit
 
 | # | Part | Qty | € each |
 |---|---|---|---|
-| 17 | [Pololu S7V8F3 buck-boost 3.3 V](https://botland.de/aufwarts-abwartswandler/1427-s7v8f3-aufwarts-abwartswandler-33-v-1-a-pololu-2122-5904422373092.html) | 1 | 8.90 |
-| 16 | [Holder for one 18650 with leads](https://botland.de/batteriekorbe/5242-korb-fuer-1-akku-des-typs-18650-5904422333393.html) | 2 | 0.90 |
-| 15 | [TP4056 board with protection, USB-C (HW-373)](https://botland.de/ladegerate-fur-li-ionen-akkus/16979-li-ion-ladegerat-hw-373-v121-tp4056-einzelzelle-1s-37v-usb-typ-c-mit-sicherheitsfunktionen-5904422326708.html) | 2 | ~1.00 |
+| 17 | [Pololu S7V8F3 buck-boost 3.3 V (#2122)](https://opencircuit.shop/product/3.3V-Step-Up-Step-Down-Voltage-Regulator-2) | 1 | 15.10 |
+| 16 | [SparkFun holder for one 18650, 15 cm leads (PRT-12899)](https://opencircuit.shop/product/battery-holder-1x18650-wire-leads) | 2 | 4.75 |
+| 15 | [1S protection board 3.7 V](https://opencircuit.shop/product/3.7V-lipo-batterij-protection-board) (cuts off at 4.25 V / 2.45 V, ≤ 2 A) | 2 | 0.45 |
 
-Stand-alone DW01A/8205A boards are hard to find in EU shops. The TP4056 board carries the same protection: cell on `B+`/`B−`, the bq24074's battery input on `OUT+`/`OUT−`; its own USB port and charger stay unused. Check that the board has the DW01A (6 pins) and the 8205A (8 pins) next to the TP4056.
+The Pololu regulator and the holders come from an external warehouse (5–7 days). Wire the protection board between cell and the bq24074's battery input: cell on `B+`/`B−`, the charger on `P+`/`P−` (the pad names vary by board).
 
 ### Amazon.de
 
@@ -134,7 +134,7 @@ Stand-alone DW01A/8205A boards are hard to find in EU shops. The TP4056 board ca
 | [Self-adhesive silicone sheet 1 mm, 3 × 20 × 20 cm](https://www.amazon.de/dp/B0F59PF6JK) | 3 | 8.05 |
 | [Velcro straps 12 mm](https://www.amazon.de/dp/B077BCT9M1) | 30 | 7.04 |
 
-Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibenmagnete-neodym/scheibenmagnet-12mm-3mm_S-12-03-N) (10 for €5.40, €20 minimum order); the e-paper module from [OpenElab](https://openelab.io/de/products/waveshare-54inch-e-ink-display) (€11.50, may ship from China) or [Botland](https://botland.de/e-paper-displays/9098-e-paper-e-ink-154-v21-200x200px-modul-mit-spi-display-waveshare-12955-5904422312497.html) (when back in stock).
+Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibenmagnete-neodym/scheibenmagnet-12mm-3mm_S-12-03-N) (10 for €5.40, €20 minimum order); the e-paper module from [OpenElab](https://openelab.io/de/products/waveshare-54inch-e-ink-display) (€11.50, may ship from China).
 
 ### Filament (Prusa)
 
@@ -151,6 +151,7 @@ Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibe
 
 | Shop | Why not |
 |---|---|
+| Botland (PL) | sells to private customers only in Poland and Germany; elsewhere in the EU only to businesses |
 | BerryBase (DE) | Adafruit boards, e-paper module and cell holder sold out at the time of checking; good for basics (breadboards, LEDs, resistors) if you order there anyway – €9.90 to AT, free from €200 |
 | Kiwi Electronics (NL) | fallback for the bq24074 (Adafruit 4755) if DigiKey runs out |
 | Mouser | doesn't ship Adafruit products to private customers in the EU |
