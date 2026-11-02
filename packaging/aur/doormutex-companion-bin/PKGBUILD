@@ -1,0 +1,36 @@
+# Maintainer: padalton <https://github.com/padalton>
+#
+# Template in the doormutex repository: pkgver and the checksums are filled
+# in by packaging/aur/update.sh when a release is tagged, then pushed to
+# https://aur.archlinux.org/packages/doormutex-companion-bin.
+
+pkgname=doormutex-companion-bin
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Desktop companion for the doormutex traffic light (microphone, camera, screen lock) with the KDE Plasma widget"
+arch=('x86_64' 'aarch64')
+url="https://github.com/padalton/doormutex"
+license=('Apache-2.0')
+depends=('pipewire' 'systemd')
+optdepends=('plasma-workspace: the Plasma 6 panel widget')
+provides=('doormutex-companion')
+conflicts=('doormutex-companion')
+options=('!strip' '!debug')
+_release="https://github.com/padalton/doormutex/releases/download/v${pkgver}"
+source_x86_64=("${_release}/doormutex-companion_${pkgver}_linux_amd64.tar.gz")
+source_aarch64=("${_release}/doormutex-companion_${pkgver}_linux_arm64.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+  install -Dm755 doormutex-companion "${pkgdir}/usr/bin/doormutex-companion"
+  install -Dm644 systemd/doormutex-companion.service "${pkgdir}/usr/lib/systemd/user/doormutex-companion.service"
+  install -Dm644 companion.example.yaml "${pkgdir}/usr/share/doormutex/companion.example.yaml"
+  install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+
+  local widget="${pkgdir}/usr/share/plasma/plasmoids/org.doormutex.trafficlight"
+  install -dm755 "${widget}"
+  bsdtar -xf "doormutex-${pkgver}.plasmoid" -C "${widget}"
+  chmod -R u=rwX,go=rX "${widget}"
+}
