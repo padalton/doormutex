@@ -19,12 +19,12 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 
 | Part (`part=`) | Qty | Material | On the bed | Notes |
 |---|---|---|---|---|
-| `front` | 1 | PETG, dark grey/black | front face | shell with three reflector cones, chamber walls, display window, corner ribs for all screws |
-| `back` | 1 | PETG, dark grey/black | outer face | back cover; carries DevKit, charger, fuel gauge, buck-boost, light sensor, cell holder, info button |
-| `visor` | 3 | PETG, dark grey/black | ring | clamps the lens; fixed with two filament dowels |
+| `front` | 1 | PETG or PLA, dark grey/black | front face | shell with three reflector cones, chamber walls, display window, corner ribs for all screws |
+| `back` | 1 | PETG or PLA, dark grey/black | outer face | back cover; carries DevKit, charger, fuel gauge, buck-boost, light sensor, cell holder, info button |
+| `visor` | 3 | PETG or PLA, dark grey/black | ring | clamps the lens; fixed with two filament dowels |
 | `diffuser` | 3 | transparent PETG | smooth side | 1 mm lens with concentric rings inside |
-| `foot` | 1 | PETG, dark grey/black | contact face | 2 magnets, USB-C slot, groove for a cable tie |
-| `side_plate` | 0–1 | PETG, dark grey/black | contact face | 4 magnets for a steel railing; `side_plate = "right"`, `"left"` or `"none"` |
+| `foot` | 1 | PETG or PLA, dark grey/black | contact face | 2 magnets, USB-C slot, groove for a cable tie |
+| `side_plate` | 0–1 | PETG or PLA, dark grey/black | contact face | 4 magnets for a steel railing; `side_plate = "right"`, `"left"` or `"none"` |
 
 `part="assembly"`, `"exploded"` and `"collisions"` are views and a check, not printable.
 
@@ -49,7 +49,16 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 - **Lenses:** transparent PETG, 100 % infill, smooth side on a smooth sheet. Try `lens_t` 0.8–1.2 and `diffuser_pitch` in a test print.
 - **Embedded magnets** (`magnet_embed = true`, default): add a *pause* (M601) at the first layer above **4.25 mm** (4.4 mm at 0.2 mm layers) for the foot and the side plate. Check in the slicer preview that the pockets are still open in the layer below. Drop the magnets in and resume – no glue needed. The magnets stick to the MK3S steel sheet through the skin; that is harmless but makes removal a bit harder.
 - With `magnet_embed = false` the pockets are open and the magnets go in with a drop of CA glue or epoxy.
-- **Tolerances:** `tol` (sliding fits, default 0.2) and `press_tol` (LEDs, 0.1). Calibrate both with a test print before the full shell.
+- **Tolerances:** `tol` (sliding fits, default 0.2) and `press_tol` (LEDs, 0.1). Calibrate both with a test print before the full shell – in the material you print the shell with.
+
+### PETG or PLA
+
+Everything except the lenses can be printed in PLA as well:
+
+- **Heat:** PLA softens from ~55 °C. Indoors that is no problem – the DevKit, the dimmed LEDs and even charging at 1 A stay far below. Keep a black PLA shell out of direct sunlight, e.g. behind a window in summer.
+- **Screws:** PLA is more brittle. The M3 screws of the foot and the side plate cut their own thread into the corner ribs – tighten them by hand only. Heat-set inserts melt into PLA easily (~200 °C on the soldering iron).
+- **Magnets:** the print pause works the same.
+- **Lenses stay transparent PETG.** Clear PLA prints cloudier and yellows over time; PETG lets noticeably more light through.
 
 ## Assembly
 
