@@ -1,0 +1,29 @@
+# doormutex – ESP32-C6, battery powered, always connected.
+CONFIG_IDF_TARGET="esp32c6"
+
+# Flash: 4 MB like the ESP32-C6-MINI-1; two OTA slots.
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+
+# Console and flashing over the native USB (USB Serial/JTAG) – the same
+# port ESP Web Tools uses for Improv.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# Power: automatic light sleep while idle, Wi-Fi modem sleep.
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP=3
+CONFIG_ESP_WIFI_SLP_IRAM_OPT=y
+CONFIG_PM_SLP_IRAM_OPT=y
+CONFIG_PM_RTOS_IDLE_OPT=y
+# Keep the MAC/baseband powered in light sleep, so the connection survives.
+CONFIG_ESP_PHY_MAC_BB_PD=n
+
+# Fewer log lines, smaller image.
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# MQTT over TLS stays possible (mqtts://); bundle of public root CAs.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y

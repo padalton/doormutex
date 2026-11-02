@@ -109,6 +109,43 @@ func (c *Client) ClearOverride(ctx context.Context) error {
 	return c.do(ctx, http.MethodDelete, "/api/v1/override", nil, nil)
 }
 
+// OverrideRequest is the body of PUT /api/v1/override.
+type OverrideRequest struct {
+	Status   string `json:"status"`             // free, working, dnd, away
+	Mode     string `json:"mode"`               // duration, end_of_event, end_of_workday, next_change, indefinite
+	Duration string `json:"duration,omitempty"` // with mode duration, e.g. "30m"
+}
+
+// SetOverride sets a manual status and returns the new state.
+func (c *Client) SetOverride(ctx context.Context, o OverrideRequest) (State, error) {
+	var st State
+	err := c.do(ctx, http.MethodPut, "/api/v1/override", o, &st)
+	return st, err
+}
+
+// Status returns the current state.
+func (c *Client) Status(ctx context.Context) (State, error) {
+	var st State
+	err := c.do(ctx, http.MethodGet, "/api/v1/status", nil, &st)
+	return st, err
+}
+
+// StartPomodoro starts work/break cycles; workStatus "" uses the profile's setting.
+func (c *Client) StartPomodoro(ctx context.Context, work, brk string, cycles int, workStatus string) (State, error) {
+	body := map[string]any{"work": work, "break": brk, "cycles": cycles}
+	if workStatus != "" {
+		body["work_status"] = workStatus
+	}
+	var st State
+	err := c.do(ctx, http.MethodPut, "/api/v1/pomodoro", body, &st)
+	return st, err
+}
+
+// StopPomodoro ends a running pomodoro.
+func (c *Client) StopPomodoro(ctx context.Context) error {
+	return c.do(ctx, http.MethodDelete, "/api/v1/pomodoro", nil, nil)
+}
+
 // StartGoogleLogin asks the hub for Google's sign-in URL; Google will
 // redirect the browser to redirectURI (the companion's loopback address).
 func (c *Client) StartGoogleLogin(ctx context.Context, account, redirectURI string) (string, error) {

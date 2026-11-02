@@ -1,0 +1,150 @@
+# doormutex traffic light with ESPHome – for mains-powered builds.
+#
+# The real firmware (ESP-IDF, ../) is made for a battery: light sleep,
+# away mode, e-ink. On USB power none of that matters, and ESPHome is the
+# easier way: three LEDs (or MOSFETs) on any ESP32, the hub's MQTT state,
+# the same patterns and the same failsafe.
+#
+#   cp secrets.example.yaml secrets.yaml   # Wi-Fi, MQTT, OTA password
+#   esphome run doormutex-mains.yaml
+#
+# Same topics as the hub: doormutex/<profile>/state (retained JSON with
+# "light") and doormutex/hub/online (the hub's Last Will).
+
+substitutions:
+  name: doormutex-office
+  profile: office          # the hub profile this light shows
+  base_topic: doormutex    # the hub's mqtt.base_topic
+  pin_red: GPIO2
+  pin_yellow: GPIO3
+  pin_green: GPIO6
+  stale_after_s: "120"     # MQTT down this long → yellow blinks
+
+esphome:
+  name: ${name}
+  friendly_name: doormutex ${profile}
+  project:
+    name: doormutex.mains
+    version: "0.1.0"
+
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+# Wi-Fi from secrets.yaml – or leave them out and hand them over with
+# ESP Web Tools in the browser (Improv over USB).
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+improv_serial:
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+mqtt:
+  id: mqtt_client
+  broker: !secret mqtt_broker
+  username: !secret mqtt_username
+  password: !secret mqtt_password
+  topic_prefix: ${base_topic}/esphome/${name}
+  discovery: true # the brightness setting shows up in Home Assistant
+  on_json_message:
+    - topic: ${base_topic}/${profile}/state
+      then:
+        - lambda: |-
+            if (x["light"].is<const char *>()) {
+              id(pattern) = x["light"].as<std::string>();
+              id(have_state) = true;
+            }
+  on_message:
+    - topic: ${base_topic}/hub/online
+      then:
+        - lambda: |-
+            id(hub_online) = (x == "online");
+
+globals:
+  - id: pattern
+    type: std::string
+    initial_value: '"off"'
+  - id: have_state
+    type: bool
+    initial_value: "false"
+  - id: hub_online
+    type: bool
+    initial_value: "true"
+  - id: tick
+    type: uint32_t
+    initial_value: "0"
+  - id: offline_since
+    type: uint32_t
+    initial_value: "0"
+
+output:
+  - platform: ledc
+    id: out_red
+    pin: ${pin_red}
+  - platform: ledc
+    id: out_yellow
+    pin: ${pin_yellow}
+  - platform: ledc
+    id: out_green
+    pin: ${pin_green}
+
+number:
+  - platform: template
+    id: brightness
+    name: Brightness
+    icon: mdi:brightness-6
+    min_value: 1
+    max_value: 100
+    step: 1
+    initial_value: 40
+    restore_value: true
+    optimistic: true
+    unit_of_measurement: "%"
+
+# 500 ms steps: blinking patterns at 1 Hz like the hub and the ESP-IDF
+# firmware (green blinks four times in the StVO last call).
+interval:
+  - interval: 500ms
+    then:
+      - lambda: |-
+          id(tick)++;
+          const bool on = id(tick) % 2 == 0;
+          const uint32_t now = millis();
+
+          // Failsafe: hub gone (Last Will) or MQTT down for too long.
+          if (id(mqtt_client)->is_connected()) {
+            id(offline_since) = 0;
+          } else if (id(offline_since) == 0) {
+            id(offline_since) = now == 0 ? 1 : now;
+          }
+          const bool stale = id(offline_since) != 0 && now - id(offline_since) >= ${stale_after_s} * 1000UL;
+          std::string p = id(pattern);
+          if (!id(hub_online) || stale || (!id(have_state) && now > 60000)) {
+            p = "yellow_blink";
+          }
+
+          bool r = false, y = false, g = false;
+          if (p == "red") r = true;
+          else if (p == "yellow") y = true;
+          else if (p == "green") g = true;
+          else if (p == "red_yellow") r = y = true;
+          else if (p == "green_blink") g = on;
+          else if (p == "red_yellow_alternate") { r = on; y = !on; }
+          else if (p == "off") {}
+          else y = on; // yellow_blink and anything unknown: fault
+
+          // Perceived brightness is roughly quadratic.
+          const float b = id(brightness).state / 100.0f;
+          const float level = b * b;
+          id(out_red).set_level(r ? level : 0);
+          id(out_yellow).set_level(y ? level : 0);
+          id(out_green).set_level(g ? level : 0);

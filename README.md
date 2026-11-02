@@ -38,19 +38,11 @@ One traffic light, three chambers, just like on the road: red on top, yellow in 
 
 A small e-ink display sits below the light. It shows **absolute times instead of a countdown** ("until 14:30" rather than "23 min left"). So the content only changes when the state changes: no motion sensor needed, no power while idle.
 
-```
-┌────────────────────┐
-│ MEETING            │
-│ until 14:30        │  ← large font
-│ camera on          │
-│ then work → 17:00  │
-│ ▮▮▮▯ 72 %    14:02 │
-└────────────────────┘
-```
+<p><img src="docs/images/eink-video-call-en.png" alt="E-ink sign: Do not disturb, until 15:00, video call, free from 15:00" width="200"> <img src="docs/images/eink-message-de.png" alt="E-ink sign in German with a message and the battery" width="200"> <img src="docs/images/eink-fault-en.png" alt="E-ink sign: fault, the PC companion is not responding" width="200"></p>
 
-1.54″, 200 × 200 pixels. The light already shows the colour; the sign adds the small print. "until 14:30" is ~5 mm tall, the rest ~2 mm: readable when you stand at the top of the stairs.
+1.54″, 200 × 200 pixels, black and white – rendered by the hub (frames from the tests, actual size). E-ink has no colour, so the status is a big word plus a symbol: ⛔ do not disturb, 🕓 working, ✓ come in, ☾ not here, ⚠ fault. The light already shows the colour; the sign adds the small print, readable right in front of the light.
 
-Content: reason, until when, what comes next, hints such as "camera on" (don't walk through the picture), battery level and a "last updated" time. That time is refreshed every 15 min with a partial refresh so a frozen display stands out. Event titles are never shown.
+Content: status, until when, the reason (event kind such as "video call", never a title) or the message, the next free time, the time of the last change and the battery. The frame only changes when its content does, so the panel isn't refreshed for nothing. English and German (per profile, setting `eink_language`).
 
 ## Feature set
 
@@ -162,6 +154,7 @@ Home Assistant is not a separate component: the hub announces its entities via M
 | `GET /api/v1/profiles` | profiles the token may see, with their state |
 | `GET` / `PUT /api/v1/settings` | light per calendar event kind, warning timing (saved, overrides the config) |
 | `PUT` / `DELETE /api/v1/message` | e-ink message |
+| `GET /api/v1/eink.png`, `GET /api/v1/eink.bin` | the e-ink frame as a preview image / packed for the panel (5000 bytes, SSD1681 layout), with ETag |
 | `GET /api/v1/calendar`, `GET /api/v1/history` | calendar account health, recent status changes |
 
 ## State logic
@@ -332,6 +325,7 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 - The lamp keys show live which lamp is on. Pressing one sets an override (duration via a duration key or long press).
 - Free keys stay available for other things.
+- **Until the plugin exists:** "run command" keys calling `doormutex-companion set red 30m` etc. – see [docs/stream-deck.md](docs/stream-deck.md), which also compares OpenDeck and StreamController.
 
 ### Web UI
 
@@ -339,9 +333,9 @@ Proposed layout (8 × 4) – **the left column is the traffic light:**
 
 Served by the hub at `http://<hub>:8080/` – plain HTML/CSS/JS embedded into the binary (no build step, no CDN, strict CSP), installable as a web app (PWA). It only uses the public API with the token entered on the device; `/#token=…` sets up a phone in one tap.
 
-- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until the next automatic change / until changed) or *auto*; e-ink message; pomodoro
+- **Now:** the light (incl. blinking phases), reason, until when, what's next; override with a duration (15 min … until the next automatic change / until changed) or *auto*; e-ink message with a live preview of the sign; pomodoro
 - **Day:** today's planned slots as a bar and a list
-- **Settings:** light per calendar event kind and for tentative invitations, warning timing (StVO or a lead time), pomodoro colour, calendar account health, language of this device
+- **Settings:** light per calendar event kind and for tentative invitations, warning timing (StVO or a lead time), pomodoro colour, language of the e-ink sign, calendar account health, language of this device
 - **Languages:** English and German; the browser's language is picked automatically and can be changed per device. More languages: [TRANSLATING.md](TRANSLATING.md)
 - **History:** recent status changes
 - **Profiles:** a selector when the token may see several profiles
@@ -366,9 +360,9 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `event.doormutex_office_status_changed` | event | every state change (from → to, reason) – the trigger for your own automations |
 | `sensor.doormutex_office_slot_start` / `…_slot_end` | timestamp | current slot |
 | `sensor.doormutex_office_next_free_start` / `…_next_free_end` | timestamp | next free slot |
-| `sensor.doormutex_battery` | % | battery level, plus voltage and runtime estimate (announced by the light itself) |
-| `binary_sensor.doormutex_charging` | binary | charging / on USB (announced by the light itself) |
-| diagnostics | – | Wi-Fi signal, firmware version, online |
+| `sensor.doormutex_office_battery` | % | battery level, plus `…_battery_voltage` (announced by the light itself, its own HA device linked to the profile) |
+| `binary_sensor.doormutex_office_charging` | binary | charging, plus `…_usb_power` (announced by the light itself) |
+| diagnostics | – | Wi-Fi signal, light fault, firmware version, online; *Identify* and *Restart* buttons (light) |
 | `select.doormutex_office_override` | select | `auto`, `free`, `working`, `dnd`, `away` – control from HA, e.g. for room mode or by voice via Alexa/Google Home. A status stays until `auto` – in office mode with the companion only until the next automatic change (screen locked, meeting, end of work day); without the companion (HA-only, room mode) HA or the web UI is in charge and it stays until changed |
 | `text.doormutex_office_message` | text | short message for the e-ink (one line, ≤ 64 characters) |
 
@@ -379,9 +373,10 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `doormutex/<profile>/override/set` | command from HA: `auto`, `free`, `working`, `dnd`, `away` |
 | `doormutex/<profile>/message/set` | command from HA: e-ink message, empty clears it |
 | `doormutex/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
-| `doormutex/<profile>/display` | retained bitmap for the e-ink, rendered by the hub (reserved, comes with the firmware) |
-| `doormutex/device/<id>/telemetry` | battery, charging, RSSI, firmware |
-| `doormutex/device/<id>/cmd` | OTA, restart, identify |
+| `doormutex/<profile>/display` | retained e-ink frame rendered by the hub, 5000 bytes like `GET /api/v1/eink.bin`; only sent when it changes; without battery (the light draws its own) |
+| `doormutex/device/<id>/telemetry` | retained JSON from the light: battery, voltage, charging, USB, RSSI, light, fault, firmware ([firmware/README.md](firmware/README.md#mqtt)) |
+| `doormutex/device/<id>/online` | `online` / `offline` – the light's Last Will |
+| `doormutex/device/<id>/cmd` | `identify`, `restart`, `ota <url>` |
 
 ```json
 {
@@ -398,7 +393,7 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 }
 ```
 
-`light` is one of `off`, `red`, `yellow`, `green`, `green_blink`, `red_yellow`, `yellow_blink`.
+`light` is one of `off`, `red`, `yellow`, `green`, `green_blink`, `red_yellow`, `red_yellow_alternate`, `yellow_blink`.
 
 ### Bring your own lamp – example
 
@@ -563,7 +558,9 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 
 ## Firmware
 
-**ESP-IDF in C.** Battery operation with a permanent connection needs automatic light sleep and fine control over Wi-Fi power save, which ESPHome can't do. There will still be an ESPHome example config for mains-powered builds.
+**ESP-IDF in C.** Battery operation with a permanent connection needs automatic light sleep and fine control over Wi-Fi power save, which ESPHome can't do. For mains-powered builds there is an [ESPHome example config](firmware/esphome/doormutex-mains.yaml).
+
+**Status:** a skeleton in [`firmware/`](firmware/README.md) – builds in CI (ESP-IDF v5.5, esp32c6), core logic unit-tested on the host; LEDs, Wi-Fi/MQTT, Improv, console, telemetry and HA discovery are written, e-ink driver, light sensor, away mode and OTA download are still to do. Nothing has run on hardware yet.
 
 | Mode | When | Behaviour |
 |---|---|---|
@@ -573,10 +570,10 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 | USB | power supply connected | no power saving needed, the cell is charged or held |
 
 - **LEDs** via LEDC hardware PWM: dimming, blinking, red+yellow. The output keeps running in light sleep (`LEDC_SLEEP_MODE_KEEP_ALIVE`; the right clock source on the C6 is still to be verified). Brightness compensates for the falling cell voltage.
-- **E-ink:** shows the bitmap rendered by the hub. The "last updated" time uses partial refresh, with a regular full refresh against ghosting.
-- **Failsafe:** if the Last Will reports the hub "offline" or the state is too old, yellow blinks.
+- **E-ink:** shows the frame rendered by the hub (`display` topic or `GET /api/v1/eink.bin` with `If-None-Match`): 200 × 200, rows top to bottom, 25 bytes per row, leftmost pixel in the most significant bit, 1 = white – written as-is into the SSD1681 black/white RAM. The light only refreshes the panel when a new frame arrives (partial refresh, regularly a full refresh against ghosting) and draws its battery level into the free corner at the bottom right. It fetches the offline screen (`?screen=offline`) once and keeps it in flash for when the hub is gone.
+- **Failsafe:** if the Last Will reports the hub "offline", the connection is down for more than 2 minutes, or the state's `until` is long past without a new state, yellow blinks. (The hub publishes only on change, so an old `updated` alone is fine.)
 - **Telemetry:** battery, charging state, RSSI, firmware. The device announces itself in HA via MQTT discovery.
-- **Setup in the browser:** [ESP Web Tools](https://esphome.github.io/esp-web-tools/) flashes over USB-C (Chrome/Edge, Web Serial) and hands over the Wi-Fi credentials via Improv. Then you enter the MQTT broker on the device page.
+- **Setup in the browser:** [ESP Web Tools](https://esphome.github.io/esp-web-tools/) flashes over USB-C (Chrome/Edge, Web Serial) and hands over the Wi-Fi credentials via Improv. Then you enter the MQTT broker on the USB console (`set mqtt_url …`) – a device web page may follow.
 - **OTA:** triggered via MQTT, images from GitHub Releases, automatic rollback on a failed boot.
 
 ## Enclosure
@@ -672,8 +669,9 @@ doormutex/
 
 - **CI/CD (GitHub Actions):**
   - hub: tests (incl. MQTT integration against a throwaway Mosquitto), lint, Docker build ✅, multi-arch image (amd64/arm64) on GHCR: `:edge` from main, `:X.Y.Z`/`:latest` from release tags ✅
-  - companion binaries, later an AUR package
-  - widget as `.plasmoid` for the KDE Store
+  - releases from a tag `vX.Y.Z` with [GoReleaser](.goreleaser.yaml) ✅: hub and companion for Linux amd64/arm64, companion as `.deb`/`.rpm`/`.pkg.tar.zst`, checksums signed keyless (Sigstore) – see [RELEASING.md](RELEASING.md)
+  - AUR package [`doormutex-companion-bin`](packaging/aur/) built from the release files ✅
+  - widget as `.plasmoid` for the KDE Store ✅ (release asset; the upload stays manual)
   - Stream Deck plugin package
   - firmware build with web flasher on GitHub Pages
   - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
@@ -699,9 +697,8 @@ doormutex/
 
 1. **Railing for the magnet mount:** is the steel magnetic (a fridge magnet sticks)? Stainless steel railings often aren't. Profile and size of the newel post and the handrail (round/square, mm) – the foot and the side wall follow their shape.
 2. **Project domain and homepage:** which domain, where hosted (needed for Google OAuth branding and long-lived tokens)?
-3. **Packaging:** AUR package and/or binary releases from CI for the companion and the hub.
-4. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing – check on the breadboard whether they read well from the end of the hallway.
-5. **Wi-Fi:** which access point will the light use? TWT needs Wi-Fi 6 (see [hardware/README.md](hardware/README.md#wi-fi-unifi)).
+3. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing – check on the breadboard whether they read well from the end of the hallway.
+4. **Wi-Fi:** which access point will the light use? TWT needs Wi-Fi 6 (see [hardware/README.md](hardware/README.md#wi-fi-unifi)).
 
 ## Risks
 
@@ -788,5 +785,18 @@ doormutex/
 | 2026-10-30 | Mounting by magnets for steel: in the foot (newel post) and optionally a side wall (railing, eye level); anti-slip pad, fall protection | the reference spot is a steel stair-railing post at the end of a ~5 m hallway |
 | 2026-10-30 | E-ink 1.54″ only needs to be readable right in front of the light | the colour is read from 5 m, the text up close |
 | 2026-10-30 | Reference cells: Panasonic 18650 in good condition, checked with an analysing charger (discharge/refresh) | protection circuitry stays mandatory for everyone else's cells |
+| 2026-10-30 | Packaging in layers: GoReleaser builds the GitHub releases (archives, `.deb`/`.rpm`/`.pkg.tar.zst`, `.plasmoid`, signed checksums); the AUR package `doormutex-companion-bin` only downloads those files; the widget goes to the KDE Store as the release's `.plasmoid` | one build for every distribution, Arch/CachyOS users get updates through their AUR helper, Plasma users through Discover; the AUR and the store add almost no work per release |
+| 2026-10-30 | Companion CLI controls (`set`, `status`, `pomodoro`); Stream Deck plugin stays Elgato SDK (OpenDeck on Linux), run-command keys until then | shortcuts and Stream Deck work today without a plugin; one plugin codebase for every OS |
+| 2026-10-30 | E-ink rendered by the hub in pure Go (embedded Go fonts, BSD-3-Clause; no system fonts, no grey levels): status word + symbol, until when, reason or message, next free time, time of the last change, battery; golden-image tests | deterministic frames → the ETag only changes with the content and the panel isn't refreshed for nothing; the light stays dumb |
+| 2026-10-30 | E-ink frame format: 5000 bytes in the SSD1681 black/white RAM layout (MSB = left, 1 = white); `GET /api/v1/eink.bin` with ETag and retained on `doormutex/<profile>/display` (no longer reserved); PNG preview for the web UI | the firmware writes it to the panel as-is; HTTP for polling in away mode, MQTT in active mode |
+| 2026-10-30 | Battery on the e-ink: the light draws it itself into the free bottom-right corner of MQTT frames; HTTP also takes a `battery` parameter (preview) | the hub only knows the battery from telemetry; a level change shouldn't need a new frame from the hub |
+| 2026-10-30 | Footer time = when the content last changed, no 15-minute "last updated" refresh; the hub's own outage is shown by an offline screen the light keeps in flash | a frame changing every 15 min costs refreshes; the light knows best when it lost the hub |
+| 2026-10-30 | E-ink language per profile (`eink_language`, English default, German); the sign uses the web UI's words ("Do not disturb", "Bitte nicht stören"), wrapped in the header | the sign has no browser to ask; same words on the light, the phone and the widget |
+| 2026-10-30 | Firmware skeleton: ESP-IDF v5.5, pure-C core (`dm_core`) unit-tested on the host, IDF components for LEDs, network, setup, power, e-ink; CI builds esp32c6 in the `espressif/idf` container | logic testable without hardware; the breadboard only has to prove the drivers |
+| 2026-10-30 | Light failsafe: hub Last Will, connection down > 2 min, or `until` > 2 min past without a new state → yellow blinks; an old `updated` alone is no fault | the hub publishes only on change, but always when `until` is reached |
+| 2026-10-30 | Setup: Improv over USB (ESP Web Tools) for Wi-Fi, a text console on the same port for MQTT/profile; settings in NVS | no device web page needed for the first version; works from any serial terminal |
+| 2026-10-30 | The light is its own HA device (battery, voltage, charging, USB, signal, fault, identify/restart), linked to its profile's hub device; entity IDs `doormutex_<profile>_…` | several lights (office, teen) don't collide |
+| 2026-10-30 | Breadboard pins: LEDs on GPIO 2/3/6 (LP GPIOs), I²C 22/23, e-ink 18–21/10/11; strapping pins and 0/1 (32 kHz crystal) kept free – to be verified | first assignment for the prototype, lands in the schematic afterwards |
+| 2026-10-30 | ESPHome example for mains-powered builds: same topics, patterns and failsafe | the easy path for anyone without a battery |
 | 2026-10-30 | Enclosure v0 for the breadboard modules in plain OpenSCAD (no BOSL2), Manifold backend; CI renders all parts in a pinned `openscad/openscad` container and fails on warnings or overlapping parts/modules | no library to install for the Customizer/MakerWorld; the fit check catches parameter changes that make parts collide |
 | 2026-10-30 | Enclosure v0 details: 45 mm deep (modules), lenses flush in a seat and clamped by the visor ring (filament dowels), corner ribs take every screw (cover, foot, side plate), embedded magnets via print pause by default, light-sensor window in the top wall | supports-free printing and few parts; the sensor should see the room light, not the wall behind the light |
