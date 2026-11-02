@@ -32,7 +32,7 @@ ls dist build
 The store has no upload API, so after each release:
 
 1. Download `doormutex-X.Y.Z.plasmoid` from the release.
-2. <https://store.kde.org> → the product page *doormutex* → *Edit* → *Files* → upload it, and set the version.
+2. The product page <https://store.kde.org/p/2380911> → *Edit* → *Files* → upload it, and set the version.
 
 The first time: *Add Product* in the category *Plasma 6 Widgets*, licence Apache-2.0, link to this repository, a screenshot of the panel and the popup.
 

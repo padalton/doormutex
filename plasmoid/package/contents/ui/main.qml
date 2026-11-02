@@ -42,7 +42,8 @@ PlasmoidItem {
         const d = new Date(iso)
         const today = new Date()
         return d.toDateString() === today.toDateString()
-            ? Qt.formatTime(d, Locale.ShortFormat)
+            // Not Qt.formatTime(d, Locale.ShortFormat): that enum is read as Qt.ISODate (HH:mm:ss).
+            ? Qt.formatTime(d, Qt.locale().timeFormat(Locale.ShortFormat))
             : Qt.formatDateTime(d, "ddd " + Qt.locale().timeFormat(Locale.ShortFormat))
     }
 
