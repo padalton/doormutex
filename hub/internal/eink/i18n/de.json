@@ -1,0 +1,43 @@
+{
+  "status.dnd": "Bitte nicht stören",
+  "status.working": "Ich arbeite",
+  "status.free": "Herein",
+  "status.away": "Nicht da",
+  "fault": "Störung",
+  "fault.text": "Der PC-Companion antwortet nicht.",
+  "offline": "Offline",
+  "offline.text": "Keine Verbindung zum Hub. Die Ampel blinkt gelb.",
+
+  "until": "bis {time}",
+  "until.open": "bis auf Weiteres",
+  "free_from": "frei ab {time}",
+  "updated": "Stand {time}",
+
+  "reason.override": "von Hand gesetzt",
+  "reason.pomodoro": "Pomodoro",
+  "reason.pomodoro_break": "Pomodoro-Pause",
+  "reason.microphone": "Mikrofon aktiv",
+  "reason.camera": "Kamera aktiv",
+  "reason.screen_locked": "Bildschirm gesperrt",
+  "reason.pc_off": "PC aus",
+  "reason.companion_lost": "Companion antwortet nicht",
+  "reason.companion_offline": "PC läuft nicht",
+  "reason.calendar": "Termin",
+  "reason.work_hours": "Arbeitszeit",
+  "reason.signal": "Signal",
+  "reason.default": "nichts geplant",
+
+  "kind.video_call": "Videocall",
+  "kind.focus": "Fokuszeit",
+  "kind.out_of_office": "abwesend",
+  "kind.other": "Termin",
+
+  "day.0": "So",
+  "day.1": "Mo",
+  "day.2": "Di",
+  "day.3": "Mi",
+  "day.4": "Do",
+  "day.5": "Fr",
+  "day.6": "Sa",
+  "date": "2.1."
+}
