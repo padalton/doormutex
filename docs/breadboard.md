@@ -40,9 +40,9 @@ The first hardware prototype is built from ready-made modules on a breadboard �
 |---|---|---|---|---|
 | 13 | **Charger with power path** | 1 | Adafruit `4755` ("Universal USB/DC/Solar Lithium Ion/Polymer charger – bq24074"), the same charger IC as on the PCB | 15–20 |
 | 14 | **MAX17048 fuel gauge**, STEMMA QT | 1 | Adafruit `5580` | 6–8 |
-| 15 | **1S protection board** DW01A + 8205A | 2 | generic "1S 3.7 V Li-ion BMS / protection board" – the vape cells have no built-in protection | 2 × 1 |
+| 15 | **1S protection board** DW01A + 8205A | 2 | generic "1S 3.7 V Li-ion BMS / protection board", or a TP4056 charger board "with output" (it carries the same protection) – the vape cells have no built-in protection | 2 × 1 |
 | 16 | **18650 holder** with leads | 2 | single, not a double holder | 2 × 2 |
-| 17 | **Buck-boost 3.3 V** | 1 | e.g. Pololu `S7V8F3` (2.7–11.8 V → 3.3 V). Feeds the DevKit via its 3V3 pin – then do *not* plug USB into the DevKit | 10–15 |
+| 17 | **Buck-boost 3.3 V** | 1 | SparkFun `15208` (TPS63070, 3–16 V → 3.3 V, available from DigiKey) or Pololu `S7V8F3` (2.7–11.8 V → 3.3 V, smaller; the enclosure v0 marks its footprint). Feeds the DevKit via its 3V3 pin – then do *not* plug USB into the DevKit | 10–15 |
 | 18 | **NTC 10 kΩ** (B ≈ 3435) | 1 | optional, for charge temperature monitoring on the bq24074 | 1 |
 
 ### Optional – for precise measurements
@@ -62,12 +62,12 @@ Checked on 2026-11-02: every link below opened the right product, stock and pric
 
 | Shop | What | approx. € | Shipping to AT |
 |---|---|---|---|
-| **DigiKey** | all electronics except the items below | 102 | free from €75, ~2 days, duties and VAT prepaid (DDP) |
-| **Botland** (PL) | buck-boost, 18650 holders, protection boards | 13 | ~€6.50 (GLS) |
+| **DigiKey** | the electronics incl. buck-boost and cell holders | 108 | free from €75, ~2 days, duties and VAT prepaid (DDP) |
+| **BerryBase** (DE) | protection boards, breadboards, jumper wires | 10 | €9.90 |
 | **Amazon.de** | e-paper module (sold by Waveshare), magnets, inserts, screws, silicone sheet, velcro | 63 | per seller |
 | Prusa (CZ) | PETG clear + black, if not at hand | 53 | varies (check the cart) |
 
-Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module or the cell holder in stock; Botland lacks the bq24074 charger and has the e-paper module only on backorder; DigiKey has no Waveshare displays, and the Pololu regulator there is a US marketplace item (customs on delivery, doesn't count towards free shipping).
+Why not one shop: DigiKey has no Waveshare displays and no cell protection boards; BerryBase had none of the Adafruit boards, the e-paper module or the cell holder in stock. Breadboards and jumper wires go to BerryBase because they cost a third of DigiKey's price there – that nearly pays for its shipping.
 
 ### DigiKey
 
@@ -81,15 +81,14 @@ Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module 
 | 5 | [LED green 522 nm, Würth 151053GS03000](https://www.digikey.at/de/products/result?keywords=151053GS03000) | `732-5020-ND` | 10 | 0.20 |
 | 6 | [Resistor kit, SparkFun 10969](https://www.digikey.at/de/products/result?keywords=sparkfun%2010969) (20 values × 25, incl. 47–330 Ω and 10 kΩ) | `1568-10969-ND` | 1 | 9.32 |
 | 7 | [Push button 6 × 6 mm, TE 1825910-6](https://www.digikey.at/de/products/detail/te-connectivity-alcoswitch-switches/1825910-6/1632536) | `450-1650-ND` | 5 | 0.12 |
-| 8 | [Breadboard 830, Adafruit 239](https://www.digikey.at/de/products/detail/adafruit-industries-llc/239/7244929) | `1528-239-ND` | 2 | 5.28 |
-| 9 | [Jumper wires m-m, Adafruit 1957](https://www.digikey.at/de/products/detail/adafruit-industries-llc/1957/6827090) | `1528-1967-ND` | 1 | 1.73 |
-| 9 | [Jumper wires m-f, Adafruit 1954](https://www.digikey.at/de/products/detail/adafruit-industries-llc/1954/6827087) | `1528-1964-ND` | 1 | 1.73 |
 | 10 | [STEMMA QT to pins, Adafruit 4209](https://www.digikey.at/de/products/detail/adafruit-industries-llc/4209/10230003) | `1528-4209-ND` | 2 | 0.84 |
 | 13 | [bq24074 charger, Adafruit 4755](https://www.digikey.at/de/products/detail/adafruit-industries-llc/4755/13231325) | `1528-4755-ND` | 1 | 13.27 |
 | 14 | [MAX17048, Adafruit 5580](https://www.digikey.at/de/products/detail/adafruit-industries-llc/5580/16719287) | `1528-5580-ND` | 1 | 5.28 |
+| 16 | [18650 holder with 6″ leads, MPD BH-18650-W](https://www.digikey.at/de/products/detail/mpd-memory-protection-devices/BH-18650-W/3029217) | `BH-18650-W-ND` | 2 | 3.23 |
+| 17 | [Buck-boost 3.3 V, SparkFun 15208 (TPS63070)](https://www.digikey.at/de/products/result?keywords=1568-15208-ND) | `1568-15208-ND` | 1 | 12.77 |
 | 18 | [NTC 10 kΩ B 3435, Vishay NTCLE350E4103FLB0](https://www.digikey.at/de/products/detail/vishay-beyschlag-draloric-bc-components/NTCLE350E4103FLB0/12612895) | `56-NTCLE350E4103FLB0-ND` | 2 | 0.96 |
 
-≈ €85 excl. / €102 incl. VAT. Stage 1 alone stays below the free-shipping threshold, so order both stages together. The LEDs are water-clear with a 30–45° beam – bright and directional, the diffuser lens spreads the light.
+≈ €90 excl. / €108 incl. VAT. Stage 1 alone stays below the free-shipping threshold, so order both stages together. The SparkFun buck-boost is larger than the Pololu S7V8F3 the enclosure v0 marks a spot for; it sits on the breadboard for now. The LEDs are water-clear with a 30–45° beam – bright and directional, the diffuser lens spreads the light.
 
 **All at once:** cart → *Mehrere hinzufügen* (bulk add), one line per part as `quantity, DigiKey no.` (if the form expects the columns the other way round, swap them):
 
@@ -102,26 +101,26 @@ Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module 
 10, 732-5020-ND
 1, 1568-10969-ND
 5, 450-1650-ND
-2, 1528-239-ND
-1, 1528-1967-ND
-1, 1528-1964-ND
 2, 1528-4209-ND
 1, 1528-4755-ND
 1, 1528-5580-ND
+2, BH-18650-W-ND
+1, 1568-15208-ND
 2, 56-NTCLE350E4103FLB0-ND
 ```
 
-Or try the FastAdd link (fills the cart in one click; not tested from a browser yet): [add all to the DigiKey cart](https://www.digikey.at/classic/ordering/fastadd.aspx?part1=1965-ESP32-C6-DEVKITC-1-N8-ND&qty1=2&part2=1528-2891-ND&qty2=1&part3=IRLB3813PBF-ND&qty3=5&part4=732-5021-ND&qty4=10&part5=732-5022-ND&qty5=10&part6=732-5020-ND&qty6=10&part7=1568-10969-ND&qty7=1&part8=450-1650-ND&qty8=5&part9=1528-239-ND&qty9=2&part10=1528-1967-ND&qty10=1&part11=1528-1964-ND&qty11=1&part12=1528-4209-ND&qty12=2&part13=1528-4755-ND&qty13=1&part14=1528-5580-ND&qty14=1&part15=56-NTCLE350E4103FLB0-ND&qty15=2)
+Or try the FastAdd link (fills the cart in one click; not tested from a browser yet): [add all to the DigiKey cart](https://www.digikey.at/classic/ordering/fastadd.aspx?part1=1965-ESP32-C6-DEVKITC-1-N8-ND&qty1=2&part2=1528-2891-ND&qty2=1&part3=IRLB3813PBF-ND&qty3=5&part4=732-5021-ND&qty4=10&part5=732-5022-ND&qty5=10&part6=732-5020-ND&qty6=10&part7=1568-10969-ND&qty7=1&part8=450-1650-ND&qty8=5&part9=1528-4209-ND&qty9=2&part10=1528-4755-ND&qty10=1&part11=1528-5580-ND&qty11=1&part12=BH-18650-W-ND&qty12=2&part13=1568-15208-ND&qty13=1&part14=56-NTCLE350E4103FLB0-ND&qty14=2)
 
-### Botland
+### BerryBase
 
 | # | Part | Qty | € each |
 |---|---|---|---|
-| 17 | [Pololu S7V8F3 buck-boost 3.3 V](https://botland.de/aufwarts-abwartswandler/1427-s7v8f3-aufwarts-abwartswandler-33-v-1-a-pololu-2122-5904422373092.html) | 1 | 8.90 |
-| 16 | [Holder for one 18650 with leads](https://botland.de/batteriekorbe/5242-korb-fuer-1-akku-des-typs-18650-5904422333393.html) | 2 | 0.90 |
-| 15 | [TP4056 board with protection, USB-C (HW-373)](https://botland.de/ladegerate-fur-li-ionen-akkus/16979-li-ion-ladegerat-hw-373-v121-tp4056-einzelzelle-1s-37v-usb-typ-c-mit-sicherheitsfunktionen-5904422326708.html) | 2 | ~1.00 |
+| 15 | [TP4056 charger board "mit Ausgang" (with protection), CHB-O-LIT1A](https://www.berrybase.de/ladeplatine-fuer-3-7v-liion-lipo-akkus-mit-ausgang-micro-usb-loetpads-1000ma) | 2 | 1.30 |
+| 8 | [Breadboard 830, BB-830P](https://www.berrybase.de/breadboard-mit-830-kontakten) | 2 | 1.90 |
+| 9 | [Jumper wires m-m, 40 pcs](https://www.berrybase.de/40pin-jumper-dupont-kabel-male-male-trennbar) | 1 | 1.60 |
+| 9 | [Jumper wires m-f, 40 pcs](https://www.berrybase.de/detail/019234a374ab7125b64e5bb5db9e01ec) | 1 | 1.60 |
 
-Stand-alone DW01A/8205A boards are hard to find in EU shops. The TP4056 board carries the same protection: cell on `B+`/`B−`, the bq24074's battery input on `OUT+`/`OUT−`; its own USB port and charger stay unused. Check that the board has the DW01A (6 pins) and the 8205A (8 pins) next to the TP4056.
+Stand-alone DW01A/8205A boards are hard to find in EU shops. The TP4056 board "with output" carries the same protection: cell on `B+`/`B−`, the bq24074's battery input on `OUT+`/`OUT−`; its own USB port and charger stay unused. Check that the board has the DW01A (6 pins) and the 8205A (8 pins) next to the TP4056.
 
 ### Amazon.de
 
@@ -134,7 +133,7 @@ Stand-alone DW01A/8205A boards are hard to find in EU shops. The TP4056 board ca
 | [Self-adhesive silicone sheet 1 mm, 3 × 20 × 20 cm](https://www.amazon.de/dp/B0F59PF6JK) | 3 | 8.05 |
 | [Velcro straps 12 mm](https://www.amazon.de/dp/B077BCT9M1) | 30 | 7.04 |
 
-Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibenmagnete-neodym/scheibenmagnet-12mm-3mm_S-12-03-N) (10 for €5.40, €20 minimum order); the e-paper module from [OpenElab](https://openelab.io/de/products/waveshare-54inch-e-ink-display) (€11.50, may ship from China) or [Botland](https://botland.de/e-paper-displays/9098-e-paper-e-ink-154-v21-200x200px-modul-mit-spi-display-waveshare-12955-5904422312497.html) (when back in stock).
+Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibenmagnete-neodym/scheibenmagnet-12mm-3mm_S-12-03-N) (10 for €5.40, €20 minimum order); the e-paper module from [OpenElab](https://openelab.io/de/products/waveshare-54inch-e-ink-display) (€11.50, may ship from China).
 
 ### Filament (Prusa)
 
@@ -151,8 +150,9 @@ Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibe
 
 | Shop | Why not |
 |---|---|
-| BerryBase (DE) | Adafruit boards, e-paper module and cell holder sold out at the time of checking; good for basics (breadboards, LEDs, resistors) if you order there anyway – €9.90 to AT, free from €200 |
+| Botland (PL) | sells to private customers only in Poland and Germany; elsewhere in the EU only to businesses |
 | Kiwi Electronics (NL) | fallback for the bq24074 (Adafruit 4755) if DigiKey runs out |
+| Opencircuit (NL) | has the Pololu S7V8F3 (€15.10) if you prefer it to the SparkFun board |
 | Mouser | doesn't ship Adafruit products to private customers in the EU |
 | Pimoroni (UK) | customs since Brexit |
 

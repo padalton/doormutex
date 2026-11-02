@@ -534,7 +534,7 @@ Rough estimate before the schematic, as of 2026-10-29, incl. shipping and 20 % V
 |---|---|
 | Breadboard stage 1 (incl. transparent PETG) | 80–105 |
 | Breadboard stage 2 (battery) | 40–55 |
-| Shipping (DigiKey free from €75; Botland, Amazon) | 10–15 |
+| Shipping (DigiKey free from €75; BerryBase, Amazon) | 10–20 |
 | Dark grey/black filament for the enclosure, if not at hand | 20–25 |
 | **before ordering the PCB** | **≈ 150–200** |
 | first JLCPCB order (5 PCBs, 2 assembled) + e-ink panel | 90–130 |
@@ -802,5 +802,5 @@ doormutex/
 | 2026-10-30 | ESPHome example for mains-powered builds: same topics, patterns and failsafe | the easy path for anyone without a battery |
 | 2026-10-30 | Enclosure v0 for the breadboard modules in plain OpenSCAD (no BOSL2), Manifold backend; CI renders all parts in a pinned `openscad/openscad` container and fails on warnings or overlapping parts/modules | no library to install for the Customizer/MakerWorld; the fit check catches parameter changes that make parts collide |
 | 2026-10-30 | Enclosure v0 details: 45 mm deep (modules), lenses flush in a seat and clamped by the visor ring (filament dowels), corner ribs take every screw (cover, foot, side plate), embedded magnets via print pause by default, light-sensor window in the top wall | supports-free printing and few parts; the sensor should see the room light, not the wall behind the light |
-| 2026-11-02 | Breadboard order: DigiKey for the electronics, Botland for buck-boost/holders/protection, Amazon.de (Waveshare) for the e-paper module and the enclosure bits; IRLB3813PBF replaces the obsolete IRLB8721PBF | no single EU shop had everything in stock; DigiKey ships DDP in ~2 days |
+| 2026-11-02 | Breadboard order: DigiKey for the electronics (incl. SparkFun TPS63070 buck-boost and cell holders), BerryBase for protection boards and breadboards, Amazon.de (Waveshare) for the e-paper module and the enclosure bits; IRLB3813PBF replaces the obsolete IRLB8721PBF | no single EU shop had everything in stock; DigiKey ships DDP in ~2 days; Botland sells to private customers only in PL/DE |
 | 2026-11-02 | No affiliate links in the repository or on the website; shop links are plain product links | a few euros per build are not worth a commercial imprint (full address) and would blur "no tracking, no ads" |
