@@ -15,14 +15,28 @@ Reference setup: CachyOS, KDE Plasma 6 (Wayland), PipeWire. Only yes/no and appl
 
 ## Install
 
+Pick one – all of them contain the companion, its systemd user unit and the Plasma widget. Release files: <https://github.com/padalton/doormutex/releases>.
+
+| Way | Command |
+|---|---|
+| **Arch / CachyOS (AUR)** | `paru -S doormutex-companion-bin` (or `yay`) |
+| **Debian / Ubuntu** | `sudo apt install ./doormutex-companion_X.Y.Z_linux_amd64.deb` |
+| **Fedora / openSUSE** | `sudo dnf install ./doormutex-companion_X.Y.Z_linux_amd64.rpm` |
+| **Any distribution, no root** | release archive `doormutex-companion_X.Y.Z_linux_amd64.tar.gz` → `~/.local/bin` (below) |
+| **From source** | `go build -o doormutex-companion ./cmd/doormutex-companion` in `companion/` → `~/.local/bin` (below) |
+
+The packages put the binary in `/usr/bin` and the unit in `/usr/lib/systemd/user/` (its `ExecStart` points to `/usr/bin`). For `~/.local/bin` use the unit `doormutex-companion.service` from this folder or from the top of the release archive (its `ExecStart` is `%h/.local/bin/…`):
+
 ```bash
-cd companion
-go build -o doormutex-companion ./cmd/doormutex-companion
 install -Dm755 doormutex-companion ~/.local/bin/doormutex-companion
 install -Dm644 doormutex-companion.service ~/.config/systemd/user/doormutex-companion.service
+```
 
+Then, for every way:
+
+```bash
 # config + token (create the token on the hub: doormutex-hub token create companion office)
-install -Dm600 companion.example.yaml ~/.config/doormutex/companion.yaml
+install -Dm600 companion.example.yaml ~/.config/doormutex/companion.yaml   # packages: /usr/share/doormutex/companion.example.yaml
 $EDITOR ~/.config/doormutex/companion.yaml
 install -m600 /dev/null ~/.config/doormutex/token && $EDITOR ~/.config/doormutex/token
 
@@ -33,6 +47,8 @@ journalctl --user -u doormutex-companion -f
 ```
 
 Needs `pw-dump` (part of PipeWire) – nothing else.
+
+Verify a download: `checksums.txt` of a release is signed keyless with Sigstore – see [RELEASING.md](../RELEASING.md#verify-a-release).
 
 ## Google Calendar sign-in
 

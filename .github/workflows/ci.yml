@@ -98,6 +98,34 @@ jobs:
           name: doormutex.plasmoid
           path: plasmoid/doormutex.plasmoid
 
+  release-snapshot:
+    name: Release · snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: hub/go.mod
+          cache-dependency-path: |
+            hub/go.sum
+            companion/go.sum
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean --skip=publish,sign
+      - run: ls -l dist build
+      - name: AUR package matches its .SRCINFO
+        run: |
+          docker run --rm -v "$PWD/packaging/aur:/aur:ro" archlinux:base-devel bash -c '
+            useradd -m b && cp -r /aur/doormutex-companion-bin /home/b/p && chown -R b /home/b/p &&
+            cd /home/b/p && su b -c "makepkg --printsrcinfo" | diff -u .SRCINFO -'
+
   hub-docker:
     name: Hub · docker build
     runs-on: ubuntu-latest
