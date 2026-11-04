@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go SQLite driver, no cgo needed
@@ -30,6 +32,7 @@ CREATE TABLE IF NOT EXISTS tokens (
 	name       TEXT PRIMARY KEY,
 	hash       TEXT NOT NULL UNIQUE,
 	profile    TEXT NOT NULL DEFAULT '',
+	role       TEXT NOT NULL DEFAULT 'full',
 	created_at TEXT NOT NULL,
 	last_used  TEXT
 );
@@ -49,6 +52,7 @@ CREATE TABLE IF NOT EXISTS history (
 // columns added after the first release of a table: table → column → DDL.
 var addedColumns = []struct{ table, column, ddl string }{
 	{"tokens", "profile", `ALTER TABLE tokens ADD COLUMN profile TEXT NOT NULL DEFAULT ''`},
+	{"tokens", "role", `ALTER TABLE tokens ADD COLUMN role TEXT NOT NULL DEFAULT 'full'`},
 	{"history", "profile", `ALTER TABLE history ADD COLUMN profile TEXT NOT NULL DEFAULT ''`},
 }
 
@@ -98,32 +102,83 @@ func hash(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
+// Role is what a token may do.
+type Role string
+
+const (
+	RoleFull Role = "full" // read and change everything it can see
+	RoleRead Role = "read" // only look: status, profiles, timeline, history, events, e-ink preview
+)
+
+// ParseRole checks a role name.
+func ParseRole(v string) (Role, error) {
+	switch Role(v) {
+	case RoleFull, RoleRead:
+		return Role(v), nil
+	}
+	return "", fmt.Errorf("role %q: want full or read", v)
+}
+
+// The profiles of a token are stored comma-separated in the profile
+// column (profile ids can't contain commas); empty means all profiles.
+func joinProfiles(p []string) string { return strings.Join(p, ",") }
+
+func splitProfiles(v string) []string {
+	if v == "" {
+		return nil
+	}
+	return strings.Split(v, ",")
+}
+
 // CreateToken creates an API token for a client and returns it once.
-// A token with a profile only works for that profile; an empty profile
-// means all profiles. Tokens are random (256 bit), so a plain SHA-256 is
-// enough to store them.
-func (s *Store) CreateToken(name, profile string) (string, error) {
+// A token with profiles only works for those; no profiles means all
+// profiles. Tokens are random (256 bit), so a plain SHA-256 is enough to
+// store them.
+func (s *Store) CreateToken(name string, profiles []string, role Role) (string, error) {
 	if !tokenName.MatchString(name) {
 		return "", fmt.Errorf("token name %q: use lowercase letters, digits, '-', '_' or '.'", name)
+	}
+	if _, err := ParseRole(string(role)); err != nil {
+		return "", err
+	}
+	for _, p := range profiles {
+		if p == "" || strings.Contains(p, ",") {
+			return "", fmt.Errorf("profile %q: invalid", p)
+		}
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	tok := "dm_" + base64.RawURLEncoding.EncodeToString(b)
-	_, err := s.db.Exec(`INSERT INTO tokens(name, hash, profile, created_at) VALUES(?, ?, ?, ?)`,
-		name, hash(tok), profile, time.Now().UTC().Format(time.RFC3339))
+	_, err := s.db.Exec(`INSERT INTO tokens(name, hash, profile, role, created_at) VALUES(?, ?, ?, ?, ?)`,
+		name, hash(tok), joinProfiles(profiles), string(role), time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE") {
+			return "", fmt.Errorf("create token %q: %w", name, ErrExists)
+		}
 		return "", fmt.Errorf("create token %q: %w", name, err)
 	}
 	return tok, nil
 }
 
+// ErrExists is returned when a token name is taken.
+var ErrExists = errors.New("already exists")
+
 // Client is an authenticated API client.
 type Client struct {
-	Name    string
-	Profile string // empty: all profiles
+	Name     string
+	Profiles []string // empty: all profiles
+	Role     Role
 }
+
+// Sees reports whether the client may see a profile.
+func (c Client) Sees(profile string) bool {
+	return len(c.Profiles) == 0 || slices.Contains(c.Profiles, profile)
+}
+
+// Admin reports whether the client may manage tokens: full rights on all profiles.
+func (c Client) Admin() bool { return c.Role == RoleFull && len(c.Profiles) == 0 }
 
 // Authenticate returns the client for a token.
 func (s *Store) Authenticate(token string) (Client, bool) {
@@ -131,9 +186,14 @@ func (s *Store) Authenticate(token string) (Client, bool) {
 		return Client{}, false
 	}
 	var c Client
-	err := s.db.QueryRow(`SELECT name, profile FROM tokens WHERE hash = ?`, hash(token)).Scan(&c.Name, &c.Profile)
+	var profiles, role string
+	err := s.db.QueryRow(`SELECT name, profile, role FROM tokens WHERE hash = ?`, hash(token)).Scan(&c.Name, &profiles, &role)
 	if err != nil {
 		return Client{}, false
+	}
+	c.Profiles, c.Role = splitProfiles(profiles), Role(role)
+	if c.Role != RoleRead {
+		c.Role = RoleFull // anything unexpected in the column keeps the old behaviour
 	}
 	_, _ = s.db.Exec(`UPDATE tokens SET last_used = ? WHERE name = ?`, time.Now().UTC().Format(time.RFC3339), c.Name)
 	return c, true
@@ -141,24 +201,30 @@ func (s *Store) Authenticate(token string) (Client, bool) {
 
 // TokenInfo describes a token without its secret.
 type TokenInfo struct {
-	Name      string
-	Profile   string
-	CreatedAt string
-	LastUsed  string
+	Name      string   `json:"name"`
+	Profiles  []string `json:"profiles"` // empty: all profiles
+	Role      Role     `json:"role"`
+	CreatedAt string   `json:"created_at"`
+	LastUsed  string   `json:"last_used,omitempty"`
 }
 
 // ListTokens lists all tokens.
 func (s *Store) ListTokens() ([]TokenInfo, error) {
-	rows, err := s.db.Query(`SELECT name, profile, created_at, COALESCE(last_used, '') FROM tokens ORDER BY name`)
+	rows, err := s.db.Query(`SELECT name, profile, role, created_at, COALESCE(last_used, '') FROM tokens ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	var out []TokenInfo
+	out := []TokenInfo{}
 	for rows.Next() {
 		var t TokenInfo
-		if err := rows.Scan(&t.Name, &t.Profile, &t.CreatedAt, &t.LastUsed); err != nil {
+		var profiles string
+		if err := rows.Scan(&t.Name, &profiles, &t.Role, &t.CreatedAt, &t.LastUsed); err != nil {
 			return nil, err
+		}
+		t.Profiles = splitProfiles(profiles)
+		if t.Profiles == nil {
+			t.Profiles = []string{}
 		}
 		out = append(out, t)
 	}

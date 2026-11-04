@@ -203,11 +203,12 @@ profiles:
 ```
 
 ```bash
-doormutex-hub token create teen-phone teen   # works only for profile "teen"
-doormutex-hub token create widget            # all profiles, choose with ?profile=
+doormutex-hub token create teen-phone teen               # works only for profile "teen"
+doormutex-hub token create widget                        # all profiles, choose with ?profile=
+doormutex-hub token create couch teen office --read-only # only looks, never switches
 ```
 
-The API serves the token's profile without any extra parameter, so the same client works for every profile. `GET /api/v1/profiles` lists the profiles a token may see.
+The API serves the token's first profile without any extra parameter, so the same client works for every profile. `GET /api/v1/profiles` lists the profiles a token may see, `GET /api/v1/me` its role. A **read-only** token sees the state, the timeline, the history and the event stream, and nothing else – for a phone on the couch or a display in the kitchen. Tokens can also be created in the web UI: *Settings → Add a phone* shows a QR code for the phone.
 
 Where room mode runs for people *without* a homelab (no Docker, no HA) is still open – see [open questions](#open-questions).
 
@@ -742,6 +743,7 @@ doormutex/
 | 2026-10-29 | Hub: SSE instead of WebSocket for live updates | one-way stream is enough, works through every proxy, trivial in QML/TypeScript/curl |
 | 2026-10-29 | Hub: pure-Go SQLite (modernc), distroless static image (~26 MB) | no cgo, easy multi-arch builds |
 | 2026-10-29 | Hub: API tokens created via CLI (`doormutex-hub token create`), stored as SHA-256 | no default password; tokens are 256-bit random |
+| 2026-11-04 | Hub: token roles `full` / `read` and profile lists; tokens also from the web UI with a QR code for pairing a phone | a phone that only shows the light shouldn't hold a key that can switch it ([#27](https://github.com/padalton/doormutex/issues/27)) |
 | 2026-10-29 | Hub: unknown slot ends stay `null` (call without calendar entry, locked screen); a call during a calendar meeting is assumed to end with the meeting | honest instead of guessed times on the e-ink and in HA |
 | 2026-10-29 | Hub: unclassified calendar events count as `dnd` by default (superseded below) | mirrored events lose attendees; red is the safer guess |
 | 2026-10-29 | Hub: last call only from green, ending soon only if yellow or green follows (last call extended below) | follows the StVO meaning (red+yellow → green is coming) |

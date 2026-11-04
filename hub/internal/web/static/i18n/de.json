@@ -103,5 +103,25 @@
   "settings.forget": "Token vergessen",
   "settings.saved": "Gespeichert.",
 
-  "history.recent": "Letzte Wechsel"
+  "history.recent": "Letzte Wechsel",
+
+  "now.readonly": "Dieses Gerät kann nur ansehen: sein Token ist nur zum Lesen.",
+  "tokens.title": "Handys und Tokens",
+  "tokens.add": "Handy hinzufügen",
+  "tokens.name": "Name",
+  "tokens.readonly": "Nur ansehen (nur lesen)",
+  "tokens.profiles": "Profile",
+  "tokens.all": "alle Profile",
+  "tokens.create": "Erstellen",
+  "tokens.none": "Mindestens ein Profil wählen.",
+  "tokens.qr_alt": "QR-Code für die doormutex-App",
+  "tokens.scan": "Mit der doormutex-App scannen. Der Token wird nur jetzt angezeigt.",
+  "tokens.webapp": "Oder am Handy die Web-App öffnen:",
+  "tokens.revoke": "Widerrufen",
+  "tokens.revoke_confirm": "{name} widerrufen? Das Gerät verliert den Zugriff.",
+  "tokens.role_read": "nur lesen",
+  "tokens.role_full": "voll",
+  "tokens.never": "nie verwendet",
+  "tokens.used": "verwendet {time}",
+  "tokens.this": "dieses Gerät"
 }

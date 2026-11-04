@@ -103,5 +103,25 @@
   "settings.forget": "Forget token",
   "settings.saved": "Saved.",
 
-  "history.recent": "Recent changes"
+  "history.recent": "Recent changes",
+
+  "now.readonly": "This device can only look: its token is read-only.",
+  "tokens.title": "Phones and tokens",
+  "tokens.add": "Add a phone",
+  "tokens.name": "Name",
+  "tokens.readonly": "Only look (read-only)",
+  "tokens.profiles": "Profiles",
+  "tokens.all": "all profiles",
+  "tokens.create": "Create",
+  "tokens.none": "Choose at least one profile.",
+  "tokens.qr_alt": "QR code for the doormutex app",
+  "tokens.scan": "Scan it with the doormutex app. The token is shown only now.",
+  "tokens.webapp": "Or open the web app on the phone:",
+  "tokens.revoke": "Revoke",
+  "tokens.revoke_confirm": "Revoke {name}? The device loses access.",
+  "tokens.role_read": "read-only",
+  "tokens.role_full": "full",
+  "tokens.never": "never used",
+  "tokens.used": "used {time}",
+  "tokens.this": "this device"
 }

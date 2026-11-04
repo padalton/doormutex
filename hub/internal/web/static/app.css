@@ -68,3 +68,13 @@ input { width: 100%; }
 .dot { width: .8rem; height: .8rem; border-radius: 50%; flex: none; }
 .grid { display: grid; grid-template-columns: 1fr auto; gap: .5rem; align-items: center; }
 @media (max-width: 26rem) { .set { grid-template-columns: repeat(3, 1fr); } .lamp { width: 2.8rem; height: 2.8rem; } }
+
+/* Roles: a read-only token only looks; token management needs an admin token. */
+body.readonly .write, body:not(.admin) .admin, body:not(.readonly) .readonly-note { display: none; }
+input[type="checkbox"] { width: auto; min-height: auto; justify-self: start; }
+.checks { border: none; padding: 0; margin: .6rem 0; display: flex; flex-wrap: wrap; gap: .4rem 1rem; }
+.checks legend { color: var(--muted); font-size: .9rem; padding: 0; margin-bottom: .3rem; }
+.checks label { display: flex; gap: .4rem; align-items: center; }
+button.small { min-height: 2rem; padding: .2rem .6rem; font-size: .85rem; }
+.qr { display: block; width: 16rem; height: 16rem; margin-top: 1rem; image-rendering: pixelated; background: #fff; border-radius: .5rem; }
+code { overflow-wrap: anywhere; }

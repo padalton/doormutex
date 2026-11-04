@@ -1,14 +1,17 @@
 # Android: web app, shortcuts, tiles and automations
 
-No native app and no Play Store: an Android phone controls a doormutex light with the hub's web app and – for one-tap buttons, Quick Settings tiles and automations – with free apps that call the hub API. Everything uses a token that is limited to one profile.
+No native app yet (it's planned: [#28](https://github.com/padalton/doormutex/issues/28)): an Android phone controls a doormutex light with the hub's web app and – for one-tap buttons, Quick Settings tiles and automations – with free apps that call the hub API. Everything uses a token that is limited to what the phone needs.
 
 ## 1. A token for the phone
 
+In the web UI with an admin token (full rights, all profiles): *Settings → Add a phone*. Choose a name and the profiles; leave **Only look** on for a phone that just shows the light. The page shows a QR code for the app and a link for the web app. On the hub instead:
+
 ```bash
-docker compose exec hub doormutex-hub token create teen-phone teen
+docker compose exec hub doormutex-hub token create teen-phone teen               # see and switch "teen"
+docker compose exec hub doormutex-hub token create couch teen office --read-only # only look at both
 ```
 
-The token can only see and switch the profile `teen`. A lost phone: `doormutex-hub token revoke teen-phone`.
+A lost phone: *Revoke* in the same list, or `doormutex-hub token revoke teen-phone`.
 
 ## 2. Web app on the home screen
 

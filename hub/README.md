@@ -33,8 +33,8 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" -d '{"locked":false}' localhos
 | Command | Purpose |
 |---|---|
 | `doormutex-hub serve [-config path]` | run the hub (default; config from `DOORMUTEX_CONFIG`, default `/config/config.yaml`) |
-| `doormutex-hub token create NAME [PROFILE]` | create an API token for a client; with a profile it only works for that profile |
-| `doormutex-hub token list` / `token revoke NAME` | list / revoke tokens |
+| `doormutex-hub token create NAME [PROFILE...] [--read-only]` | create an API token for a client; with profiles it only works for those, `--read-only` makes it look but not switch |
+| `doormutex-hub token list` / `token revoke NAME` | list / revoke tokens (role, profiles, last use) |
 | `doormutex-hub google login\|logout PROFILE ACCOUNT` | connect or remove a Google account on a headless hub; on a desktop use `doormutex-companion google login ACCOUNT` ([guide](../docs/google-calendar.md)) |
 | `doormutex-hub healthcheck` | used by the Docker `HEALTHCHECK` |
 | `doormutex-hub version` | print the version |

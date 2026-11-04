@@ -55,8 +55,9 @@
       </div>
     </div>
 
-    <h2 data-i18n="now.override">Override</h2>
-    <div class="chips" id="durations" role="radiogroup" aria-label="Duration" data-i18n-aria="now.duration">
+    <p class="muted readonly-note" data-i18n="now.readonly">This device can only look: its token is read-only.</p>
+    <h2 class="write" data-i18n="now.override">Override</h2>
+    <div class="chips write" id="durations" role="radiogroup" aria-label="Duration" data-i18n-aria="now.duration">
       <button data-mode="duration" data-duration="15m" data-i18n="now.15m">15 min</button>
       <button data-mode="duration" data-duration="30m" data-i18n="now.30m">30 min</button>
       <button data-mode="duration" data-duration="1h" class="active" data-i18n="now.1h">1 h</button>
@@ -66,17 +67,17 @@
       <button data-mode="next_change" data-i18n="now.next_change">next automatic change</button>
       <button data-mode="indefinite" data-i18n="now.indefinite">until changed</button>
     </div>
-    <div class="set">
+    <div class="set write">
       <button class="set-btn s-dnd" data-status="dnd" data-i18n="color.dnd">Red</button>
       <button class="set-btn s-working" data-status="working" data-i18n="color.working">Yellow</button>
       <button class="set-btn s-free" data-status="free" data-i18n="color.free">Green</button>
       <button class="set-btn s-away" data-status="away" data-i18n="color.away">Off</button>
       <button class="set-btn auto" id="auto" data-i18n="now.auto">Auto</button>
     </div>
-    <p id="override-info" class="muted"></p>
+    <p id="override-info" class="muted write"></p>
 
-    <h2 data-i18n="now.message">Message</h2>
-    <form id="message-form" class="row">
+    <h2 class="write" data-i18n="now.message">Message</h2>
+    <form id="message-form" class="row write">
       <input id="message" maxlength="64" placeholder="e.g. Gaming until 21:00" data-i18n-placeholder="now.message_placeholder">
       <button type="submit" data-i18n="now.show">Show</button>
       <button type="button" id="message-clear" data-i18n="now.clear">Clear</button>
@@ -86,13 +87,13 @@
       <figcaption class="muted" data-i18n="now.eink">E-ink sign</figcaption>
     </figure>
 
-    <h2 data-i18n="now.pomodoro">Pomodoro</h2>
-    <div class="row">
+    <h2 class="write" data-i18n="now.pomodoro">Pomodoro</h2>
+    <div class="row write">
       <button class="pomo" data-work="25m" data-break="5m">🍅 25 / 5</button>
       <button class="pomo" data-work="50m" data-break="10m">🍅 50 / 10</button>
       <button id="pomo-stop" data-i18n="now.stop">Stop</button>
     </div>
-    <p id="pomo-info" class="muted"></p>
+    <p id="pomo-info" class="muted write"></p>
     <p id="error" class="error" role="alert"></p>
   </section>
 
@@ -103,6 +104,7 @@
   </section>
 
   <section id="tab-settings" class="tab" hidden>
+    <div class="write">
     <h2 data-i18n="settings.kinds">Light per calendar event kind</h2>
     <form id="kinds" class="grid"></form>
     <h2 data-i18n="settings.phases">Warning phases</h2>
@@ -126,6 +128,29 @@
     <p id="settings-info" class="muted"></p>
     <h2 data-i18n="settings.accounts">Calendar accounts</h2>
     <ul id="accounts" class="slots"></ul>
+    </div>
+
+    <div class="admin">
+      <h2 data-i18n="tokens.title">Phones and tokens</h2>
+      <ul id="tokens" class="slots"></ul>
+      <h2 data-i18n="tokens.add">Add a phone</h2>
+      <form id="token-form" class="grid">
+        <label for="token-name" data-i18n="tokens.name">Name</label>
+        <input id="token-name" required pattern="[a-z0-9][a-z0-9_.\-]{0,63}" placeholder="couch-phone" autocomplete="off" spellcheck="false">
+        <label for="token-readonly" data-i18n="tokens.readonly">Only look (read-only)</label>
+        <input id="token-readonly" type="checkbox" checked>
+      </form>
+      <fieldset id="token-profiles" class="checks"><legend data-i18n="tokens.profiles">Profiles</legend></fieldset>
+      <button form="token-form" type="submit" data-i18n="tokens.create">Create</button>
+      <p id="tokens-info" class="error" role="alert"></p>
+      <div id="token-new" hidden>
+        <img id="token-qr" class="qr" width="320" height="320" alt="QR code for the doormutex app" data-i18n-alt="tokens.qr_alt">
+        <p class="muted" data-i18n="tokens.scan">Scan it with the doormutex app. The token is shown only now.</p>
+        <p><code id="token-value"></code></p>
+        <p class="muted"><span data-i18n="tokens.webapp">Or open the web app on the phone:</span> <a id="token-weblink" href="#"></a></p>
+      </div>
+    </div>
+
     <h2 data-i18n="settings.device">This device</h2>
     <form id="device" class="grid">
       <label for="language" data-i18n="settings.language">Language</label>

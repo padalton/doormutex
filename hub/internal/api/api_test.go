@@ -114,7 +114,7 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tok, err := st.CreateToken("test", "")
+	tok, err := st.CreateToken("test", nil, store.RoleFull)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestCalendarLogin(t *testing.T) {
 	if resp, _ := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/private/login?profile=teen", `{"redirect_uri":"http://127.0.0.1:1/"}`); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("teen profile: %d", resp.StatusCode)
 	}
-	teenTok, _ := f.store.CreateToken("teen-phone", "teen")
+	teenTok, _ := f.store.CreateToken("teen-phone", []string{"teen"}, store.RoleFull)
 	f.token = teenTok
 	if resp, _ := f.do(t, http.MethodPost, "/api/v1/calendar/accounts/private/login?profile=office", `{"redirect_uri":"http://127.0.0.1:1/"}`); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("teen token for the office: %d", resp.StatusCode)
@@ -504,7 +504,7 @@ func TestSpecMatchesRoutes(t *testing.T) {
 			}
 			m := strings.ToUpper(method)
 			documented[m+" "+path] = true
-			p := strings.ReplaceAll(strings.ReplaceAll(path, "{source}", "spec-test"), "{account}", "private")
+			p := strings.NewReplacer("{source}", "spec-test", "{account}", "private", "{name}", "test").Replace(path)
 			if path == "/api/v1/events" {
 				continue // streams forever; covered by TestEventStream
 			}
@@ -523,7 +523,7 @@ func TestSpecMatchesRoutes(t *testing.T) {
 
 func TestProfiles(t *testing.T) {
 	f := newFixture(t)
-	scoped, err := f.store.CreateToken("teen-phone", "teen")
+	scoped, err := f.store.CreateToken("teen-phone", []string{"teen"}, store.RoleFull)
 	if err != nil {
 		t.Fatal(err)
 	}
