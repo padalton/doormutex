@@ -1,7 +1,8 @@
 // Command doormutex-hub is the doormutex hub.
 //
 //	doormutex-hub serve [-config config.yaml]     run the hub (default)
-//	doormutex-hub token create NAME [PROFILE]     create an API token (optionally for one profile)
+//	doormutex-hub token create NAME [PROFILE...] [--read-only]
+//	                                             create an API token (optionally for some profiles)
 //	doormutex-hub token list|revoke [NAME]        manage API tokens
 //	doormutex-hub google login|logout PROFILE ACCOUNT  connect a Google account on a headless hub
 //	                                              (on a desktop: doormutex-companion google login ACCOUNT)
@@ -135,7 +136,7 @@ func serve(args []string) error {
 		profiles = append(profiles, api.Profile{ID: p.ID, Name: p.Name, Mode: p.Mode, Calendar: p.Calendar.Provider, Svc: svc, Login: login, Display: &eink.Display{}})
 	}
 	if tokens, _ := st.ListTokens(); len(tokens) == 0 {
-		log.Warn("no API tokens yet – create one per client with: doormutex-hub token create <name> [<profile>]")
+		log.Warn("no API tokens yet – create one per client with: doormutex-hub token create <name> [<profile>...] [--read-only]")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -212,15 +213,23 @@ func token(args []string) error {
 	}
 	defer func() { _ = st.Close() }()
 	switch {
-	case rest[0] == "create" && (len(rest) == 2 || len(rest) == 3):
-		profile := ""
-		if len(rest) == 3 {
-			profile = rest[2]
-			if _, ok := cfg.Profile(profile); !ok {
-				return fmt.Errorf("unknown profile %q", profile)
+	case rest[0] == "create" && len(rest) >= 2:
+		role := store.RoleFull
+		var profiles []string
+		for _, a := range rest[2:] {
+			switch {
+			case a == "--read-only" || a == "-read-only":
+				role = store.RoleRead
+			case strings.HasPrefix(a, "-"):
+				return errors.New(tokenUsage)
+			default:
+				if _, ok := cfg.Profile(a); !ok {
+					return fmt.Errorf("unknown profile %q", a)
+				}
+				profiles = append(profiles, a)
 			}
 		}
-		tok, err := st.CreateToken(rest[1], profile)
+		tok, err := st.CreateToken(rest[1], profiles, role)
 		if err != nil {
 			return err
 		}
@@ -236,11 +245,11 @@ func token(args []string) error {
 			if last == "" {
 				last = "never"
 			}
-			scope := t.Profile
+			scope := strings.Join(t.Profiles, ",")
 			if scope == "" {
 				scope = "all profiles"
 			}
-			fmt.Printf("%-20s %-14s created %s  last used %s\n", t.Name, scope, t.CreatedAt, last)
+			fmt.Printf("%-20s %-4s %-14s created %s  last used %s\n", t.Name, t.Role, scope, t.CreatedAt, last)
 		}
 	case rest[0] == "revoke" && len(rest) == 2:
 		return st.RevokeToken(rest[1])
@@ -250,7 +259,7 @@ func token(args []string) error {
 	return nil
 }
 
-const tokenUsage = "usage: doormutex-hub token create NAME [PROFILE] | list | revoke NAME"
+const tokenUsage = "usage: doormutex-hub token create NAME [PROFILE...] [--read-only] | list | revoke NAME"
 
 func oauthConfig(cfg *config.Config) *oauth2.Config {
 	return &oauth2.Config{

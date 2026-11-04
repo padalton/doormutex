@@ -17,6 +17,8 @@ let token = "";
 let profile = "";
 let events = null;
 let state = null;
+let me = { name: "", role: "full", admin: false }; // GET /api/v1/me
+let profileList = [];
 let mode = { mode: "duration", duration: "1h" };
 
 // ---- translations: i18n/<lang>.json, English as fallback for missing keys
@@ -101,7 +103,9 @@ function load(key) {
 // api calls the hub; it adds the token and the selected profile.
 async function api(method, path, body) {
   const url = new URL(path, location.origin);
-  if (profile && path !== "/api/v1/profiles") url.searchParams.set("profile", profile);
+  // Calls about the token itself are not about a profile.
+  const global = ["/api/v1/profiles", "/api/v1/me"].includes(path) || path.startsWith("/api/v1/tokens");
+  if (profile && !global) url.searchParams.set("profile", profile);
   const resp = await fetch(url, {
     method,
     headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
@@ -235,6 +239,8 @@ function labelFor(id, text) {
 }
 
 async function renderSettings() {
+  if (me.role === "read") return renderLanguages(); // settings and calendar are not for read-only tokens
+  if (me.admin) renderTokens().catch((err) => showError(err, "#tokens-info"));
   const [st, cal] = await Promise.all([api("GET", "/api/v1/settings"), api("GET", "/api/v1/calendar")]);
   const kinds = $("#kinds");
   kinds.replaceChildren();
@@ -322,6 +328,71 @@ async function renderHistory() {
   }
 }
 
+// Phones and tokens (admin tokens only): list, revoke, add with a QR code.
+async function renderTokens() {
+  const list = await api("GET", "/api/v1/tokens");
+  const ul = $("#tokens");
+  ul.replaceChildren();
+  for (const k of list) {
+    const li = document.createElement("li");
+    const role = k.role === "read" ? t("tokens.role_read") : t("tokens.role_full");
+    const scope = k.profiles.length ? k.profiles.join(", ") : t("tokens.all");
+    const used = k.last_used ? t("tokens.used", { time: dayFmt.format(new Date(k.last_used)) }) : t("tokens.never");
+    li.append(`${k.name} – ${role}, ${scope}, ${used}`);
+    if (k.name === me.name) {
+      li.append(` (${t("tokens.this")})`);
+    } else {
+      const b = document.createElement("button");
+      b.className = "small";
+      b.textContent = t("tokens.revoke");
+      b.addEventListener("click", async () => {
+        if (!confirm(t("tokens.revoke_confirm", { name: k.name }))) return;
+        try {
+          await api("DELETE", `/api/v1/tokens/${encodeURIComponent(k.name)}`);
+          await renderTokens();
+        } catch (err) {
+          showError(err, "#tokens-info");
+        }
+      });
+      li.append(" ", b);
+    }
+    ul.append(li);
+  }
+  const fs = $("#token-profiles");
+  fs.querySelectorAll("label").forEach((l) => l.remove());
+  for (const p of profileList) {
+    const box = Object.assign(document.createElement("input"), { type: "checkbox", value: p.id, checked: true });
+    const label = document.createElement("label");
+    label.append(box, p.name);
+    fs.append(label);
+  }
+}
+
+async function createToken(e) {
+  e.preventDefault();
+  const boxes = $$("#token-profiles input");
+  const chosen = boxes.filter((b) => b.checked).map((b) => b.value);
+  if (!chosen.length) return showError(new Error(t("tokens.none")), "#tokens-info");
+  try {
+    const nt = await api("POST", "/api/v1/tokens", {
+      name: $("#token-name").value.trim(),
+      role: $("#token-readonly").checked ? "read" : "full",
+      profiles: chosen.length === boxes.length ? [] : chosen, // all checked: all profiles, also later ones
+      hub: location.origin,
+    });
+    $("#token-qr").src = nt.qr;
+    $("#token-value").textContent = nt.token;
+    const web = `${location.origin}/#token=${nt.token}`;
+    $("#token-weblink").href = web;
+    $("#token-weblink").textContent = web;
+    $("#token-new").hidden = false;
+    $("#token-name").value = "";
+    await renderTokens();
+  } catch (err) {
+    showError(err, "#tokens-info");
+  }
+}
+
 // ---- live updates
 
 function connect() {
@@ -378,6 +449,7 @@ function bind() {
     start();
   });
   $("#logout").addEventListener("click", () => logout(""));
+  $("#token-form").addEventListener("submit", createToken);
   $("#login-form").addEventListener("submit", (e) => {
     e.preventDefault();
     token = $("#token").value.trim();
@@ -399,7 +471,11 @@ function logout(reason) {
 async function start() {
   if (!token) return logout("");
   try {
-    const list = await api("GET", "/api/v1/profiles");
+    const [list, who] = await Promise.all([api("GET", "/api/v1/profiles"), api("GET", "/api/v1/me")]);
+    me = who;
+    profileList = list;
+    document.body.classList.toggle("readonly", me.role === "read");
+    document.body.classList.toggle("admin", me.admin);
     const sel = $("#profile");
     sel.replaceChildren(...list.map((p) => new Option(p.name, p.id, false, p.id === profile)));
     if (!list.some((p) => p.id === profile)) profile = list[0]?.id || "";
@@ -427,6 +503,7 @@ function runShortcut() {
   params.delete("action");
   const rest = params.toString();
   history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+  if (me.role === "read") return showError(new Error(t("now.readonly")));
   if (action === "auto") act(() => api("DELETE", "/api/v1/override"));
   else if (COLOR[action]) act(() => api("PUT", "/api/v1/override", { status: action, mode: "next_change" }));
 }

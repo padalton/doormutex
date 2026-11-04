@@ -3,15 +3,19 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	qrcode "github.com/skip2/go-qrcode"
 
 	"github.com/padalton/doormutex/hub/internal/calendar"
 	"github.com/padalton/doormutex/hub/internal/calendar/google"
@@ -25,6 +29,14 @@ import (
 // Authenticator maps a bearer token to a client.
 type Authenticator interface {
 	Authenticate(token string) (store.Client, bool)
+}
+
+// TokenAdmin manages API tokens; *store.Store implements it. Without it
+// the token routes aren't served.
+type TokenAdmin interface {
+	CreateToken(name string, profiles []string, role store.Role) (string, error)
+	ListTokens() ([]store.TokenInfo, error)
+	RevokeToken(name string) error
 }
 
 // Profile is one person and light served by the API.
@@ -57,6 +69,20 @@ type Server struct {
 	lifetime time.Duration
 	mux      *http.ServeMux
 	routes   []string
+	tokens   TokenAdmin
+}
+
+// readRoutes are the routes a read-only token may use: looking, never
+// changing anything (and no settings or calendar details).
+var readRoutes = map[string]bool{
+	"GET /api/v1/me": true, "GET /api/v1/profiles": true, "GET /api/v1/status": true,
+	"GET /api/v1/timeline": true, "GET /api/v1/history": true, "GET /api/v1/events": true,
+	"GET /api/v1/eink.png": true,
+}
+
+// adminRoutes need a full token for all profiles.
+var adminRoutes = map[string]bool{
+	"GET /api/v1/tokens": true, "POST /api/v1/tokens": true, "DELETE /api/v1/tokens/{name}": true,
 }
 
 // New builds the API handler. profiles must not be empty.
@@ -71,6 +97,7 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	}
 	s := &Server{profiles: profiles, auth: auth, log: log, keepalive: 25 * time.Second, lifetime: 10 * time.Minute, mux: http.NewServeMux()}
 	s.mux.HandleFunc("GET /healthz", s.healthz)
+	s.handle("GET /api/v1/me", s.getMe)
 	s.handle("GET /api/v1/profiles", s.getProfiles)
 	s.handle("GET /api/v1/status", s.getStatus)
 	s.handle("GET /api/v1/history", s.getHistory)
@@ -92,6 +119,12 @@ func New(profiles []Profile, auth Authenticator, log *slog.Logger) *Server {
 	s.handle("GET /api/v1/events", s.events)
 	s.handle("GET /api/v1/eink.png", s.getEink)
 	s.handle("GET /api/v1/eink.bin", s.getEink)
+	if ta, ok := auth.(TokenAdmin); ok {
+		s.tokens = ta
+		s.handle("GET /api/v1/tokens", s.listTokens)
+		s.handle("POST /api/v1/tokens", s.createToken)
+		s.handle("DELETE /api/v1/tokens/{name}", s.revokeToken)
+	}
 	return s
 }
 
@@ -118,14 +151,15 @@ func svc(r *http.Request) *service.Service {
 	return r.Context().Value(profileKey{}).(*Profile).Svc
 }
 
-// resolve picks the profile of a request: a scoped token always gets its
-// own profile, other tokens choose with ?profile= (default: the first).
+// resolve picks the profile of a request with ?profile=. A token limited
+// to some profiles defaults to its first one, others to the first profile.
 func (s *Server) resolve(c store.Client, want string) (*Profile, int, string) {
-	if c.Profile != "" {
-		if want != "" && want != c.Profile {
-			return nil, http.StatusForbidden, "this token is limited to profile " + c.Profile
+	if len(c.Profiles) > 0 {
+		if want == "" {
+			want = c.Profiles[0]
+		} else if !c.Sees(want) {
+			return nil, http.StatusForbidden, "this token is limited to profile " + strings.Join(c.Profiles, ", ")
 		}
-		want = c.Profile
 	}
 	if want == "" {
 		return &s.profiles[0], 0, ""
@@ -159,7 +193,21 @@ func (s *Server) handle(pattern string, h http.HandlerFunc) {
 			writeError(w, http.StatusUnauthorized, "missing or invalid token")
 			return
 		}
-		p, code, msg := s.resolve(c, r.URL.Query().Get("profile"))
+		if c.Role == store.RoleRead && !readRoutes[pattern] {
+			writeError(w, http.StatusForbidden, "read-only token")
+			return
+		}
+		if adminRoutes[pattern] && !c.Admin() {
+			writeError(w, http.StatusForbidden, "only a full token for all profiles can manage tokens")
+			return
+		}
+		want := r.URL.Query().Get("profile")
+		if want == "*" && pattern == "GET /api/v1/events" {
+			// every profile the token sees; the handler fans in
+			h(w, r.WithContext(context.WithValue(r.Context(), clientKey{}, c)))
+			return
+		}
+		p, code, msg := s.resolve(c, want)
 		if p == nil {
 			writeError(w, code, msg)
 			return
@@ -181,11 +229,30 @@ type ProfileInfo struct {
 	State engine.State `json:"state"`
 }
 
+// Me is the body of GET /api/v1/me: what the token may do.
+type Me struct {
+	Name     string     `json:"name"`
+	Role     store.Role `json:"role"`
+	Profiles []string   `json:"profiles"` // the profiles it sees
+	Admin    bool       `json:"admin"`    // may manage tokens
+}
+
+func (s *Server) getMe(w http.ResponseWriter, r *http.Request) {
+	c := Client(r)
+	me := Me{Name: c.Name, Role: c.Role, Profiles: []string{}, Admin: c.Admin()}
+	for _, p := range s.profiles {
+		if c.Sees(p.ID) {
+			me.Profiles = append(me.Profiles, p.ID)
+		}
+	}
+	writeJSON(w, http.StatusOK, me)
+}
+
 func (s *Server) getProfiles(w http.ResponseWriter, r *http.Request) {
 	c := Client(r)
 	out := []ProfileInfo{}
 	for _, p := range s.profiles {
-		if c.Profile == "" || c.Profile == p.ID {
+		if c.Sees(p.ID) {
 			out = append(out, ProfileInfo{ID: p.ID, Name: p.Name, Mode: p.Mode, State: p.Svc.State()})
 		}
 	}
@@ -537,30 +604,77 @@ func (s *Server) deleteSignal(w http.ResponseWriter, r *http.Request) {
 // events streams the state as Server-Sent Events: one "state" event on
 // connect and one per change, plus keep-alive comments. The stream ends
 // after s.lifetime; EventSource and the widget reconnect on their own.
+// With ?profile=* it streams every profile the token sees, each event
+// wrapped as {"profile": id, "state": …}.
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
 		writeError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	out := make(chan any, 16)
+	var first []any // current states, sent in profile order before any change
+	forward := func(ch <-chan engine.State, unsub func(), wrap func(engine.State) any) {
+		first = append(first, wrap(<-ch)) // Subscribe queues the current state first
+		go func() {
+			defer unsub()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case st := <-ch:
+					select {
+					case out <- wrap(st):
+					case <-ctx.Done():
+						return
+					}
+				}
+			}
+		}()
+	}
+	if p, _ := r.Context().Value(profileKey{}).(*Profile); p != nil {
+		ch, unsub := p.Svc.Subscribe()
+		forward(ch, unsub, func(st engine.State) any { return st })
+	} else {
+		c := Client(r)
+		for i := range s.profiles {
+			p := &s.profiles[i]
+			if !c.Sees(p.ID) {
+				continue
+			}
+			ch, unsub := p.Svc.Subscribe()
+			forward(ch, unsub, func(st engine.State) any { return ProfileState{Profile: p.ID, State: st} })
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Accel-Buffering", "no") // nginx: don't buffer
-	ch, cancel := svc(r).Subscribe()
-	defer cancel()
+	send := func(v any) bool {
+		b, _ := json.Marshal(v)
+		_, err := fmt.Fprintf(w, "event: state\ndata: %s\n\n", b)
+		return err == nil
+	}
+	for _, v := range first {
+		if !send(v) {
+			return
+		}
+	}
+	fl.Flush()
 	ka := time.NewTicker(s.keepalive)
 	defer ka.Stop()
 	end := time.NewTimer(s.lifetime)
 	defer end.Stop()
 	for {
 		select {
-		case <-r.Context().Done():
+		case <-ctx.Done():
 			return
 		case <-end.C:
 			return
-		case st := <-ch:
-			b, _ := json.Marshal(st)
-			if _, err := fmt.Fprintf(w, "event: state\ndata: %s\n\n", b); err != nil {
+		case v := <-out:
+			if !send(v) {
 				return
 			}
 			fl.Flush()
@@ -570,6 +684,122 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 			}
 			fl.Flush()
 		}
+	}
+}
+
+// ProfileState is one event of the stream over all profiles.
+type ProfileState struct {
+	Profile string       `json:"profile"`
+	State   engine.State `json:"state"`
+}
+
+// TokenBody is the body of POST /api/v1/tokens.
+type TokenBody struct {
+	Name     string   `json:"name"`
+	Role     string   `json:"role,omitempty"`     // default read
+	Profiles []string `json:"profiles,omitempty"` // default: all
+	Hub      string   `json:"hub,omitempty"`      // base URL for the pairing link; default: from the request
+}
+
+// NewToken is the answer: the token is shown only once.
+type NewToken struct {
+	store.TokenInfo
+	Token   string `json:"token"`
+	PairURL string `json:"pair_url"` // doormutex://pair?hub=…&token=…&name=…
+	QR      string `json:"qr"`       // the pairing link as a QR code, PNG data URL
+}
+
+func (s *Server) listTokens(w http.ResponseWriter, _ *http.Request) {
+	list, err := s.tokens.ListTokens()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (s *Server) createToken(w http.ResponseWriter, r *http.Request) {
+	var b TokenBody
+	if !decode(w, r, &b) {
+		return
+	}
+	if b.Role == "" {
+		b.Role = string(store.RoleRead)
+	}
+	role, err := store.ParseRole(b.Role)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	for _, id := range b.Profiles {
+		if !slices.ContainsFunc(s.profiles, func(p Profile) bool { return p.ID == id }) {
+			writeError(w, http.StatusBadRequest, "unknown profile "+id)
+			return
+		}
+	}
+	hub, err := hubURL(r, b.Hub)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	tok, err := s.tokens.CreateToken(b.Name, b.Profiles, role)
+	switch {
+	case errors.Is(err, store.ErrExists):
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	case err != nil:
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	pair := "doormutex://pair?" + url.Values{"hub": {hub}, "token": {tok}, "name": {b.Name}}.Encode()
+	png, err := qrcode.Encode(pair, qrcode.Medium, 320)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "qr code: "+err.Error())
+		return
+	}
+	s.log.Info("token created", "name", b.Name, "role", role, "profiles", b.Profiles, "client", Client(r).Name)
+	w.Header().Set("Cache-Control", "no-store") // the answer holds the token
+	profiles := b.Profiles
+	if profiles == nil {
+		profiles = []string{}
+	}
+	writeJSON(w, http.StatusCreated, NewToken{
+		TokenInfo: store.TokenInfo{Name: b.Name, Profiles: profiles, Role: role, CreatedAt: time.Now().UTC().Format(time.RFC3339)},
+		Token:     tok, PairURL: pair, QR: "data:image/png;base64," + base64.StdEncoding.EncodeToString(png),
+	})
+}
+
+// hubURL is the base URL a phone uses to reach the hub: the one the web UI
+// was opened with, or what the request says (proxy headers included).
+func hubURL(r *http.Request, given string) (string, error) {
+	if given == "" {
+		scheme := "http"
+		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		given = scheme + "://" + r.Host
+	}
+	u, err := url.Parse(given)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return "", errors.New("hub: want a base URL like https://doormutex.example.com")
+	}
+	return strings.TrimRight(u.String(), "/"), nil
+}
+
+func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request) {
+	name := r.PathValue("name")
+	if name == Client(r).Name {
+		writeError(w, http.StatusConflict, "this request uses that token – revoke it with another one or on the hub")
+		return
+	}
+	switch err := s.tokens.RevokeToken(name); {
+	case errors.Is(err, store.ErrNotFound):
+		writeError(w, http.StatusNotFound, "unknown token "+name)
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "internal error")
+	default:
+		s.log.Info("token revoked", "name", name, "client", Client(r).Name)
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

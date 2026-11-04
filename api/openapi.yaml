@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: doormutex hub API
-  version: 0.1.0
+  version: 0.2.0
   summary: Contract between the hub, the desktop companion, the Plasma widget and the Stream Deck plugin.
   description: |
     The hub decides the traffic light state from manual overrides, the
@@ -10,13 +10,20 @@ info:
     changes via Server-Sent Events and set overrides.
 
     All endpoints except `/healthz` require a bearer token. Create one per
-    client with `doormutex-hub token create <name> [<profile>]`.
+    client with `doormutex-hub token create <name> [<profile>...] [--read-only]`,
+    or in the web UI (Settings → Add a phone, `POST /api/v1/tokens`).
 
     **Profiles:** one hub serves several people and lights (e.g. the
-    office and a teenager's room). A token created for a profile only
-    works for that profile and needs no further parameter. A token without
-    a profile chooses one with the `profile` query parameter; without it,
-    the first profile of the configuration is used.
+    office and a teenager's room). A token created for some profiles only
+    works for those; without a `profile` query parameter it uses the first
+    of them. A token without profiles sees all of them and chooses one with
+    `profile`; without it, the first profile of the configuration is used.
+
+    **Roles:** a `full` token may do everything on its profiles. A `read`
+    token may only look: `GET` on `/me`, `/profiles`, `/status`,
+    `/timeline`, `/history`, `/events` and `/eink.png`; everything else
+    answers `403` with `{"error": "read-only token"}`. Managing tokens
+    (`/tokens`) needs a `full` token for all profiles.
 
     Durations are Go-style strings such as `30s`, `25m` or `1h30m`.
     Timestamps are RFC 3339.
@@ -44,10 +51,90 @@ paths:
                 properties:
                   status: { type: string, const: ok }
 
+  /api/v1/me:
+    get:
+      summary: The token's name, role and profiles
+      description: Lets a client show what it may do, e.g. hide the switches for a read-only token.
+      operationId: getMe
+      responses:
+        "200":
+          description: The authenticated client.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/tokens:
+    get:
+      summary: List API tokens
+      description: "Names, roles and profiles – never the tokens themselves. Needs a `full` token for all profiles."
+      operationId: listTokens
+      responses:
+        "200":
+          description: All tokens, by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TokenInfo" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      summary: Create an API token, e.g. to pair a phone
+      description: |
+        Returns the token once, with a pairing link
+        `doormutex://pair?hub=…&token=…&name=…` and the same link as a QR
+        code for a phone app to scan. Needs a `full` token for all profiles.
+      operationId: createToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TokenRequest" }
+      responses:
+        "201":
+          description: The new token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NewToken" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: A token with this name exists.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
+  /api/v1/tokens/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      summary: Revoke an API token
+      description: "Not the token of the request itself. Needs a `full` token for all profiles."
+      operationId: revokeToken
+      responses:
+        "204": { description: Revoked. }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: No token with this name.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: The request uses this token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   /api/v1/profiles:
     get:
       summary: Profiles and their current state
-      description: All profiles for an unscoped token, only its own profile for a scoped one.
+      description: All profiles the token sees – all of them, or the ones it was created for.
       operationId: listProfiles
       responses:
         "200":
@@ -445,7 +532,15 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/v1/events:
-    parameters: [{ $ref: "#/components/parameters/Profile" }]
+    parameters:
+      - name: profile
+        in: query
+        description: |
+          Profile id as for the other endpoints, or `*` for one stream over
+          every profile the token sees. Then each event's data is a
+          ProfileState (`{"profile": id, "state": State}`), and the stream
+          starts with the current state of each profile in configuration order.
+        schema: { type: string, pattern: "^(\\*|[a-z0-9][a-z0-9-]{0,31})$" }
     get:
       summary: Live state stream (Server-Sent Events)
       description: |
@@ -491,7 +586,7 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Forbidden:
-      description: The token is limited to another profile.
+      description: The token is limited to other profiles, is read-only, or may not manage tokens.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -536,7 +631,7 @@ components:
     Profile:
       name: profile
       in: query
-      description: Profile id. Ignored for profile-scoped tokens unless it names another profile (then 403).
+      description: Profile id. A token limited to some profiles defaults to its first one; a profile outside its list gives 403.
       schema: { type: string, pattern: "^[a-z0-9][a-z0-9-]{0,31}$" }
 
   schemas:
@@ -639,6 +734,70 @@ components:
         cycles: { type: integer, description: "0 = until stopped" }
         work_status: { type: string, enum: [working, dnd] }
         end: { type: [string, "null"], format: date-time }
+
+    Me:
+      type: object
+      required: [name, role, profiles, admin]
+      properties:
+        name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        profiles:
+          type: array
+          description: Ids of the profiles the token sees.
+          items: { type: string }
+        admin: { type: boolean, description: May manage tokens (a `full` token for all profiles). }
+
+    Role:
+      type: string
+      enum: [full, read]
+      description: "`full`: read and change; `read`: only look."
+
+    TokenInfo:
+      type: object
+      required: [name, role, profiles, created_at]
+      properties:
+        name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        profiles:
+          type: array
+          description: Empty = all profiles.
+          items: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used: { type: string, format: date-time }
+
+    TokenRequest:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: { type: string, pattern: "^[a-z0-9][a-z0-9_.-]{0,63}$", examples: [couch-phone] }
+        role: { $ref: "#/components/schemas/Role", default: read }
+        profiles:
+          type: array
+          description: Omitted or empty = all profiles.
+          items: { type: string }
+        hub:
+          type: string
+          format: uri
+          description: Base URL the phone uses to reach the hub, put into the pairing link. Default derived from the request (Host, X-Forwarded-Proto).
+          examples: ["https://doormutex.example.com"]
+
+    NewToken:
+      allOf:
+        - { $ref: "#/components/schemas/TokenInfo" }
+        - type: object
+          required: [token, pair_url, qr]
+          properties:
+            token: { type: string, description: Shown only once. }
+            pair_url: { type: string, examples: ["doormutex://pair?hub=https%3A%2F%2Fdoormutex.example.com&name=couch-phone&token=dm_…"] }
+            qr: { type: string, description: "The pairing link as a QR code, `data:image/png;base64,…`." }
+
+    ProfileState:
+      type: object
+      required: [profile, state]
+      properties:
+        profile: { type: string }
+        state: { $ref: "#/components/schemas/State" }
 
     ProfileInfo:
       type: object
