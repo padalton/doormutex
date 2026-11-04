@@ -15,3 +15,9 @@ SPDX-License-Identifier = "CERN-OHL-S-2.0"
 path = ["**/*.md", "docs/**", "site/**/*.md"]
 SPDX-FileCopyrightText = "2026 The doormutex contributors"
 SPDX-License-Identifier = "CC-BY-SA-4.0"
+
+# Code that generates the wiring drawings and video
+[[annotations]]
+path = ["docs/wiring/**/*.mjs", "docs/wiring/video/*.json", "docs/wiring/video/.gitignore"]
+SPDX-FileCopyrightText = "2026 The doormutex contributors"
+SPDX-License-Identifier = "Apache-2.0"

@@ -166,4 +166,4 @@ Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibe
 
 ## Next
 
-The pin assignment is fixed when the firmware starts. It has to respect the C6 strapping pins, and the LEDs go on LP GPIOs. The assignment then lands as a table and a Fritzing-style sketch in `firmware/`.
+The pin assignment respects the C6 strapping pins and puts the LEDs on LP GPIOs. Wiring diagrams for both stages, step by step and as a video: [wiring.md](wiring.md).
