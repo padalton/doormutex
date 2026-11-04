@@ -25,6 +25,7 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 | `diffuser` | 3 | transparent PETG | smooth side | 1 mm lens with concentric rings inside |
 | `foot` | 1 | PETG or PLA, dark grey/black | contact face | 2 magnets, USB-C slot, groove for a cable tie |
 | `side_plate` | 0–1 | PETG or PLA, dark grey/black | contact face | 4 magnets for a steel railing; `side_plate = "right"`, `"left"` or `"none"` |
+| `fit_test` | 1 | the shell material | lens seat | test piece for the fits – print it first, see [Fit test](#fit-test) |
 
 `part="assembly"`, `"exploded"` and `"collisions"` are views and a check, not printable.
 
@@ -49,7 +50,25 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 - **Lenses:** transparent PETG, 100 % infill, smooth side on a smooth sheet. Try `lens_t` 0.8–1.2 and `diffuser_pitch` in a test print.
 - **Embedded magnets** (`magnet_embed = true`, default): add a *pause* (M601) at the first layer above **4.25 mm** (4.4 mm at 0.2 mm layers) for the foot and the side plate. Check in the slicer preview that the pockets are still open in the layer below. Drop the magnets in and resume – no glue needed. The magnets stick to the MK3S steel sheet through the skin; that is harmless but makes removal a bit harder.
 - With `magnet_embed = false` the pockets are open and the magnets go in with a drop of CA glue or epoxy.
-- **Tolerances:** `tol` (sliding fits, default 0.2) and `press_tol` (LEDs, 0.1). Calibrate both with a test print before the full shell – in the material you print the shell with.
+- **Tolerances:** `tol` (sliding fits, default 0.2) and `press_tol` (LEDs, 0.1). Calibrate both with the [fit test](#fit-test) before the full shell – in the material you print the shell with.
+
+### Fit test
+
+`part="fit_test"`: a 118 × 66 mm plate plus a loose pin, about 1.5 h and 18 g at 0.2 mm (PrusaSlicer, MK3S speeds). Print it in the shell material with the same settings as the shell. Every hole is a step wider than the one before; the number next to it is engraved on the plate.
+
+<img src="images/fit-test.png" alt="Fit test plate seen from above" width="480">
+
+| Row | Numbers | Test | Take | Set |
+|---|---|---|---|---|
+| LED (front) | radial clearance 0.05–0.25 | push a 5 mm LED in from below | the tightest hole the LED goes into by hand and stays in | `press_tol` |
+| pin | radial clearance 0.1–0.3 | the loose pin | the tightest hole the pin slides into without force | `tol` |
+| bosses, left three | hole Ø 3.8 / 4.0 / 4.2 | press an M3 heat-set insert in with the soldering iron | straight, flush, no plastic bulging out at the top | `cover_hole_d` (insert) |
+| bosses, right three | hole Ø 2.4 / 2.6 / 2.8 | screw an M3 screw in | goes in by hand without cracking the boss and holds firmly | the `2.6` in `rib_holes()`; `cover_hole_d` (self-tapping) |
+| small standoffs | hole Ø 2.0 / 2.2 / 2.4 | screw an M2.5 screw in | same as above | `m25_hole_d` |
+| magnet pockets | radial clearance 0.1 / 0.15 / 0.2 | drop a 12 × 3 mm magnet into the pocket | falls in by itself, but doesn't rattle – that's what the print pause needs | `magnet_tol` |
+| lens seat | `tol` | on the bed side; put a printed `diffuser` in once the PETG is there | the lens lies flat in the seat with a little play | `tol` |
+
+The magnet pockets also test the holding force: with a magnet in, hold the plate with the bottom (0.6 mm skin) against the railing.
 
 ### PETG or PLA
 

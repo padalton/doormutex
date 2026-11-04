@@ -17,7 +17,7 @@ size=${IMGSIZE:-900,1200}
 
 # Manifold always produces closed meshes; --hardwarnings turns every
 # warning (e.g. a non-manifold result or an unknown variable) into an error.
-for part in front back foot side_plate visor diffuser; do
+for part in front back foot side_plate visor diffuser fit_test; do
   echo "STL  $part"
   "$openscad" --backend Manifold --hardwarnings -q -D "part=\"$part\"" -o "$out/doormutex-$part.stl" doormutex.scad
 done
