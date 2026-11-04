@@ -61,7 +61,7 @@ They cover the RFC 3339 parser, the state document (incl. the README example and
 
 ## Pins (breadboard defaults)
 
-ESP32-C6-DevKitC-1. All pins are in `idf.py menuconfig → doormutex → Pins`. **To be verified on the breadboard** – the assignment lands in the schematic afterwards.
+ESP32-C6-DevKitC-1. All pins are in `idf.py menuconfig → doormutex → Pins`. **To be verified on the breadboard** – the assignment lands in the schematic afterwards. Wiring diagrams: [docs/wiring.md](../docs/wiring.md).
 
 | Function | GPIO | Note |
 |---|---|---|

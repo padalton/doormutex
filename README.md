@@ -9,7 +9,7 @@ The state is detected automatically (microphone/camera, Google Calendar, working
 
 > **Status: early development.** This README is the project definition and feature set (as of 2026-10-30). The repo is public from day one so anyone can follow the project as it grows. Software: [`hub/`](hub/) (with web UI), [`companion/`](companion/), [`plasmoid/`](plasmoid/).
 >
-> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Android](docs/android.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml) · [Translating](TRANSLATING.md)
+> More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Wiring the breadboard](docs/wiring.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Android](docs/android.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml) · [Translating](TRANSLATING.md)
 
 ## Signals
 
