@@ -161,6 +161,10 @@ msgid "Create a token on the hub: doormutex-hub token create widget office"
 msgstr "Token am Hub erstellen: doormutex-hub token create widget office"
 
 #: ../package/contents/ui/main.qml
+msgid "No update since %1"
+msgstr "Keine Aktualisierung seit %1"
+
+#: ../package/contents/ui/main.qml
 msgid "Do not disturb"
 msgstr "Bitte nicht stören"
 
@@ -235,10 +239,6 @@ msgstr "Kein Token eingerichtet"
 #: ../package/contents/ui/main.qml
 msgid "Hub not reachable"
 msgstr "Hub nicht erreichbar"
-
-#: ../package/contents/ui/main.qml
-msgid "No update since %1"
-msgstr "Keine Aktualisierung seit %1"
 
 #: ../package/contents/ui/main.qml
 msgid "doormutex: %1"

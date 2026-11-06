@@ -9,6 +9,11 @@ PlasmoidItem {
 
     property var hubState: null
     property string error: ""
+    property bool stale: false
+    // problem is what the widget shows instead of the state's text: an error,
+    // or how old the shown state is.
+    readonly property string problem: error !== "" ? error
+        : stale ? i18n("No update since %1", time(lastSeen)) : ""
     property bool live: false
     property bool blinkOn: true
 
@@ -119,7 +124,11 @@ PlasmoidItem {
     property var stream: null
     property int streamPos: 0
     property double streamSeen: 0 // last sign of life on the stream (opened, data, keep-alive)
-    property double lastSeen: 0   // last state received from the hub, by stream or poll
+    // Last confirmation that the shown state is current: a state by stream or
+    // poll, or any sign of life on a live stream (the hub would have sent a
+    // change, so a keep-alive confirms the state too).
+    property double lastSeen: 0
+    onLastSeenChanged: stale = false
 
     function connectStream() {
         // Detach before aborting: abort() reports DONE synchronously, and the
@@ -141,6 +150,7 @@ PlasmoidItem {
             if (xhr !== stream) return
             if (xhr.readyState === XMLHttpRequest.LOADING || xhr.readyState === XMLHttpRequest.DONE) {
                 streamSeen = Date.now()
+                if (live) lastSeen = streamSeen
                 const text = xhr.responseText
                 let end
                 while ((end = text.indexOf("\n\n", streamPos)) >= 0) {
@@ -182,8 +192,8 @@ PlasmoidItem {
     // - the hub sends a keep-alive every 25 s; a stream silent for 70 s is
     //   dead, so open a new one;
     // - poll while the stream is down;
-    // - never show an old state as current: after a minute without news
-    //   the widget dims and says since when.
+    // - never show an old state as current: after a minute without
+    //   confirmation the widget dims and says since when.
     Timer {
         interval: 15000
         running: true
@@ -193,8 +203,7 @@ PlasmoidItem {
             const now = Date.now()
             if (root.stream && now - root.streamSeen > 70000) root.connectStream()
             if (!root.live) root.refresh()
-            if (root.lastSeen > 0 && now - root.lastSeen > 60000 && root.error === "")
-                root.error = i18n("No update since %1", root.time(root.lastSeen))
+            root.stale = root.lastSeen > 0 && now - root.lastSeen > 60000
         }
     }
     Timer {
@@ -212,7 +221,7 @@ PlasmoidItem {
 
     Plasmoid.icon: "user-busy"
     Plasmoid.status: hubState && hubState.status !== "away" ? PlasmaCore.Types.ActiveStatus : PlasmaCore.Types.PassiveStatus
-    toolTipMainText: error !== "" ? i18n("doormutex: %1", error)
+    toolTipMainText: problem !== "" ? i18n("doormutex: %1", problem)
         : hubState ? (hubState.phase === "fault" ? i18n("Fault") : statusText[hubState.status]) : "doormutex"
     toolTipSubText: hubState ? describe(hubState) + (hubState.until ? " · " + i18n("until %1", time(hubState.until)) : "") : ""
 

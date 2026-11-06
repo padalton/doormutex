@@ -61,7 +61,7 @@ PlasmaExtras.Representation {
                 spacing: 0
                 Kirigami.Heading {
                     level: 2
-                    text: root.error !== "" ? root.error
+                    text: root.problem !== "" ? root.problem
                         : !full.st ? i18n("Connecting…")
                         : full.st.phase === "fault" ? i18n("Fault – companion not responding")
                         : root.statusText[full.st.status]
