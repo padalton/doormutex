@@ -16,6 +16,6 @@ MouseArea {
         width: height * 0.42
         light: root.hubState ? root.hubState.light : "off"
         blinkOn: root.blinkOn
-        opacity: root.error === "" ? 1 : 0.5
+        opacity: root.problem === "" ? 1 : 0.5
     }
 }
