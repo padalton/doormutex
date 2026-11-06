@@ -60,7 +60,13 @@ func Login(ctx context.Context, conf oauth2.Config, in io.Reader, out io.Writer)
 		codes <- code
 	})}
 	go func() { _ = srv.Serve(ln) }()
-	defer func() { _ = srv.Close() }()
+	// Shutdown, not Close: the browser's request may still be sending its
+	// "signed in" page when the code arrives here; Close would cut it off.
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(sctx)
+	}()
 	go func() {
 		sc := bufio.NewScanner(in)
 		for sc.Scan() {
