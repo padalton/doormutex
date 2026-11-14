@@ -33,8 +33,7 @@ esp_err_t dm_settings_load(dm_config_t *c)
     for (size_t i = 0; i < dm_config_key_count; i++) {
         char v[128];
         size_t len = sizeof(v);
-        // NVS keys are at most 15 characters – all of ours fit.
-        if (nvs_get_str(h, dm_config_keys[i], v, &len) == ESP_OK &&
+        if (nvs_get_str(h, dm_config_nvs_keys[i], v, &len) == ESP_OK &&
             dm_config_set(c, dm_config_keys[i], v) != DM_CONFIG_OK) {
             ESP_LOGW(TAG, "ignoring stored %s", dm_config_keys[i]);
         }
@@ -51,7 +50,10 @@ esp_err_t dm_settings_save(const dm_config_t *c)
     for (size_t i = 0; i < dm_config_key_count && err == ESP_OK; i++) {
         char v[128];
         dm_config_get(c, dm_config_keys[i], false, v, sizeof(v));
-        err = nvs_set_str(h, dm_config_keys[i], v);
+        err = nvs_set_str(h, dm_config_nvs_keys[i], v);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "save %s: %s", dm_config_keys[i], esp_err_to_name(err));
+        }
     }
     if (err == ESP_OK) {
         err = nvs_commit(h);

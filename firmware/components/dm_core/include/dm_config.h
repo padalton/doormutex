@@ -43,6 +43,8 @@ bool dm_config_ready(const dm_config_t *c);
 // Keys in a stable order (for NVS and `show`).
 extern const char *const dm_config_keys[];
 extern const size_t dm_config_key_count;
+// The NVS key for each entry of dm_config_keys (NVS allows 15 characters).
+extern const char *const dm_config_nvs_keys[];
 
 // dm_config_get formats one value; secrets come out as "***" if mask is set.
 int dm_config_get(const dm_config_t *c, const char *key, bool mask, char *out, size_t cap);

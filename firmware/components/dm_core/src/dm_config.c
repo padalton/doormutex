@@ -8,6 +8,11 @@ const char *const dm_config_keys[] = {
     "mqtt_url", "mqtt_user", "mqtt_pass", "profile", "base_topic", "discovery_prefix", "ntp", "brightness",
 };
 const size_t dm_config_key_count = sizeof(dm_config_keys) / sizeof(dm_config_keys[0]);
+// NVS keys are at most 15 characters, so the long ones get a short name.
+const char *const dm_config_nvs_keys[] = {
+    "mqtt_url", "mqtt_user", "mqtt_pass", "profile", "base_topic", "disc_prefix", "ntp", "brightness",
+};
+_Static_assert(sizeof(dm_config_nvs_keys) == sizeof(dm_config_keys), "one NVS key per setting");
 
 void dm_config_defaults(dm_config_t *c)
 {
