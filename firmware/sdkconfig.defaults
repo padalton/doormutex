@@ -18,6 +18,10 @@ CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP=3
 CONFIG_ESP_WIFI_SLP_IRAM_OPT=y
 CONFIG_PM_SLP_IRAM_OPT=y
 CONFIG_PM_RTOS_IDLE_OPT=y
+# No automatic light sleep while a USB host is connected: light sleep
+# powers the USB PHY down, and the console, Improv and esptool's reset
+# stop answering. On the cell (no USB host) the light still sleeps.
+CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION=y
 # Keep the MAC/baseband powered in light sleep, so the connection survives.
 CONFIG_ESP_PHY_MAC_BB_PD=n
 

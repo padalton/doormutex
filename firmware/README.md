@@ -2,7 +2,7 @@
 
 ESP-IDF (C) for the ESP32-C6 traffic light. **Smart hub, dumb light:** the hub publishes the state with the lamp pattern via MQTT; the light shows it, reports battery and signal, and blinks yellow by itself when it can't trust the hub any more.
 
-> **Status: skeleton.** It builds, and the core logic is unit-tested on the host, but it hasn't run on hardware yet. That comes with the [breadboard prototype](../docs/breadboard.md). What's real and what's stubbed is listed [below](#status).
+> **Status: runs on the breadboard (stage 1).** LEDs, Wi-Fi, MQTT, the hub's state and Home Assistant work on an ESP32-C6-DevKitC-1 ([breadboard prototype](../docs/breadboard.md)). E-ink, light sensor and battery are still to come. What's real and what's stubbed is listed [below](#status).
 
 ## Layout
 
@@ -151,10 +151,10 @@ LED brightness: duty = brightness² (perceived brightness), scaled down by (3.0 
 | Part | State |
 |---|---|
 | State parsing, failsafe, patterns, LED duty | ✅ real, host-tested |
-| LEDC driver, blink timer, identify | ✅ real, not on hardware yet |
-| Wi-Fi, MQTT (Last Will, chunked messages, reconnect), SNTP | ✅ real, not on hardware yet |
-| Improv serial + console + NVS settings | ✅ real (protocol host-tested), not tried with ESP Web Tools yet |
-| HA discovery + telemetry | ✅ real, host-tested payloads |
+| LEDC driver, blink timer, identify | ✅ on the breadboard: all three lamps, StVO phases from the hub |
+| Wi-Fi, MQTT (Last Will, chunked messages, reconnect), SNTP | ✅ on the breadboard (state, hub online, e-ink frame received) |
+| Improv serial + console + NVS settings | ✅ on the breadboard (Improv from a script; not tried with ESP Web Tools yet) |
+| HA discovery + telemetry | ✅ on the breadboard: the device and its entities appear in Home Assistant |
 | MAX17048, charger pins | ✅ real, untested |
 | OTA rollback confirmation | ✅ the first state from the hub marks the image valid |
 | E-ink (SSD1681) | ⏳ interface + frame check only – driver TODO (no GPL drivers, see README → Open source) |

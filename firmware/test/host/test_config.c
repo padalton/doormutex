@@ -35,6 +35,8 @@ void test_config(void)
     CHECK_STR(out, "hunter2 with space");
     for (size_t i = 0; i < dm_config_key_count; i++) {
         CHECK_INT(dm_config_get(&c, dm_config_keys[i], true, out, sizeof(out)), DM_CONFIG_OK);
+        // NVS rejects longer keys (ESP_ERR_NVS_KEY_TOO_LONG): nothing would be saved.
+        CHECK(strlen(dm_config_nvs_keys[i]) <= 15);
     }
     char longv[200];
     memset(longv, 'x', sizeof(longv) - 1);
