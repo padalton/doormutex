@@ -2,6 +2,10 @@
 
 The first hardware prototype is built from ready-made modules on a breadboard – no SMD soldering at all. The parts arrive within days; the PCB from JLCPCB takes weeks. What we measure here (current, brightness, pin assignment) feeds directly into the schematic.
 
+<p><img src="images/breadboard-v1.jpg" alt="Breadboard prototype, stage 1: ESP32-C6 DevKit, three LEDs with MOSFETs, VEML7700 light sensor and the 1.54-inch e-paper showing Working until 19:41" width="420"></p>
+
+*Stage 1 running (2026-11-14): ESP32-C6-DevKitC-1 across two breadboards, three LEDs with MOSFETs, the VEML7700 light sensor and the Waveshare e-paper with the hub's sign. Wiring: [wiring.md](wiring.md).*
+
 > Parts as of 2026-10-29, shops and links checked on 2026-11-02. Prices are guidelines; check availability before ordering. Shop recommendations assume delivery to Austria.
 
 ## Two stages

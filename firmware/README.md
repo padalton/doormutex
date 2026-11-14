@@ -170,6 +170,10 @@ LED brightness: duty = brightness² (perceived brightness), scaled down by (3.0 
 | Info button | ⏳ TODO |
 | ESP Web Tools manifest + flasher page | ⏳ next step |
 
+### Known issues
+
+- **Console silent after plugging USB in:** after a power-on by plugging the cable in, the console sometimes doesn't answer although the port is there and the light runs normally (Wi-Fi, MQTT, LEDs). Any reset from the PC brings it back (`esptool … chip-id`, or toggling RTS). A reset by the PC, flashing and `restart` don't show it. Keeping the chip awake at full clock for 5 s after boot did not help; still to be narrowed down.
+
 ## ESPHome (mains power)
 
 [`esphome/doormutex-mains.yaml`](esphome/doormutex-mains.yaml) does the same on any ESP32 with three LEDs – without light sleep, e-ink or battery. Same topics, same patterns, same failsafe; brightness as a number in HA.

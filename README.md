@@ -438,6 +438,10 @@ actions:
 
 ## Hardware
 
+<p><img src="docs/images/breadboard-v1.jpg" alt="Breadboard prototype, stage 1: ESP32-C6 DevKit, three LEDs with MOSFETs, VEML7700 light sensor and the 1.54-inch e-paper showing Working until 19:41" width="360"></p>
+
+*The breadboard prototype, stage 1 ([parts](docs/breadboard.md), [wiring](docs/wiring.md)): the light shows the hub's state – here yellow, "Working until 19:41" on the e-ink sign.*
+
 ```mermaid
 flowchart LR
   usb["USB-C 5 V"] --> chg["Charger with power path<br/>NTC · safety timer"]
