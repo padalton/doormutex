@@ -67,6 +67,31 @@ menu "doormutex"
                 The worst case near the cell's cut-off. Above it the duty
                 is scaled down so the brightness stays even as the cell
                 drains.
+        config DM_LED_LEVEL_RED
+            int "Red level (%)"
+            range 1 100
+            default 100
+            help
+                Evens out LEDs of different efficiency: a lamp that looks
+                too bright next to the others gets less than 100 %.
+        config DM_LED_LEVEL_YELLOW
+            int "Yellow level (%)"
+            range 1 100
+            default 100
+        config DM_LED_LEVEL_GREEN
+            int "Green level (%)"
+            range 1 100
+            default 100
+    endmenu
+
+    menu "E-ink"
+        config DM_EINK_CONNECTOR_TOP
+            bool "Module mounted with its connector at the top"
+            default n
+            help
+                Default: the Waveshare module's connector at the bottom, the
+                print on its board readable. Mounted the other way round,
+                the picture is turned by 180° to stay upright.
     endmenu
 
     menu "Failsafe"

@@ -44,6 +44,8 @@ typedef struct {
     bool charging;
     bool usb;            // external power present
     int rssi;            // dBm, 0 = unknown
+    bool has_lux;        // a light sensor answered
+    float lux;           // ambient light, valid if has_lux
     const char *light;   // what the LEDs show
     const char *fault;   // failsafe reason, "none" if fine
     uint32_t uptime_s;

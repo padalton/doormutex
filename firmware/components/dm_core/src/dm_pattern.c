@@ -1,5 +1,7 @@
 #include "dm_pattern.h"
 
+#include <math.h>
+
 #define STEADY(m) {{.ms = 0, .mask = (m)}}
 #define N(a) ((uint8_t)(sizeof(a) / sizeof((a)[0])))
 
@@ -66,4 +68,18 @@ uint32_t dm_led_duty(float brightness, int supply_mv, int vf_mv, int ref_mv, uin
     uint32_t d = (uint32_t)(duty * (float)max_duty + 0.5f);
     // A lamp that should be on never rounds down to dark.
     return d == 0 ? 1 : d;
+}
+
+float dm_brightness_for_lux(float setting, float lux)
+{
+    if (lux < 0.0f) {
+        return setting;
+    }
+    // 0.25 in the dark, 1 at 200 lx, about 1.6 at 10 000 lx, at most 2.
+    float f = 0.25f + 0.75f * log10f(1.0f + lux) / log10f(201.0f);
+    if (f > 2.0f) {
+        f = 2.0f;
+    }
+    float b = setting * f;
+    return b > 1.0f ? 1.0f : b;
 }

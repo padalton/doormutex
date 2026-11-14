@@ -1,4 +1,5 @@
 #include "dm_telemetry.h"
+#include "dm_telemetry_priv.h"
 
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -17,6 +18,11 @@ static struct {
     i2c_master_bus_handle_t bus;
     i2c_master_dev_handle_t gauge;
 } p;
+
+i2c_master_bus_handle_t dm_power_i2c_bus(void)
+{
+    return p.bus;
+}
 
 esp_err_t dm_power_init(const dm_power_cfg_t *cfg)
 {

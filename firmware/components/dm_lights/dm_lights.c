@@ -37,8 +37,10 @@ static struct {
 static void apply_mask(uint8_t mask)
 {
     const int vf[3] = {s.cfg.vf_mv_red, s.cfg.vf_mv_yellow, s.cfg.vf_mv_green};
+    const int level[3] = {s.cfg.level_red, s.cfg.level_yellow, s.cfg.level_green};
     for (int ch = 0; ch < 3; ch++) {
-        uint32_t duty = (mask & lamp_bits[ch]) ? dm_led_duty(s.brightness, s.supply_mv, vf[ch], s.cfg.ref_mv, PWM_MAX) : 0;
+        float b = s.brightness * (level[ch] > 0 && level[ch] < 100 ? level[ch] / 100.0f : 1.0f);
+        uint32_t duty = (mask & lamp_bits[ch]) ? dm_led_duty(b, s.supply_mv, vf[ch], s.cfg.ref_mv, PWM_MAX) : 0;
         ledc_set_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)ch, duty);
         ledc_update_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)ch);
     }

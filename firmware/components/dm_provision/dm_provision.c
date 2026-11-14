@@ -179,6 +179,11 @@ static void print_settings(void)
              dm_net_has_credentials() ? (dm_net_rssi() != 0 ? "connected" : "configured, not connected")
                                       : "not configured (use ESP Web Tools / Improv)");
     out(buf);
+    if (s.sc.on_status) {
+        char st[256];
+        s.sc.on_status(st, sizeof(st));
+        out(st);
+    }
     for (size_t i = 0; i < dm_config_key_count; i++) {
         dm_config_get(s.cfg, dm_config_keys[i], true, v, sizeof(v));
         snprintf(buf, sizeof(buf), "%-16s %s\n", dm_config_keys[i], v);

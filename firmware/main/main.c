@@ -3,6 +3,7 @@
 // Smart hub, dumb light: the hub publishes the state (incl. the lamp
 // pattern) via MQTT; the light shows it, reports battery and signal, and
 // blinks yellow by itself when it can't trust the hub any more.
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -12,6 +13,7 @@
 #include "dm_eink.h"
 #include "dm_lights.h"
 #include "dm_net.h"
+#include "dm_pattern.h"
 #include "dm_provision.h"
 #include "dm_state.h"
 #include "dm_telemetry.h"
@@ -127,9 +129,33 @@ static void on_link(bool up)
     wake_main();
 }
 
+// Live values for the console's `show`, written by the main loop.
+static struct {
+    float lux;
+    float brightness;
+} live = {.lux = -1.0f};
+
+static void status(char *out, size_t cap)
+{
+    dm_power_t pw;
+    dm_power_read(&pw);
+    char lux[72];
+    snprintf(lux, sizeof(lux), "%s", dm_ambient_status());
+    if (live.lux >= 0.0f) {
+        snprintf(lux, sizeof(lux), "%.1f lx", (double)live.lux);
+    }
+    char bat[32] = "no gauge";
+    if (pw.gauge) {
+        snprintf(bat, sizeof(bat), "%.0f %% (%d mV)", (double)pw.soc_pct, pw.cell_mv);
+    }
+    snprintf(out, cap, "light      %s\nambient    %s -> brightness %.0f %%\nbattery    %s%s%s\neink       %s\n",
+             dm_light_name(dm_lights_current()), lux, (double)(live.brightness * 100.0f), bat, pw.usb ? ", USB" : "",
+             pw.charging ? ", charging" : "", dm_eink_status());
+}
+
 // ---- main loop
 
-static void publish_telemetry(const char *light, const char *fault, const dm_power_t *pw)
+static void publish_telemetry(const char *light, const char *fault, const dm_power_t *pw, float lux)
 {
     dm_telemetry_t t = {
         .battery_pct = pw->gauge ? pw->soc_pct : -1.0f,
@@ -137,6 +163,8 @@ static void publish_telemetry(const char *light, const char *fault, const dm_pow
         .charging = pw->charging,
         .usb = pw->usb,
         .rssi = dm_net_rssi(),
+        .has_lux = lux >= 0.0f,
+        .lux = lux,
         .light = light,
         .fault = fault,
         .uptime_s = (uint32_t)(now_ms() / 1000),
@@ -172,6 +200,8 @@ static void run(void)
     int64_t next_telemetry = 0;
     dm_fault_t last_fault = DM_FAULT_BOOTING;
     dm_power_t last_power = {0};
+    float lux = -1.0f; // smoothed ambient light, < 0 = no sensor (yet)
+    float brightness = cfg.brightness / 100.0f;
     static dm_state_t st;
 
     for (;;) {
@@ -208,19 +238,31 @@ static void run(void)
         if (pw.gauge) {
             dm_lights_set_supply_mv(pw.cell_mv);
         }
+        float raw;
+        if (dm_ambient_lux(&raw)) {
+            // Smooth out a passing shadow; the eye adapts slowly as well.
+            lux = lux < 0.0f ? raw : lux + 0.2f * (raw - lux);
+            float b = dm_brightness_for_lux(cfg.brightness / 100.0f, lux);
+            if (fabsf(b - brightness) >= 0.01f) {
+                ESP_LOGD(TAG, "%.1f lx → brightness %.0f %%", (double)lux, (double)(b * 100.0f));
+                brightness = b;
+                dm_lights_set_brightness(b);
+            }
+        }
+        live.lux = lux;
+        live.brightness = brightness;
         bool changed = fault != last_fault || pw.charging != last_power.charging || pw.usb != last_power.usb;
         if (announce) {
             publish_discovery();
         }
         if (link.connected && (announce || changed || link.now_ms >= next_telemetry)) {
-            publish_telemetry(dm_light_name(light), dm_fault_name(fault), &pw);
+            publish_telemetry(dm_light_name(light), dm_fault_name(fault), &pw, lux);
             next_telemetry = link.now_ms + CONFIG_DM_TELEMETRY_INTERVAL_S * 1000LL;
         }
         last_fault = fault;
         last_power = pw;
         // TODO(firmware): away mode (deep sleep + polling while the PC is
-        // locked), battery-empty screen and cut-off, light sensor
-        // (VEML7700) → dm_lights_set_brightness.
+        // locked), battery-empty screen and cut-off.
     }
 }
 
@@ -261,6 +303,9 @@ void app_main(void)
         .vf_mv_yellow = CONFIG_DM_VF_YELLOW_MV,
         .vf_mv_green = CONFIG_DM_VF_GREEN_MV,
         .ref_mv = CONFIG_DM_LED_REF_MV,
+        .level_red = CONFIG_DM_LED_LEVEL_RED,
+        .level_yellow = CONFIG_DM_LED_LEVEL_YELLOW,
+        .level_green = CONFIG_DM_LED_LEVEL_GREEN,
     };
     ESP_ERROR_CHECK(dm_lights_init(&lc));
     dm_lights_set_brightness(cfg.brightness / 100.0f);
@@ -273,6 +318,8 @@ void app_main(void)
     };
     if (dm_power_init(&pc) != ESP_OK) {
         ESP_LOGW(TAG, "power monitoring unavailable");
+    } else {
+        dm_ambient_init(); // logs whether a light sensor answered
     }
     const dm_eink_cfg_t ec = {
         .gpio_mosi = CONFIG_DM_GPIO_EINK_MOSI,
@@ -281,6 +328,11 @@ void app_main(void)
         .gpio_dc = CONFIG_DM_GPIO_EINK_DC,
         .gpio_rst = CONFIG_DM_GPIO_EINK_RST,
         .gpio_busy = CONFIG_DM_GPIO_EINK_BUSY,
+#if CONFIG_DM_EINK_CONNECTOR_TOP
+        .rotate_180 = false,
+#else
+        .rotate_180 = true,
+#endif
     };
     dm_eink_init(&ec);
 
@@ -294,7 +346,7 @@ void app_main(void)
 #endif
 
     ESP_ERROR_CHECK(dm_net_init());
-    const dm_serial_cfg_t sc = {.device_id = dev.id, .firmware = dev.firmware, .on_identify = identify};
+    const dm_serial_cfg_t sc = {.device_id = dev.id, .firmware = dev.firmware, .on_identify = identify, .on_status = status};
     ESP_ERROR_CHECK(dm_serial_start(&cfg, &sc));
 
     if (!dm_net_has_credentials()) {

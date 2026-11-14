@@ -68,4 +68,23 @@ void test_pattern(void)
     CHECK_INT(dm_led_duty(1.0f, 2900, 2000, 3000, 4095), 4095);
     // A lit lamp never rounds to dark.
     CHECK_INT(dm_led_duty(0.001f, 4200, 2900, 3000, 4095), 1);
+
+    // Brightness from ambient light: the setting at room light, a quarter
+    // in the dark, more in sunlight, never above full.
+#define NEAR(a, b) ((a) > (b) - 0.01f && (a) < (b) + 0.01f)
+    CHECK(NEAR(dm_brightness_for_lux(0.4f, -1.0f), 0.4f));
+    CHECK(NEAR(dm_brightness_for_lux(0.4f, 0.0f), 0.1f));
+    CHECK(NEAR(dm_brightness_for_lux(0.4f, 200.0f), 0.4f));
+    CHECK(dm_brightness_for_lux(0.4f, 10.0f) > 0.1f && dm_brightness_for_lux(0.4f, 10.0f) < 0.4f);
+    CHECK(dm_brightness_for_lux(0.4f, 10000.0f) > 0.6f);
+    CHECK(NEAR(dm_brightness_for_lux(0.9f, 100000.0f), 1.0f));
+    CHECK(NEAR(dm_brightness_for_lux(0.4f, 1e9f), 0.8f)); // factor capped at 2
+    // Monotonic.
+    float last = 0.0f;
+    for (float lux = 0.0f; lux < 50000.0f; lux = lux * 1.5f + 0.1f) {
+        float b = dm_brightness_for_lux(0.4f, lux);
+        CHECK(b >= last);
+        last = b;
+    }
+#undef NEAR
 }

@@ -2,7 +2,7 @@
 
 ESP-IDF (C) for the ESP32-C6 traffic light. **Smart hub, dumb light:** the hub publishes the state with the lamp pattern via MQTT; the light shows it, reports battery and signal, and blinks yellow by itself when it can't trust the hub any more.
 
-> **Status: runs on the breadboard (stage 1).** LEDs, Wi-Fi, MQTT, the hub's state and Home Assistant work on an ESP32-C6-DevKitC-1 ([breadboard prototype](../docs/breadboard.md)). E-ink, light sensor and battery are still to come. What's real and what's stubbed is listed [below](#status).
+> **Status: runs on the breadboard (stage 1).** LEDs, e-ink, light sensor, Wi-Fi, MQTT, the hub's state and Home Assistant work on an ESP32-C6-DevKitC-1 ([breadboard prototype](../docs/breadboard.md)). The battery (stage 2) is still to come. What's real and what's stubbed is listed [below](#status).
 
 ## Layout
 
@@ -88,7 +88,7 @@ Kept free: 4, 5, 8, 9, 15 (strapping; 8 is the DevKit's RGB LED, 9 the BOOT butt
 
    | Command | |
    |---|---|
-   | `show` | settings (password masked), device ID, Wi-Fi |
+   | `show` | device ID, Wi-Fi, live values (lamp, ambient light and brightness, battery, e-ink panel), settings (password masked) |
    | `set KEY VALUE` | `mqtt_url` (`mqtt://`, `mqtts://`, `ws://`, `wss://`), `mqtt_user`, `mqtt_pass`, `profile`, `base_topic` (default `doormutex`), `discovery_prefix` (`homeassistant`), `ntp` (`pool.ntp.org`), `brightness` (1–100, default 40). No value = default. Applies after `restart` |
    | `identify` | lamps cycle red → yellow → green |
    | `restart`, `factory-reset` | the latter forgets settings and Wi-Fi |
@@ -104,11 +104,11 @@ The light subscribes to the hub's topics and has three of its own (`<id>` = `doo
 | `doormutex/<profile>/state` | hub → light | retained state JSON; the light uses `light` (and `until` for the failsafe) |
 | `doormutex/hub/online` | hub → light | `offline` (the hub's Last Will) → yellow blinks |
 | `doormutex/<profile>/display` | hub → light | e-ink frame, 5000 bytes (200 × 200, 1 bit, rows, MSB = left) |
-| `doormutex/device/<id>/telemetry` | light → | retained: `battery` (%), `voltage` (V), `charging`, `usb`, `rssi`, `light`, `fault`, `uptime`, `firmware` |
+| `doormutex/device/<id>/telemetry` | light → | retained: `battery` (%), `voltage` (V), `charging`, `usb`, `rssi`, `lux`, `light`, `fault`, `uptime`, `firmware` |
 | `doormutex/device/<id>/online` | light → | `online` / `offline` (Last Will) |
 | `doormutex/device/<id>/cmd` | → light | `identify`, `restart`, `ota <url>` (not implemented yet) |
 
-**Home Assistant:** the light announces its own device (`homeassistant/device/doormutex_<mac>/config`), linked to its profile's hub device: battery, battery voltage, charging, USB power, Wi-Fi signal, light fault, and *Identify* / *Restart* buttons. Entity IDs follow the hub's scheme, e.g. `sensor.doormutex_office_battery`.
+**Home Assistant:** the light announces its own device (`homeassistant/device/doormutex_<mac>/config`), linked to its profile's hub device: battery, battery voltage, charging, USB power, Wi-Fi signal, illuminance, light fault, and *Identify* / *Restart* buttons. Entity IDs follow the hub's scheme, e.g. `sensor.doormutex_office_battery`.
 
 ## Lamp patterns and failsafe
 
@@ -144,6 +144,12 @@ The hub publishes only on change, so the state's `updated` time can be hours old
 
 LED brightness: duty = brightness² (perceived brightness), scaled down by (3.0 V − V<sub>f</sub>) / (V<sub>cell</sub> − V<sub>f</sub>) above 3.0 V, so the light stays even as the cell drains (needs the fuel gauge).
 
+**Ambient light:** with a VEML7700 the brightness setting applies to a normally lit room (about 200 lx); the light dims to a quarter of it in the dark and gets up to twice as bright in sunlight (capped at 100 %), on a logarithmic curve like the eye. Without the sensor the setting applies as is. The value goes to Home Assistant as *Illuminance*.
+
+**Per-lamp level:** `menuconfig → doormutex → LEDs → Red/Yellow/Green level` evens out LEDs of different efficiency (default 100 %).
+
+**E-ink orientation:** upright with the Waveshare module's connector at the bottom (its print readable); `menuconfig → doormutex → E-ink → connector at the top` turns the picture for the other way round.
+
 **Wi-Fi 6 TWT** would let the radio sleep much longer, but needs a Wi-Fi 6 access point; with Wi-Fi 5 (e.g. UniFi AC) the beacon-based power save above is what's left.
 
 ## Status
@@ -157,8 +163,8 @@ LED brightness: duty = brightness² (perceived brightness), scaled down by (3.0 
 | HA discovery + telemetry | ✅ on the breadboard: the device and its entities appear in Home Assistant |
 | MAX17048, charger pins | ✅ real, untested |
 | OTA rollback confirmation | ✅ the first state from the hub marks the image valid |
-| E-ink (SSD1681) | ⏳ interface + frame check only – driver TODO (no GPL drivers, see README → Open source) |
-| Light sensor (VEML7700) → brightness | ⏳ TODO |
+| E-ink (SSD1681) | ✅ on the breadboard: own driver from the datasheet, full refresh (~1.4 s) per new frame, panel in deep sleep between; partial refresh TODO |
+| Light sensor (VEML7700) → brightness | ✅ on the breadboard: auto range, power-saving mode, brightness follows the room (below) |
 | Away mode / deep sleep, battery-empty cut-off | ⏳ TODO |
 | OTA download (`ota <url>`) | ⏳ TODO |
 | Info button | ⏳ TODO |

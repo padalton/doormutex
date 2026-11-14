@@ -46,6 +46,12 @@ const dm_pattern_t *dm_pattern_for(dm_light_t light);
 // and, in *next_ms, how long until the next change (UINT32_MAX if never).
 uint8_t dm_pattern_at(const dm_pattern_t *p, uint32_t elapsed_ms, uint32_t *next_ms);
 
+// dm_brightness_for_lux scales the brightness setting (0..1, meant for a
+// normally lit room of about 200 lx) with the ambient light: dimmer at
+// night (down to a quarter), brighter in sunlight (up to twice, capped at
+// 1). Logarithmic, like the eye. lux < 0 = no sensor: the setting as is.
+float dm_brightness_for_lux(float setting, float lux);
+
 // dm_led_duty computes the PWM duty for one lamp.
 //
 //   brightness  0…1 from the light sensor / setting; perceived brightness
