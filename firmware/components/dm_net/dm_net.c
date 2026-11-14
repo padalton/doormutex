@@ -1,5 +1,6 @@
 #include "dm_net.h"
 
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -46,6 +47,22 @@ static struct {
 } n;
 
 static uint8_t rx_buf[RX_MAX];
+
+// The MQTT client starts with the first IP address: started before, its
+// first attempt fails ("Host is unreachable") and the next one only comes
+// after reconnect_timeout. Both dm_net_start and the IP event may get
+// there first; whoever does starts it, once.
+static atomic_bool mqtt_created, mqtt_started;
+
+static void start_mqtt(void)
+{
+    if (atomic_load(&mqtt_created) && !atomic_exchange(&mqtt_started, true)) {
+        esp_err_t err = esp_mqtt_client_start(n.mqtt);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "MQTT start: %s", esp_err_to_name(err));
+        }
+    }
+}
 
 static void link_changed(void)
 {
@@ -104,6 +121,7 @@ static void on_ip(void *arg, esp_event_base_t base, int32_t id, void *data)
     n.wifi_up = true;
     xEventGroupSetBits(n.events, BIT_GOT_IP);
     link_changed();
+    start_mqtt();
 }
 
 esp_err_t dm_net_init(void)
@@ -286,7 +304,11 @@ esp_err_t dm_net_start(const dm_config_t *cfg, const dm_device_t *dev, const dm_
         return ESP_FAIL;
     }
     ESP_RETURN_ON_ERROR(esp_mqtt_client_register_event(n.mqtt, ESP_EVENT_ANY_ID, on_mqtt, NULL), TAG, "mqtt events");
-    return esp_mqtt_client_start(n.mqtt);
+    atomic_store(&mqtt_created, true);
+    if (xEventGroupGetBits(n.events) & BIT_GOT_IP) {
+        start_mqtt();
+    }
+    return ESP_OK;
 }
 
 esp_err_t dm_net_publish(const char *topic, const char *payload, size_t len, bool retain)
