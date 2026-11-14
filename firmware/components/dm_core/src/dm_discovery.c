@@ -51,6 +51,13 @@ size_t dm_telemetry_json(const dm_telemetry_t *t, char *out, size_t cap)
     } else {
         cJSON_AddNullToObject(root, "rssi");
     }
+    if (t->has_lux) {
+        // two significant digits are plenty; keeps HA's history small
+        double lux = t->lux < 10.0f ? (double)((int)(t->lux * 10.0f + 0.5f)) / 10.0 : (double)(int)(t->lux + 0.5f);
+        cJSON_AddNumberToObject(root, "lux", lux);
+    } else {
+        cJSON_AddNullToObject(root, "lux");
+    }
     cJSON_AddStringToObject(root, "light", t->light ? t->light : "off");
     cJSON_AddStringToObject(root, "fault", t->fault ? t->fault : "none");
     cJSON_AddNumberToObject(root, "uptime", t->uptime_s);
@@ -150,6 +157,13 @@ size_t dm_discovery(const dm_device_t *dev, char *topic, size_t topic_cap, char 
     cJSON_AddStringToObject(e, "unit_of_measurement", "dBm");
     cJSON_AddStringToObject(e, "entity_category", "diagnostic");
     cJSON_AddStringToObject(e, "value_template", "{{ value_json.rssi }}");
+
+    e = entity(c, dev, base, "sensor", "illuminance", "Illuminance");
+    cJSON_AddStringToObject(e, "device_class", "illuminance");
+    cJSON_AddStringToObject(e, "state_class", "measurement");
+    cJSON_AddStringToObject(e, "unit_of_measurement", "lx");
+    cJSON_AddStringToObject(e, "entity_category", "diagnostic");
+    cJSON_AddStringToObject(e, "value_template", "{{ value_json.lux }}");
 
     e = entity(c, dev, base, "sensor", "light_fault", "Light fault");
     cJSON_AddStringToObject(e, "icon", "mdi:traffic-light-outline");

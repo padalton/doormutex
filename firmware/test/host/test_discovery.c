@@ -65,6 +65,20 @@ void test_discovery(void)
     CHECK(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "charging")));
     CHECK_INT(cJSON_GetObjectItemCaseSensitive(root, "rssi")->valueint, -61);
     CHECK_STR(str(root, "light"), "red");
+    CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, "lux")));
+    cJSON_Delete(root);
+
+    tel.has_lux = true;
+    tel.lux = 3.14f;
+    CHECK(dm_telemetry_json(&tel, doc, sizeof(doc)) > 0);
+    root = cJSON_Parse(doc);
+    CHECK(cJSON_GetObjectItemCaseSensitive(root, "lux")->valuedouble > 3.09 &&
+          cJSON_GetObjectItemCaseSensitive(root, "lux")->valuedouble < 3.11);
+    cJSON_Delete(root);
+    tel.lux = 412.6f;
+    CHECK(dm_telemetry_json(&tel, doc, sizeof(doc)) > 0);
+    root = cJSON_Parse(doc);
+    CHECK_INT(cJSON_GetObjectItemCaseSensitive(root, "lux")->valueint, 413);
     cJSON_Delete(root);
 
     dm_telemetry_t none = {.battery_pct = -1, .light = "off", .fault = "booting", .firmware = "0.1.0"};

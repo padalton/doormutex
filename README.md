@@ -563,7 +563,7 @@ At small quantities the fixed costs per order dominate: setup fee, ~$3 per "exte
 
 **ESP-IDF in C.** Battery operation with a permanent connection needs automatic light sleep and fine control over Wi-Fi power save, which ESPHome can't do. For mains-powered builds there is an [ESPHome example config](firmware/esphome/doormutex-mains.yaml).
 
-**Status:** a skeleton in [`firmware/`](firmware/README.md) – builds in CI (ESP-IDF v5.5, esp32c6), core logic unit-tested on the host; LEDs, Wi-Fi/MQTT, Improv, console, telemetry and HA discovery are written, e-ink driver, light sensor, away mode and OTA download are still to do. Nothing has run on hardware yet.
+**Status:** [`firmware/`](firmware/README.md) runs on the breadboard (stage 1): LEDs with the hub's StVO phases, e-ink sign, light sensor brightness, Wi-Fi/MQTT, Improv, console and the light's own device in Home Assistant. Battery (stage 2), away mode and OTA download are still to do.
 
 | Mode | When | Behaviour |
 |---|---|---|
@@ -702,6 +702,7 @@ doormutex/
 2. **Project domain and homepage:** which domain, where hosted (needed for Google OAuth branding and long-lived tokens)?
 3. **Warning patterns:** red/yellow alternating for "last call from yellow" and StVO timing – check on the breadboard whether they read well from the end of the hallway.
 4. **Wi-Fi:** which access point will the light use? TWT needs Wi-Fi 6 (see [hardware/README.md](hardware/README.md#wi-fi-unifi)).
+5. **Yellow LED for the PCB:** on the breadboard the yellow LED looks clearly dimmer than red and green at the same current – pick a brighter yellow (higher luminous intensity) for the PCB rather than driving it harder.
 
 ## Risks
 

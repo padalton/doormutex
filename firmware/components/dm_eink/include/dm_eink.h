@@ -1,17 +1,15 @@
-// The 1.54″ e-paper sign (200 × 200, SSD1681, SPI) – interface only for
-// now. The hub renders the whole picture; the light just pushes the bits
-// to the panel.
+// The 1.54″ e-paper sign (200 × 200, SSD1681, SPI). The hub renders the
+// whole picture; the light just pushes the bits to the panel.
 //
 // Buffer: 200 × 200 pixels, 1 bit each, row by row, the most significant
-// bit is the leftmost pixel → 5000 bytes. The polarity (1 = white or
-// black) follows the hub's renderer; the driver inverts if needed.
+// bit is the leftmost pixel → 5000 bytes, 1 = white (the hub's eink.Pack).
 //
-// TODO(firmware): SPI driver for the SSD1681 (Waveshare 1.54″ V2): init
-// sequence, full refresh, partial refresh for the "updated" time, a full
-// refresh every N partials against ghosting, deep sleep of the panel
-// between updates. Busy pin instead of fixed delays.
+// A full refresh per frame in a task of its own (about 2 s), the panel in
+// deep sleep in between. TODO(firmware): partial refresh, if frames ever
+// change often enough to make the full-refresh flash annoying.
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -27,6 +25,10 @@ extern "C" {
 
 typedef struct {
     int gpio_mosi, gpio_sclk, gpio_cs, gpio_dc, gpio_rst, gpio_busy;
+    // rotate_180: turn the picture, for a module mounted the other way.
+    // With the init below, the picture is upright with the connector at the
+    // top of the Waveshare module; connector at the bottom needs rotate_180.
+    bool rotate_180;
 } dm_eink_cfg_t;
 
 esp_err_t dm_eink_init(const dm_eink_cfg_t *cfg);
@@ -35,6 +37,10 @@ esp_err_t dm_eink_init(const dm_eink_cfg_t *cfg);
 // ESP_ERR_INVALID_SIZE for anything but DM_EINK_BYTES; the same frame
 // twice is skipped (no needless refresh).
 esp_err_t dm_eink_show(const uint8_t *frame, size_t len);
+
+// dm_eink_status describes the panel for the console: "not configured",
+// "waiting for a frame", "ok (refresh 1389 ms)" or what went wrong.
+const char *dm_eink_status(void);
 
 #ifdef __cplusplus
 }

@@ -13,6 +13,7 @@ typedef struct {
     int gpio_red, gpio_yellow, gpio_green;
     int vf_mv_red, vf_mv_yellow, vf_mv_green; // forward voltages for the compensation
     int ref_mv;                               // supply the series resistors are sized for
+    int level_red, level_yellow, level_green; // % per lamp, to even out LED efficiency; 0 = 100
 } dm_lights_cfg_t;
 
 esp_err_t dm_lights_init(const dm_lights_cfg_t *cfg);

@@ -1,5 +1,6 @@
-// Battery and power: MAX17048 fuel gauge on I²C, the charger's status pins
-// (BQ24074 CHG and PGOOD, both open-drain, active low).
+// Battery, power and ambient light: MAX17048 fuel gauge and VEML7700 light
+// sensor on I²C, the charger's status pins (BQ24074 CHG and PGOOD, both
+// open-drain, active low).
 #pragma once
 
 #include <stdbool.h>
@@ -26,6 +27,15 @@ typedef struct {
 
 esp_err_t dm_power_init(const dm_power_cfg_t *cfg);
 void dm_power_read(dm_power_t *out);
+
+// VEML7700 light sensor on the same I²C bus; call after dm_power_init.
+// ESP_ERR_NOT_FOUND if none answers.
+esp_err_t dm_ambient_init(void);
+// dm_ambient_lux reads the ambient light; false while there is no sensor
+// or no valid reading (e.g. right after a range switch).
+bool dm_ambient_lux(float *lux);
+// dm_ambient_status: "VEML7700", or what was found on the bus instead.
+const char *dm_ambient_status(void);
 
 #ifdef __cplusplus
 }
