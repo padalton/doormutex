@@ -38,24 +38,59 @@ func (r Report) Equal(o Report) bool {
 
 // Override is the active manual status of the profile.
 type Override struct {
-	Status string `json:"status"`
+	Status string     `json:"status"`
+	Until  *time.Time `json:"until"`
 }
 
-// State is the part of the hub state the companion shows.
+// FreeSlot is the next time the door is open.
+type FreeSlot struct {
+	Start time.Time  `json:"start"`
+	End   *time.Time `json:"end"`
+}
+
+// Pomodoro is a running pomodoro.
+type Pomodoro struct {
+	Start  time.Time  `json:"start"`
+	Work   string     `json:"work"`  // e.g. "25m0s"
+	Break  string     `json:"break"` // e.g. "5m0s"
+	Cycles int        `json:"cycles"`
+	End    *time.Time `json:"end"`
+}
+
+// State is the part of the hub state the companion and the Stream Deck
+// plugin show.
 type State struct {
 	Status   string     `json:"status"`
 	Phase    string     `json:"phase"`
+	Light    string     `json:"light"` // lamp pattern, e.g. "red", "green_blink"
 	Reason   string     `json:"reason"`
 	Detail   string     `json:"detail"`
 	Until    *time.Time `json:"until"`
+	NextFree *FreeSlot  `json:"next_free"`
 	Override *Override  `json:"override"`
+	Pomodoro *Pomodoro  `json:"pomodoro"`
+	Message  string     `json:"message"`
 }
 
 // Client is a hub client.
 type Client struct {
-	URL   string // e.g. http://hub:8080
-	Token string
-	HTTP  *http.Client
+	URL     string // e.g. http://hub:8080
+	Token   string
+	Profile string // "" = the token's default profile
+	HTTP    *http.Client
+}
+
+// endpoint is the full URL of an API path, with the profile.
+func (c *Client) endpoint(path string) string {
+	u := strings.TrimSuffix(c.URL, "/") + path
+	if c.Profile != "" {
+		sep := "?"
+		if strings.Contains(path, "?") {
+			sep = "&"
+		}
+		u += sep + "profile=" + url.QueryEscape(c.Profile)
+	}
+	return u
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body any, out any) error {
@@ -67,7 +102,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		}
 		r = bytes.NewReader(b)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimSuffix(c.URL, "/")+path, r)
+	req, err := http.NewRequestWithContext(ctx, method, c.endpoint(path), r)
 	if err != nil {
 		return err
 	}
@@ -166,11 +201,20 @@ func (c *Client) CompleteGoogleLogin(ctx context.Context, account, state, code s
 // Follow streams the state until ctx is done, reconnecting with backoff.
 // fn is called for every state event, starting with the current state.
 func (c *Client) Follow(ctx context.Context, fn func(State)) {
+	c.FollowErr(ctx, fn, nil)
+}
+
+// FollowErr is Follow, and calls onErr (if not nil) whenever a connection
+// fails or breaks off, before it waits to reconnect.
+func (c *Client) FollowErr(ctx context.Context, fn func(State), onErr func(error)) {
 	backoff := time.Second
 	for ctx.Err() == nil {
 		err := c.stream(ctx, fn)
 		if ctx.Err() != nil {
 			return
+		}
+		if err != nil && onErr != nil {
+			onErr(err)
 		}
 		// nil: the hub ended the stream on schedule (it does every few
 		// minutes); reconnect right away. Errors back off.
@@ -189,7 +233,7 @@ func (c *Client) Follow(ctx context.Context, fn func(State)) {
 }
 
 func (c *Client) stream(ctx context.Context, fn func(State)) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSuffix(c.URL, "/")+"/api/v1/events", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint("/api/v1/events"), nil)
 	if err != nil {
 		return err
 	}
