@@ -1,0 +1,9 @@
+/* Follows the Stream Deck software's dark property inspector. */
+:root { color-scheme: dark; }
+body { margin: 0; padding: 8px 10px; background: #2d2d2d; color: #d8d8d8; font: 12px system-ui, sans-serif; }
+section { margin-bottom: 14px; }
+h2 { font-size: 12px; font-weight: 600; margin: 10px 0 6px; color: #9a9a9a; text-transform: uppercase; letter-spacing: .04em; }
+label { display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; margin: 6px 0; }
+input, select { box-sizing: border-box; width: 100%; padding: 4px 6px; border: 1px solid #444; border-radius: 3px; background: #3d3d3d; color: #e8e8e8; font: inherit; }
+input:focus, select:focus { outline: none; border-color: #6b8afd; }
+.hint { color: #9a9a9a; line-height: 1.4; margin: 6px 0 0; }

@@ -10,6 +10,8 @@ before:
   hooks:
     # The widget (.plasmoid zip, version stamped) and the package unit file.
     - python3 packaging/prepare.py {{ .Version }}
+    # The Stream Deck plugin (after prepare.py, which clears build/).
+    - sh -c "VERSION={{ .Version }} streamdeck/build.sh"
 
 builds:
   - id: hub
@@ -105,6 +107,7 @@ checksum:
   name_template: checksums.txt
   extra_files:
     - glob: build/doormutex-*.plasmoid
+    - glob: build/doormutex-*.streamDeckPlugin
 
 # Keyless signing of the checksum file with Sigstore (GitHub OIDC, no
 # secrets). Verify with:
@@ -121,6 +124,7 @@ release:
   prerelease: auto
   extra_files:
     - glob: build/doormutex-*.plasmoid
+    - glob: build/doormutex-*.streamDeckPlugin
 
 changelog:
   sort: asc

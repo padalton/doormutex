@@ -1,0 +1,66 @@
+{
+	"Name": "doormutex",
+	"Version": "0.0.0",
+	"Author": "The doormutex contributors",
+	"Description": "Your door traffic light on the Stream Deck: lamp keys that show the light live and switch it, automatic mode, the status with until when, and a pomodoro.",
+	"URL": "https://doormutex.org",
+	"Icon": "imgs/plugin",
+	"Category": "doormutex",
+	"CategoryIcon": "imgs/category",
+	"SDKVersion": 2,
+	"Software": { "MinimumVersion": "6.4" },
+	"OS": [
+		{ "Platform": "linux" },
+		{ "Platform": "mac", "MinimumVersion": "12" },
+		{ "Platform": "windows", "MinimumVersion": "10" }
+	],
+	"CodePathLin": "bin/doormutex-streamdeck-linux-amd64",
+	"CodePathMac": "bin/launch-mac.sh",
+	"CodePathWin": "bin/doormutex-streamdeck-windows-amd64.exe",
+	"CodePaths": {
+		"x86_64-unknown-linux-gnu": "bin/doormutex-streamdeck-linux-amd64",
+		"aarch64-unknown-linux-gnu": "bin/doormutex-streamdeck-linux-arm64",
+		"x86_64-apple-darwin": "bin/doormutex-streamdeck-darwin-amd64",
+		"aarch64-apple-darwin": "bin/doormutex-streamdeck-darwin-arm64",
+		"x86_64-pc-windows-msvc": "bin/doormutex-streamdeck-windows-amd64.exe"
+	},
+	"PropertyInspectorPath": "pi/index.html",
+	"Actions": [
+		{
+			"UUID": "org.doormutex.trafficlight.lamp",
+			"Name": "Lamp",
+			"Tooltip": "Shows whether this lamp is lit. Press to set it, press again for automatic.",
+			"Icon": "imgs/lamp-action",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": false,
+			"States": [{ "Image": "imgs/lamp-key", "TitleAlignment": "bottom", "FontSize": "12" }]
+		},
+		{
+			"UUID": "org.doormutex.trafficlight.auto",
+			"Name": "Automatic",
+			"Tooltip": "Back to automatic. Ringed while the light runs automatically.",
+			"Icon": "imgs/auto-action",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": true,
+			"States": [{ "Image": "imgs/auto-key", "TitleAlignment": "bottom", "FontSize": "12" }]
+		},
+		{
+			"UUID": "org.doormutex.trafficlight.status",
+			"Name": "Status",
+			"Tooltip": "What the light says and until when. Press to open the web UI.",
+			"Icon": "imgs/status-action",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": false,
+			"States": [{ "Image": "imgs/status-key", "TitleAlignment": "middle", "FontSize": "12" }]
+		},
+		{
+			"UUID": "org.doormutex.trafficlight.pomodoro",
+			"Name": "Pomodoro",
+			"Tooltip": "Starts a pomodoro, shows the time left. Press again to stop.",
+			"Icon": "imgs/pomodoro-action",
+			"Controllers": ["Keypad"],
+			"SupportedInMultiActions": true,
+			"States": [{ "Image": "imgs/pomodoro-key", "TitleAlignment": "middle", "FontSize": "14" }]
+		}
+	]
+}
