@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>doormutex</title>
+<link rel="stylesheet" href="pi.css">
+</head>
+<body>
+<section id="lamp" hidden>
+  <label><span data-t="lamp">Lamp</span>
+    <select id="lamp-colour">
+      <option value="red" data-t="red">Red – do not disturb</option>
+      <option value="yellow" data-t="yellow">Yellow – working</option>
+      <option value="green" data-t="green">Green – come in</option>
+      <option value="off" data-t="off">Off – not here</option>
+    </select>
+  </label>
+  <label><span data-t="duration">For how long</span>
+    <select id="lamp-duration">
+      <option value="next_change" data-t="next_change">Until the next automatic change</option>
+      <option value="15m">15 min</option>
+      <option value="30m">30 min</option>
+      <option value="1h">1 h</option>
+      <option value="2h">2 h</option>
+      <option value="end_of_event" data-t="end_of_event">Until the current event ends</option>
+      <option value="end_of_workday" data-t="end_of_workday">Until the end of the work day</option>
+      <option value="indefinite" data-t="indefinite">Until I switch it back</option>
+    </select>
+  </label>
+</section>
+
+<section id="pomodoro" hidden>
+  <label><span data-t="work">Work (min)</span><input id="pomodoro-work" type="number" min="1" max="240" placeholder="25"></label>
+  <label><span data-t="break">Break (min)</span><input id="pomodoro-break" type="number" min="1" max="60" placeholder="5"></label>
+</section>
+
+<section id="hub">
+  <h2 data-t="hub_heading">Hub – for all doormutex keys</h2>
+  <label><span data-t="hub_url">Address</span><input id="hub-url" type="url" placeholder="http://hub.local:8080" spellcheck="false"></label>
+  <label><span data-t="token">Token</span><input id="hub-token" type="password" autocomplete="off" spellcheck="false" placeholder="dm_…"></label>
+  <label><span data-t="profile">Profile</span><input id="hub-profile" type="text" spellcheck="false" data-tp="profile_hint" placeholder="the token's profile"></label>
+  <p class="hint" data-t="token_hint">A token with full access: web UI → Settings → Add a phone (not "view only"), or on the hub: doormutex-hub token create streamdeck office</p>
+</section>
+<script src="pi.js"></script>
+</body>
+</html>

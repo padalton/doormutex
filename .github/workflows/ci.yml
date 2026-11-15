@@ -98,6 +98,38 @@ jobs:
           name: doormutex.plasmoid
           path: plasmoid/doormutex.plasmoid
 
+  streamdeck:
+    name: Stream Deck · package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - name: Build the plugin for every platform
+        run: streamdeck/build.sh
+      - name: Check the bundle
+        run: |
+          b=build/streamdeck/org.doormutex.trafficlight.sdPlugin
+          python3 - "$b" <<'PY'
+          import json, os, sys
+          b = sys.argv[1]
+          m = json.load(open(os.path.join(b, "manifest.json")))
+          paths = [m["CodePathLin"], m["CodePathMac"], m["CodePathWin"], *m["CodePaths"].values()]
+          for a in m["Actions"]:
+              paths += [a["Icon"] + ".png", a["States"][0]["Image"] + ".png"]
+          paths += [m["Icon"] + ".png", m["CategoryIcon"] + ".png", m["PropertyInspectorPath"]]
+          missing = [p for p in paths if not os.path.exists(os.path.join(b, p))]
+          assert not missing, missing
+          json.load(open(os.path.join(b, "de.json")))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: doormutex.streamDeckPlugin
+          path: build/doormutex-dev.streamDeckPlugin
+          if-no-files-found: error
+
   release-snapshot:
     name: Release · snapshot
     runs-on: ubuntu-latest

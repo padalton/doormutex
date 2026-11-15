@@ -1,0 +1,21 @@
+{
+	"Description": "Deine Türampel auf dem Stream Deck: Lampentasten, die die Ampel live zeigen und umschalten, Automatik, der Status mit Uhrzeit und ein Pomodoro.",
+	"Name": "doormutex",
+	"org.doormutex.trafficlight.lamp": {
+		"Name": "Lampe",
+		"Tooltip": "Zeigt, ob diese Lampe leuchtet. Drücken setzt sie, nochmal drücken schaltet auf Automatik."
+	},
+	"org.doormutex.trafficlight.auto": {
+		"Name": "Automatik",
+		"Tooltip": "Zurück auf Automatik. Mit Ring, solange die Ampel automatisch läuft."
+	},
+	"org.doormutex.trafficlight.status": {
+		"Name": "Status",
+		"Tooltip": "Was die Ampel zeigt und bis wann. Drücken öffnet die Weboberfläche."
+	},
+	"org.doormutex.trafficlight.pomodoro": {
+		"Name": "Pomodoro",
+		"Tooltip": "Startet einen Pomodoro und zeigt die Restzeit. Nochmal drücken beendet ihn."
+	},
+	"Localization": {}
+}

@@ -77,7 +77,14 @@ func Run(ctx context.Context, hub Hub, account string, open func(string) error, 
 		}
 	})}
 	go func() { _ = srv.Serve(ln) }()
-	defer func() { _ = srv.Close() }()
+	// Shutdown, not Close: the browser's "signed in" page may still be on
+	// its way when the result arrives; Close would cut it off (as in the
+	// hub's login, #31).
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(sctx)
+	}()
 
 	_, _ = fmt.Fprintf(out, "%s\n\n  %s\n\n", t.Opening, authURL)
 	if err := open(authURL); err != nil {
