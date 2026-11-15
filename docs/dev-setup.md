@@ -29,7 +29,6 @@ git clone https://github.com/BelfrySCAD/BOSL2.git ~/.local/share/OpenSCAD/librar
 
 # 5. Stream Deck
 flatpak install flathub me.amankhanna.opendeck
-npm install -g @elgato/cli
 
 # 6. Go tools end up in ~/go/bin – put it on the PATH
 echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc
@@ -66,15 +65,14 @@ golangci-lint run
 | plasma-sdk | `sudo pacman -S plasma-sdk` | `plasmoidviewer` – test the widget in its own window without restarting the panel |
 | kpackagetool6 | ships with Plasma | install/update the widget: `kpackagetool6 -t Plasma/Applet -u plasmoid/package` |
 
-### Stream Deck plugin (TypeScript)
+### Stream Deck plugin (Go)
 
 | Tool | Install | For |
 |---|---|---|
-| Node.js + npm | `sudo pacman -S nodejs npm` | build the plugin |
-| Elgato CLI | `npm install -g @elgato/cli` | `streamdeck create`, `streamdeck link`, `streamdeck pack` |
+| Go | see above | the plugin binary, `streamdeck/build.sh` |
 | OpenDeck | `flatpak install flathub me.amankhanna.opendeck` | Stream Deck software for Linux, runs Elgato plugins |
 
-The Stream Deck needs a udev rule to be accessible without root. The file and instructions are in the [OpenDeck README](https://github.com/nekename/OpenDeck); a Flatpak cannot install udev rules itself.
+The Stream Deck needs a udev rule to be accessible without root. The file and instructions are in the [OpenDeck README](https://github.com/nekename/OpenDeck); a Flatpak cannot install udev rules itself. Building and trying the plugin: [streamdeck/README.md](../streamdeck/README.md#build).
 
 ### Firmware (ESP-IDF, C)
 
@@ -124,7 +122,6 @@ plasmoidviewer --version
 . ~/esp/esp-idf/export.sh >/dev/null && idf.py --version
 kicad-cli version
 openscad --version
-npm ls -g @elgato/cli
 flatpak info me.amankhanna.opendeck | grep -i version
 id -nG | grep -qw uucp && echo "uucp ok" || echo "uucp missing – log in again?"
 ```

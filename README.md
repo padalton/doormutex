@@ -7,7 +7,7 @@
 
 The state is detected automatically (microphone/camera, Google Calendar, working hours, screen lock) and can be overridden at any time from a KDE widget, a Stream Deck or the web UI. Open source & open hardware: software, firmware, PCB (KiCad) and a 3D-printed enclosure (OpenSCAD).
 
-> **Status: early development.** This README is the project definition and feature set (as of 2026-10-30). The repo is public from day one so anyone can follow the project as it grows. Software: [`hub/`](hub/) (with web UI), [`companion/`](companion/), [`plasmoid/`](plasmoid/).
+> **Status: early development.** This README is the project definition and feature set (as of 2026-10-30). The repo is public from day one so anyone can follow the project as it grows. Software: [`hub/`](hub/) (with web UI), [`companion/`](companion/), [`plasmoid/`](plasmoid/), [`streamdeck/`](streamdeck/).
 >
 > More documents: [Breadboard prototype & parts list](docs/breadboard.md) · [Wiring the breadboard](docs/wiring.md) · [Development setup](docs/dev-setup.md) · [Google Calendar](docs/google-calendar.md) · [iPhone & Shortcuts](docs/apple-shortcuts.md) · [Android](docs/android.md) · [Hub](hub/README.md) · [API (OpenAPI)](api/openapi.yaml) · [Translating](TRANSLATING.md)
 
@@ -130,7 +130,7 @@ flowchart LR
 | Hub | Go, Docker, SQLite | Rule engine, calendar, working hours, REST/SSE API, web UI, MQTT + HA discovery, e-ink rendering |
 | Companion | Go, systemd user service | Microphone/camera (PipeWire), screen lock, desktop notifications, OAuth helper |
 | Plasma widget | QML (Plasma 6) | State, override, pomodoro |
-| Stream Deck plugin | TypeScript (Elgato SDK) | Control panel on the Stream Deck XL |
+| Stream Deck plugin | Go, Elgato SDK protocol | Control panel on the Stream Deck XL (OpenDeck, Elgato app) |
 | Firmware | C, ESP-IDF | Wi-Fi power saving, MQTT, LEDs, e-ink, battery |
 | Project homepage | GitHub Pages (static) + own domain | Required for Google's OAuth branding (description, privacy policy, terms), plus docs, web flasher (ESP Web Tools needs HTTPS) and the OAuth redirect relay. No backend, no user data |
 | PCB | KiCad | ESP32-C6, charging, LED and e-ink drivers – assembled by JLCPCB |
@@ -315,20 +315,16 @@ Implemented in [`plasmoid/`](plasmoid/) – on the [KDE Store](https://store.kde
 
 ### Stream Deck XL
 
-A plugin based on the official Elgato SDK. On Linux it runs in [OpenDeck](https://github.com/nekename/OpenDeck), which supports Elgato SDK plugins; on Windows/macOS in the Elgato app. Alternative: a plugin for [StreamController](https://github.com/StreamController/StreamController).
+Implemented in [`streamdeck/`](streamdeck/) – one plugin for [OpenDeck](https://github.com/nekename/OpenDeck) on Linux and Elgato's app on Windows/macOS, a native Go binary (no Node.js). Install the release's `doormutex-X.Y.Z.streamDeckPlugin` (OpenDeck: *Plugins → Install from file*).
 
-Proposed layout (8 × 4) – **the left column is the traffic light:**
+<p><img src="docs/images/streamdeck-opendeck.png" alt="OpenDeck with the doormutex keys: red lamp lit, yellow and green dark; status &quot;Do not disturb until 09:28&quot;; pomodoro &quot;Work 24:22&quot;; a small traffic light with the Auto ring" width="600"></p>
 
-| | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |
-|---|---|---|---|---|---|---|---|---|
-| **A** | 🔴 red | state | until 14:30 | next free | 15 min | 30 min | 1 h | ∞ |
-| **B** | 🟡 yellow | reason | 🎙 mic | 📷 camera | 🍅 25 | 🍅 50 | break 5 | ⏱ 12:34 |
-| **C** | 🟢 green | 🔋 72 % | | | | | | |
-| **D** | auto | | | | | | | |
-
-- The lamp keys show live which lamp is on. Pressing one sets an override (duration via a duration key or long press).
-- Free keys stay available for other things.
-- **Until the plugin exists:** "run command" keys calling `doormutex-companion set red 30m` etc. – see [docs/stream-deck.md](docs/stream-deck.md), which also compares OpenDeck and StreamController.
+- **Lamp keys** (red, yellow, green, off): lit when the light shows that lamp, blinking phases blink along. Pressing one sets the status for the key's duration (15 min … until the next automatic change), pressing the set lamp again returns to automatic; a ring and "until 14:30" mark it.
+- **Automatic:** a small traffic light with the current pattern, ringed while the light runs automatically; pressing clears the override.
+- **Status:** the status in words and until when; pressing opens the web UI.
+- **Pomodoro:** starts/stops, shows the time left in the work or break block.
+- Free keys stay available for other things. Ideas for later: mic/camera, next free time, battery.
+- Without the plugin (e.g. StreamController): "run command" keys calling `doormutex-companion set red 30m` etc. – see [docs/stream-deck.md](docs/stream-deck.md).
 
 ### Web UI
 
@@ -666,7 +662,7 @@ doormutex/
 ├── hub/          Go – rule engine, API, web UI, MQTT, HA discovery, e-ink rendering
 ├── companion/    Go – Linux daemon: PipeWire, lock, notifications, OAuth
 ├── plasmoid/     QML – KDE Plasma 6 widget
-├── streamdeck/   TypeScript – Stream Deck plugin (Elgato SDK)
+├── streamdeck/   Stream Deck plugin (Elgato SDK protocol; the Go code is in companion/)
 ├── firmware/     C – ESP-IDF; esphome/ with an example config for mains-powered builds
 ├── hardware/     KiCad – schematic, layout, production files
 ├── enclosure/    OpenSCAD – enclosure, magnet foot/side plate, later wall mount and test prints
@@ -679,7 +675,7 @@ doormutex/
   - releases from a tag `vX.Y.Z` with [GoReleaser](.goreleaser.yaml) ✅: hub and companion for Linux amd64/arm64, companion as `.deb`/`.rpm`/`.pkg.tar.zst`, checksums signed keyless (Sigstore) – see [RELEASING.md](RELEASING.md)
   - AUR package [`doormutex-companion-bin`](packaging/aur/) built from the release files ✅
   - widget as `.plasmoid` for the [KDE Store](https://store.kde.org/p/2380911) ✅ (release asset; the upload stays manual)
-  - Stream Deck plugin package
+  - Stream Deck plugin package ✅ (release asset, built on every pull request)
   - firmware build with web flasher on GitHub Pages
   - KiBot: Gerbers, BOM/CPL for JLCPCB, schematic PDF, iBOM, 3D renders
   - OpenSCAD: STL/3MF with preview images
@@ -697,7 +693,7 @@ doormutex/
 | **M0 – software core** | Hub, review rules, profiles + room mode, Google Calendar, web UI, companion, Plasma widget ✅ (#1–#8, landed on `main` with #10). Review decisions: `next_change` override, tentative events, encrypted tokens, sign-in through the companion, English/German, Android guide (#11). A Hue lamp via HA stands in for the light → 1–2 weeks of family testing without new hardware |
 | **M1a – breadboard** | [Prototype from ready-made modules](docs/breadboard.md): firmware, LEDs + lens test, e-ink, current measurement, then battery operation. Runs in parallel to M0 |
 | **M1b – PCB + enclosure v1** | KiCad schematic + layout + review based on the measurements, JLCPCB order, tolerance test prints, enclosure v1 |
-| **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin, web flasher, OTA |
+| **M2 – polish** | current measurement and optimisation (light sleep, away mode, TWT), e-ink layouts, Stream Deck plugin ✅, web flasher, OTA |
 | **M3 – release** | CI, KDE Store, Printables/MakerWorld, Docker image, OSHWA certification |
 
 ## Open questions
@@ -811,3 +807,4 @@ doormutex/
 | 2026-10-30 | Enclosure v0 details: 45 mm deep (modules), lenses flush in a seat and clamped by the visor ring (filament dowels), corner ribs take every screw (cover, foot, side plate), embedded magnets via print pause by default, light-sensor window in the top wall | supports-free printing and few parts; the sensor should see the room light, not the wall behind the light |
 | 2026-11-02 | Breadboard order: DigiKey for the electronics, Opencircuit (NL) for buck-boost/holders/protection, Amazon.de (Waveshare) for the e-paper module and the enclosure bits; IRLB3813PBF replaces the obsolete IRLB8721PBF | no single EU shop had everything in stock; DigiKey ships DDP in ~2 days; Botland sells to private customers only in PL/DE |
 | 2026-11-02 | No affiliate links in the repository or on the website; shop links are plain product links | a few euros per build are not worth a commercial imprint (full address) and would blur "no tracking, no ads" |
+| 2026-11-15 | Stream Deck plugin as a native Go binary speaking the Elgato SDK's WebSocket protocol, in the companion's module (`CodePaths` per platform), instead of TypeScript/Node.js | the OpenDeck Flatpak has no Node.js; one binary per platform still runs in Elgato's app; reuses the companion's hub client; keys drawn in Go, no assets to keep in sync |
