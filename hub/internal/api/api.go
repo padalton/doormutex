@@ -51,10 +51,12 @@ type Profile struct {
 }
 
 // CalendarLogin signs calendar accounts in through a client on the desktop
-// (loopback redirect); *google.Provider implements it.
+// (loopback redirect) or from the web UI (redirect relay);
+// *google.Provider implements it.
 type CalendarLogin interface {
 	StartLogin(account, redirectURI string) (authURL string, err error)
 	CompleteLogin(ctx context.Context, account, state, code string) error
+	LoginRelay() string // redirect URI for the web UI; "" if not configured
 }
 
 // Server is the HTTP API.
@@ -288,6 +290,9 @@ func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
 type CalendarInfo struct {
 	Provider string                   `json:"provider"`
 	Accounts []calendar.AccountStatus `json:"accounts"`
+	// LoginRelay is set when accounts can sign in from the web UI: the
+	// redirect_uri for …/login, a page that hands the result back.
+	LoginRelay string `json:"login_relay,omitempty"`
 }
 
 func (s *Server) getCalendar(w http.ResponseWriter, r *http.Request) {
@@ -296,7 +301,11 @@ func (s *Server) getCalendar(w http.ResponseWriter, r *http.Request) {
 	if acc == nil {
 		acc = []calendar.AccountStatus{}
 	}
-	writeJSON(w, http.StatusOK, CalendarInfo{Provider: p.Calendar, Accounts: acc})
+	info := CalendarInfo{Provider: p.Calendar, Accounts: acc}
+	if p.Login != nil {
+		info.LoginRelay = p.Login.LoginRelay()
+	}
+	writeJSON(w, http.StatusOK, info)
 }
 
 // LoginStart is the body of POST /api/v1/calendar/accounts/{account}/login.

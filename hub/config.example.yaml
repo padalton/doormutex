@@ -14,10 +14,17 @@ holidays:
 
 calendar_poll: 2m # how often calendars are read
 
-# Google OAuth client ("desktop app") shared by all profiles – see
-# docs/google-calendar.md. The secret comes from DOORMUTEX_GOOGLE_CLIENT_SECRET.
+# Google OAuth clients shared by all profiles – see docs/google-calendar.md.
+# "desktop app" client: sign-in through the companion or the command line.
+# The secret comes from DOORMUTEX_GOOGLE_CLIENT_SECRET.
 google:
   client_id: "" # 1234567890-abc.apps.googleusercontent.com
+  # Optional "web application" client: sign-in from the web UI through the
+  # redirect relay. Its authorized redirect URI must be the relay exactly.
+  # The secret comes from DOORMUTEX_GOOGLE_WEB_CLIENT_SECRET.
+  # web:
+  #   client_id: "" # 1234567890-xyz.apps.googleusercontent.com
+  #   relay: https://doormutex.org/oauth/ # default
   mirror_key: doormutex # extendedProperties.private key of mirrored copies
 
 # One profile per person and light. "office" uses the desktop companion,

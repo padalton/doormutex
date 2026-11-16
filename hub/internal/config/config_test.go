@@ -163,6 +163,36 @@ profiles:
 	if err := c.GoogleReady(); err != nil || c.Google.ClientSecret != "from-env" {
 		t.Fatalf("google: %+v %v", c.Google, err)
 	}
+	if c.Google.Web.Enabled() || c.Google.Web.Relay != DefaultRelay {
+		t.Fatalf("web client: %+v", c.Google.Web)
+	}
+	// The web client: its secret from the environment, the relay checked.
+	t.Setenv("DOORMUTEX_GOOGLE_WEB_CLIENT_SECRET", "web-env")
+	for body, ok := range map[string]bool{
+		"google:\n  web:\n    client_id: w\n":                                          true,
+		"google:\n  client_id: d\n  web:\n    client_id: w\n":                          true,
+		"google:\n  web:\n    client_id: w\n    relay: https://relay.example/oauth/\n": true,
+		"google:\n  web:\n    client_id: w\n    relay: http://relay.example/oauth/\n":  false,
+		"google:\n  web:\n    client_id: w\n    relay: https://relay.example/?a=1\n":   false,
+		"google: {}\n": false,
+	} {
+		_ = os.WriteFile(path, []byte(body), 0o600)
+		c, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := c.GoogleReady(); (err == nil) != ok {
+			t.Errorf("%q: GoogleReady = %v, want ok %v", body, err, ok)
+		}
+		if ok && c.Google.Web.ClientSecret != "web-env" {
+			t.Errorf("%q: web secret %q", body, c.Google.Web.ClientSecret)
+		}
+	}
+	_ = os.WriteFile(path, []byte("google:\n  client_id: d\n"), 0o600)
+	t.Setenv("DOORMUTEX_GOOGLE_CLIENT_SECRET", "")
+	if c, _ := Load(path); c.GoogleReady() == nil {
+		t.Error("desktop client without secret accepted")
+	}
 	if a := c.Profiles[0].Calendar.Accounts; len(a) != 2 || a[1].Mirror != "use" || len(a[1].Calendars) != 2 {
 		t.Fatalf("accounts: %+v", a)
 	}

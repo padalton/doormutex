@@ -5,6 +5,7 @@
 const TOKEN_KEY = "doormutex.token";
 const PROFILE_KEY = "doormutex.profile";
 const LANG_KEY = "doormutex.lang";
+const GOOGLE_KEY = "doormutex.googleLogin"; // a sign-in started here, waiting for the relay
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
 
@@ -293,6 +294,14 @@ async function renderSettings() {
         ? (a.last_sync ? t("settings.synced", { time: fmtTime(a.last_sync), n: a.events }) : t("settings.connected"))
         : t("settings.not_connected");
     li.append(dot, `${a.name}: ${info}${a.error ? ` – ${a.error}` : ""}`);
+    if (cal.login_relay) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "small";
+      btn.textContent = t(a.connected && !a.login_expired ? "settings.sign_in_again" : "settings.sign_in");
+      btn.addEventListener("click", () => googleLogin(a.name, cal.login_relay).catch((err) => showError(err, "#accounts-info")));
+      li.append(" ", btn);
+    }
     acc.append(li);
   }
   renderLanguages();
@@ -514,9 +523,62 @@ function runShortcut() {
   else if (COLOR[action]) act(() => api("PUT", "/api/v1/override", { status: action, mode: "next_change" }));
 }
 
+// ---- Google sign-in from the web UI
+//
+// Google may only redirect to an address registered in the OAuth client,
+// and a hub at home has none. So the redirect goes to the relay page (by
+// default https://doormutex.org/oauth/): it runs in this browser, checks
+// that the sign-in started here and sends the browser back to this page
+// with #google-login?code=…&state=…. The hub keeps the PKCE verifier and
+// the client secret; the code alone is worthless.
+
+async function googleLogin(account, relay) {
+  const { auth_url: authURL } = await api("POST", `/api/v1/calendar/accounts/${encodeURIComponent(account)}/login`, { redirect_uri: relay });
+  const state = new URL(authURL).searchParams.get("state");
+  store(GOOGLE_KEY, JSON.stringify({ state, account, profile, expires: Date.now() + 10 * 60e3 }));
+  const hub = location.origin + location.pathname;
+  location.assign(`${relay}#${new URLSearchParams({ hub, go: authURL })}`);
+}
+
+// googleFromFragment takes the relay's answer out of the address.
+function googleFromFragment() {
+  const prefix = "#google-login?";
+  if (!location.hash.startsWith(prefix)) return null;
+  const p = new URLSearchParams(location.hash.slice(prefix.length));
+  history.replaceState(null, "", location.pathname + location.search);
+  let pending = null;
+  try { pending = JSON.parse(load(GOOGLE_KEY) || "null"); } catch { /* broken entry: treat as none */ }
+  store(GOOGLE_KEY, "");
+  return { code: p.get("code") || "", state: p.get("state") || "", error: p.get("error") || "", pending };
+}
+
+async function finishGoogleLogin(res) {
+  $$("nav button").find((b) => b.dataset.tab === "settings")?.click();
+  const info = $("#accounts-info");
+  const p = res.pending;
+  if (!p || p.state !== res.state || Date.now() > p.expires) {
+    info.textContent = t("google.no_pending");
+    return;
+  }
+  if (res.error) {
+    info.textContent = t("google.denied", { error: res.error });
+    return;
+  }
+  info.textContent = t("google.completing", { account: p.account });
+  try {
+    await api("POST", `/api/v1/calendar/accounts/${encodeURIComponent(p.account)}/login/complete`, { code: res.code, state: res.state });
+    info.textContent = t("google.done", { account: p.account });
+  } catch (err) {
+    info.textContent = t("google.failed", { error: String(err.message || err) });
+  }
+  // The hub reads the account right away; show the result a moment later.
+  setTimeout(() => renderSettings().catch((err) => showError(err)), 3000);
+}
+
 // A link like https://hub/#token=dm_… sets up a phone in one tap; the
 // fragment never reaches the server and is removed right away.
 function tokenFromFragment() {
+  if (location.hash.startsWith("#google-login?")) return;
   const m = location.hash.match(/token=([A-Za-z0-9_-]+)/);
   if (!m) return;
   store(TOKEN_KEY, m[1]);
@@ -524,8 +586,12 @@ function tokenFromFragment() {
 }
 
 tokenFromFragment();
+const googleResult = googleFromFragment();
 token = load(TOKEN_KEY);
-profile = load(PROFILE_KEY);
+profile = googleResult?.pending?.profile || load(PROFILE_KEY);
 bind();
-loadLanguage().finally(start);
+loadLanguage().finally(async () => {
+  await start();
+  if (googleResult && !$("#app").hidden) await finishGoogleLogin(googleResult);
+});
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});

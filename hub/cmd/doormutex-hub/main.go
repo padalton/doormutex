@@ -124,7 +124,7 @@ func serve(args []string) error {
 				return fmt.Errorf("profile %s: %w", p.ID, err)
 			}
 			g := google.New(google.Options{
-				OAuth: oauthConfig(cfg), Profile: p.ID, Accounts: googleAccounts(p), MirrorKey: cfg.Google.MirrorKey,
+				OAuth: oauthConfig(cfg), Web: webOAuthConfig(cfg), Relay: cfg.Google.Web.Relay, Profile: p.ID, Accounts: googleAccounts(p), MirrorKey: cfg.Google.MirrorKey,
 				Tokens: tokens, Location: base.Location, Logger: log.With("profile", p.ID),
 			})
 			cal, login = g, g
@@ -261,11 +261,24 @@ func token(args []string) error {
 
 const tokenUsage = "usage: doormutex-hub token create NAME [PROFILE...] [--read-only] | list | revoke NAME"
 
+// oauthConfig is the desktop client; nil if only the web client is set up.
 func oauthConfig(cfg *config.Config) *oauth2.Config {
+	if cfg.Google.ClientID == "" {
+		return nil
+	}
 	return &oauth2.Config{
 		ClientID: cfg.Google.ClientID, ClientSecret: cfg.Google.ClientSecret,
 		Endpoint: google.Endpoint, Scopes: []string{google.Scope},
 	}
+}
+
+// webOAuthConfig is the web client for sign-in from the web UI, or nil.
+func webOAuthConfig(cfg *config.Config) *oauth2.Config {
+	w := cfg.Google.Web
+	if !w.Enabled() {
+		return nil
+	}
+	return &oauth2.Config{ClientID: w.ClientID, ClientSecret: w.ClientSecret, Endpoint: google.Endpoint, Scopes: []string{google.Scope}}
 }
 
 func googleAccounts(p config.Profile) []google.Account {
@@ -337,6 +350,9 @@ func googleCmd(args []string) error {
 	}
 	if err := cfg.GoogleReady(); err != nil {
 		return err
+	}
+	if cfg.Google.ClientID == "" {
+		return errors.New("signing in on the command line needs the desktop client (google.client_id); with only the web client, sign in from the web UI (Settings → Calendar accounts)")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

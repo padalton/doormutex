@@ -70,6 +70,8 @@ func (l *fakeLogin) StartLogin(account, redirect string) (string, error) {
 	return "https://accounts.example/auth?state=s1", nil
 }
 
+func (l *fakeLogin) LoginRelay() string { return "https://relay.example/oauth/" }
+
 func (l *fakeLogin) CompleteLogin(_ context.Context, account, state, code string) error {
 	if state != "s1" {
 		return google.ErrLoginExpired
