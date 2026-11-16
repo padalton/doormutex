@@ -833,6 +833,7 @@ components:
               last_sync: { type: string, format: date-time }
               events: { type: integer, description: Events in the planning window at the last sync. }
               error: { type: string }
+              login_expired: { type: boolean, description: "Google refused the stored sign-in (`invalid_grant`): expired – after 7 days while the OAuth client is in \"Testing\" – or revoked. Sign in again." }
 
     Lead:
       type: string
@@ -902,6 +903,17 @@ components:
         slots:
           type: array
           items: { $ref: "#/components/schemas/Slot" }
+        calendar_problem:
+          type: string
+          description: |
+            Set only when the profile's calendar can't be read, so `slots`
+            may be missing events or be built from older ones. The worst
+            problem of all accounts: `login_expired` (Google refused the
+            stored sign-in – sign in again), `not_connected` (an account was
+            never signed in), `unavailable` (any other error, e.g. network).
+            Treat unknown values like `unavailable`. Also sent to read-only
+            tokens, which can't see `/calendar`.
+          enum: [login_expired, not_connected, unavailable]
 
     OverrideRequest:
       type: object

@@ -2,7 +2,7 @@
 
 The hub reads events of one or more Google accounts per profile – for example a private and a work account – and turns them into traffic light states (see [README → Google Calendar](../README.md#google-calendar)). It only asks for the scope `calendar.events.readonly` and only requests times, event type, conference data, your own response, location/description (to find video links) and the mirror mark. Titles are never requested.
 
-> Until the project homepage exists (README → *Google sign-in for self-hosters*), everyone uses an **own OAuth client** as described here. While that client is in "Testing", Google lets refresh tokens expire after **7 days** – then sign in again (step 3).
+> Until the shared project client exists (README → *Google sign-in for self-hosters*), everyone uses an **own OAuth client** as described here. While that client is in "Testing", Google lets refresh tokens expire after **7 days** – then sign in again (step 3), or publish the client (step 1, *Long-lived sign-in*).
 
 ## 1. OAuth client (once)
 
@@ -12,6 +12,8 @@ The hub reads events of one or more Google accounts per profile – for example 
 4. *Audience*: user type **External**, publishing status **Testing**; add every Google account you want to connect (private and work) as a **test user**.
 5. *Data access*: add the scope `https://www.googleapis.com/auth/calendar.events.readonly`.
 6. *Clients → Create client*: application type **Desktop app**. Note the client ID and the client secret.
+
+**Long-lived sign-in:** a client in "Testing" gets refresh tokens that expire after 7 days. To get rid of that, publish it: *Audience → Publish app*. Google first wants a complete *Branding* page – home page, privacy policy and terms of service on a domain you have verified in Google Search Console, and that domain under *Authorized domains*. Until Google has verified the app, the sign-in shows a warning ("Google hasn't verified this app") that you click through via *Advanced*; for a handful of accounts at home that's fine. Tokens issued while the client was in "Testing" keep their 7-day limit – sign in once more after publishing.
 
 **Work account in Google Workspace:** if the admin blocks third-party apps, the admin can trust the client ID in the *Admin console → Security → Access and data control → API controls → Manage third-party app access*.
 
@@ -62,7 +64,7 @@ The command prints a Google address. Open it in any browser and sign in. If the 
 
 ### Check
 
-Check the connection in the web UI (*Settings → Calendar accounts*) or:
+When an account can't be read, the day view of the web UI shows a warning, and `GET /api/v1/timeline` carries `calendar_problem` (`login_expired`, `not_connected` or `unavailable`) – also for read-only tokens such as the Android app's. Without it, a missing calendar just looks like a free day. Details in the web UI (*Settings → Calendar accounts*) or:
 
 ```bash
 curl -s -H "Authorization: Bearer $TOKEN" localhost:8080/api/v1/calendar | jq

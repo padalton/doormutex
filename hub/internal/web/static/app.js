@@ -197,6 +197,11 @@ async function renderDay() {
   from.setHours(0, 0, 0, 0);
   const to = new Date(from.getTime() + 24 * 3600e3);
   const tl = await api("GET", `/api/v1/timeline?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
+  // Without the calendar the day looks free – say so instead of hiding it.
+  const warn = $("#calwarn");
+  const problem = tl.calendar_problem;
+  warn.hidden = !problem;
+  warn.textContent = problem ? t(`day.cal_${["login_expired", "not_connected"].includes(problem) ? problem : "unavailable"}`) : "";
   const bar = $("#timeline");
   const list = $("#slots");
   bar.replaceChildren();
@@ -282,10 +287,11 @@ async function renderSettings() {
   for (const a of cal.accounts) {
     const li = document.createElement("li");
     const dot = document.createElement("span");
-    dot.className = `dot ${a.connected && !a.error ? "c-free" : a.connected ? "c-working" : "c-dnd"}`;
-    const info = a.connected
-      ? (a.last_sync ? t("settings.synced", { time: fmtTime(a.last_sync), n: a.events }) : t("settings.connected"))
-      : t("settings.not_connected");
+    dot.className = `dot ${a.connected && !a.error ? "c-free" : a.connected && !a.login_expired ? "c-working" : "c-dnd"}`;
+    const info = a.login_expired ? t("settings.login_expired")
+      : a.connected
+        ? (a.last_sync ? t("settings.synced", { time: fmtTime(a.last_sync), n: a.events }) : t("settings.connected"))
+        : t("settings.not_connected");
     li.append(dot, `${a.name}: ${info}${a.error ? ` – ${a.error}` : ""}`);
     acc.append(li);
   }

@@ -435,6 +435,9 @@ type TimelineResponse struct {
 	From  time.Time     `json:"from"`
 	To    time.Time     `json:"to"`
 	Slots []engine.Slot `json:"slots"`
+	// CalendarProblem is set when the calendar can't be read, so slots
+	// may be missing events (see calendar.Problem).
+	CalendarProblem string `json:"calendar_problem,omitempty"`
 }
 
 func (s *Server) getTimeline(w http.ResponseWriter, r *http.Request) {
@@ -457,7 +460,9 @@ func (s *Server) getTimeline(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "to must be after from, at most 14 days")
 		return
 	}
-	writeJSON(w, http.StatusOK, TimelineResponse{From: from, To: to, Slots: svc(r).Timeline(from, to)})
+	sv := svc(r)
+	writeJSON(w, http.StatusOK, TimelineResponse{From: from, To: to, Slots: sv.Timeline(from, to),
+		CalendarProblem: calendar.Problem(sv.CalendarStatus())})
 }
 
 // OverrideBody is the body of PUT /api/v1/override.

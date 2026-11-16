@@ -71,6 +71,11 @@ func TokenKey(profile, account string) string {
 // ErrNotConnected means nobody has signed in for an account yet.
 var ErrNotConnected = errors.New("not connected")
 
+// ErrTokenExpired means Google no longer accepts the account's refresh
+// token ("invalid_grant"): it expired – after 7 days while the OAuth client
+// is in "Testing" – or was revoked. Only a new sign-in helps.
+var ErrTokenExpired = errors.New("sign-in expired or revoked")
+
 // Options configure a Provider.
 type Options struct {
 	OAuth     *oauth2.Config // client id/secret, endpoint, scope
@@ -135,10 +140,11 @@ func (p *Provider) Events(ctx context.Context, from, to time.Time) ([]calendar.E
 		if err != nil {
 			st.Error = err.Error()
 			st.Connected = !errors.Is(err, ErrNotConnected)
+			st.LoginExpired = errors.Is(err, ErrTokenExpired)
 			errs = append(errs, fmt.Errorf("google account %s: %w", a.Name, err))
 			ev = p.cache[a.Name]
 		} else {
-			st.Error, st.Connected, st.LastSync, st.Events = "", true, time.Now(), len(ev)
+			st.Error, st.Connected, st.LoginExpired, st.LastSync, st.Events = "", true, false, time.Now(), len(ev)
 			p.cache[a.Name] = ev
 		}
 		p.mu.Unlock()
@@ -169,6 +175,9 @@ func (p *Provider) account(ctx context.Context, a Account, from, to time.Time) (
 	for _, cal := range cals {
 		items, err := list(ctx, client, cal, from, to)
 		if err != nil {
+			if invalidGrant(err) {
+				return nil, fmt.Errorf("%w – sign in again with: doormutex-companion google login %s (or on the hub: doormutex-hub google login %s %s)", ErrTokenExpired, a.Name, p.o.Profile, a.Name)
+			}
 			return nil, err
 		}
 		for _, it := range items {
@@ -182,6 +191,12 @@ func (p *Provider) account(ctx context.Context, a Account, from, to time.Time) (
 }
 
 // savingSource persists refreshed tokens (Google may rotate them).
+// invalidGrant reports whether Google refused the refresh token.
+func invalidGrant(err error) bool {
+	var re *oauth2.RetrieveError
+	return errors.As(err, &re) && re.ErrorCode == "invalid_grant"
+}
+
 type savingSource struct {
 	src   oauth2.TokenSource
 	store TokenStore

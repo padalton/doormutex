@@ -47,6 +47,41 @@ type AccountStatus struct {
 	LastSync  time.Time `json:"last_sync,omitzero"`
 	Events    int       `json:"events"`
 	Error     string    `json:"error,omitempty"`
+	// LoginExpired is set when Google refused the stored sign-in: the
+	// account must sign in again.
+	LoginExpired bool `json:"login_expired,omitempty"`
+}
+
+// Problems a calendar can have, worst first – see Problem.
+const (
+	ProblemLoginExpired = "login_expired" // an account must sign in again
+	ProblemNotConnected = "not_connected" // an account was never signed in
+	ProblemUnavailable  = "unavailable"   // reading failed otherwise, e.g. network
+)
+
+// Problem sums up the accounts' health in one word for clients that may
+// not see the details (read-only tokens): "" if every account is fine,
+// otherwise the worst of the Problem* constants. The timeline is then
+// missing events, or built from older ones.
+func Problem(accounts []AccountStatus) string {
+	worst, rank := "", 0
+	for _, a := range accounts {
+		var p string
+		var r int
+		switch {
+		case a.Error == "": // fine, or not read yet
+		case a.LoginExpired:
+			p, r = ProblemLoginExpired, 3
+		case !a.Connected:
+			p, r = ProblemNotConnected, 2
+		default:
+			p, r = ProblemUnavailable, 1
+		}
+		if r > rank {
+			worst, rank = p, r
+		}
+	}
+	return worst
 }
 
 // StatusReporter is implemented by providers with accounts (Google).
@@ -56,8 +91,9 @@ type StatusReporter interface {
 
 // Fake is an in-memory provider for tests and demos.
 type Fake struct {
-	mu     sync.Mutex
-	events []Event
+	mu       sync.Mutex
+	events   []Event
+	accounts []AccountStatus
 }
 
 // NewFake returns a fake provider with the given events.
@@ -86,4 +122,18 @@ func (f *Fake) Events(_ context.Context, from, to time.Time) ([]Event, error) {
 		}
 	}
 	return out, nil
+}
+
+// SetStatus sets what Status reports, e.g. an expired sign-in.
+func (f *Fake) SetStatus(accounts ...AccountStatus) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.accounts = append([]AccountStatus(nil), accounts...)
+}
+
+// Status implements StatusReporter; nil unless SetStatus was called.
+func (f *Fake) Status() []AccountStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]AccountStatus(nil), f.accounts...)
 }
