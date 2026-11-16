@@ -177,6 +177,7 @@ type fakeGoogle struct {
 	mu       sync.Mutex
 	refreshs int
 	queries  []url.Values
+	clients  []string // client_id of every token request
 	failWork bool
 }
 
@@ -186,6 +187,7 @@ func (f *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		f.mu.Lock()
 		f.refreshs++
+		f.clients = append(f.clients, r.Form.Get("client_id"))
 		f.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Form.Get("grant_type") {

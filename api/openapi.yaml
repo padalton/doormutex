@@ -187,10 +187,14 @@ paths:
       - { $ref: "#/components/parameters/Profile" }
       - { $ref: "#/components/parameters/Account" }
     post:
-      summary: Start a Google sign-in from a desktop client
+      summary: Start a Google sign-in (desktop client or web UI)
       description: |
         For a client on the machine with the browser (the companion): it
-        listens on a loopback port and passes that address. The hub keeps
+        listens on a loopback port and passes that address. The web UI
+        passes `login_relay` from `GET /calendar` instead (only set when
+        the hub has a "web application" OAuth client): Google then
+        redirects to the relay page, which hands `code` and `state` back
+        to the web UI of the hub the sign-in started from. The hub keeps
         the PKCE verifier and returns Google's sign-in URL; Google then
         redirects the browser to the client with `code` and `state`, which
         the client hands to `…/login/complete`. The client secret and the
@@ -207,7 +211,7 @@ paths:
               required: [redirect_uri]
               additionalProperties: false
               properties:
-                redirect_uri: { type: string, examples: ["http://127.0.0.1:43117/"], description: "http://127.0.0.1:PORT/ only" }
+                redirect_uri: { type: string, examples: ["http://127.0.0.1:43117/"], description: "http://127.0.0.1:PORT/, or exactly the `login_relay` of GET /calendar" }
       responses:
         "200":
           description: Open `auth_url` in the browser.
@@ -822,6 +826,10 @@ components:
       required: [provider, accounts]
       properties:
         provider: { type: string, enum: [none, google, fake] }
+        login_relay:
+          type: string
+          description: Set when accounts can sign in from the web UI – the `redirect_uri` for `…/login` (the redirect relay page).
+          examples: ["https://doormutex.org/oauth/"]
         accounts:
           type: array
           items:

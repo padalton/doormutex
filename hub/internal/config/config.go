@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"slices"
@@ -72,13 +73,31 @@ type GoogleAccount struct {
 	Mirror    string   `yaml:"mirror"`    // copies of a mirroring script: ignore (default) or use
 }
 
-// Google is the OAuth client shared by all profiles (a "desktop app"
-// client from the Google Cloud console).
+// Google holds the OAuth clients shared by all profiles: a "desktop app"
+// client for sign-in through the companion or the command line, and
+// optionally a "web application" client for sign-in from the web UI
+// through the redirect relay.
 type Google struct {
-	ClientID     string `yaml:"client_id"`
-	ClientSecret string `yaml:"client_secret"` // or DOORMUTEX_GOOGLE_CLIENT_SECRET
-	MirrorKey    string `yaml:"mirror_key"`    // extendedProperties.private key of mirrored copies
+	ClientID     string    `yaml:"client_id"`
+	ClientSecret string    `yaml:"client_secret"` // or DOORMUTEX_GOOGLE_CLIENT_SECRET
+	Web          GoogleWeb `yaml:"web"`
+	MirrorKey    string    `yaml:"mirror_key"` // extendedProperties.private key of mirrored copies
 }
+
+// DefaultRelay is the project's redirect relay: Google redirects there and
+// the page hands code and state to the hub this browser started from.
+const DefaultRelay = "https://doormutex.org/oauth/"
+
+// GoogleWeb is the optional "web application" client. Its authorized
+// redirect URI in the Google Cloud console must be Relay exactly.
+type GoogleWeb struct {
+	ClientID     string `yaml:"client_id"`
+	ClientSecret string `yaml:"client_secret"` // or DOORMUTEX_GOOGLE_WEB_CLIENT_SECRET
+	Relay        string `yaml:"relay"`         // default DefaultRelay
+}
+
+// Enabled reports whether sign-in from the web UI is configured.
+func (w GoogleWeb) Enabled() bool { return w.ClientID != "" }
 
 // Config mirrors config.example.yaml. Without a profiles list, the
 // top-level profile fields form a single profile "office".
@@ -124,6 +143,9 @@ func Load(path string) (*Config, error) {
 	if v := os.Getenv("DOORMUTEX_GOOGLE_CLIENT_SECRET"); v != "" {
 		c.Google.ClientSecret = v
 	}
+	if v := os.Getenv("DOORMUTEX_GOOGLE_WEB_CLIENT_SECRET"); v != "" {
+		c.Google.Web.ClientSecret = v
+	}
 	if v := os.Getenv("DOORMUTEX_MQTT_URL"); v != "" {
 		c.MQTT.URL = v
 	}
@@ -145,6 +167,7 @@ func (c *Config) applyDefaults() error {
 	def(&c.MQTT.ClientID, "doormutex-hub")
 	def(&c.MQTT.BaseTopic, "doormutex")
 	def(&c.MQTT.DiscoveryPrefix, "homeassistant")
+	def(&c.Google.Web.Relay, DefaultRelay)
 	if c.CalendarPoll == 0 {
 		c.CalendarPoll = Duration(2 * time.Minute)
 	}
@@ -218,8 +241,19 @@ func checkCalendar(p *Profile) error {
 
 // GoogleReady reports whether the OAuth client is configured.
 func (c *Config) GoogleReady() error {
-	if c.Google.ClientID == "" || c.Google.ClientSecret == "" {
-		return errors.New("google.client_id and the client secret (google.client_secret or DOORMUTEX_GOOGLE_CLIENT_SECRET) are required – see docs/google-calendar.md")
+	if c.Google.ClientID == "" && !c.Google.Web.Enabled() {
+		return errors.New("google.client_id (desktop client) or google.web.client_id (web client) is required – see docs/google-calendar.md")
+	}
+	if c.Google.ClientID != "" && c.Google.ClientSecret == "" {
+		return errors.New("google.client_id needs its client secret (google.client_secret or DOORMUTEX_GOOGLE_CLIENT_SECRET) – see docs/google-calendar.md")
+	}
+	if w := c.Google.Web; w.Enabled() {
+		if w.ClientSecret == "" {
+			return errors.New("google.web.client_id needs its client secret (google.web.client_secret or DOORMUTEX_GOOGLE_WEB_CLIENT_SECRET)")
+		}
+		if u, err := url.Parse(w.Relay); err != nil || u.Scheme != "https" || u.Host == "" || u.RawQuery != "" || u.Fragment != "" {
+			return fmt.Errorf("google.web.relay %q: want an https URL without query or fragment", w.Relay)
+		}
 	}
 	return nil
 }

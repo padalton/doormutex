@@ -12,6 +12,7 @@ The hub reads events of one or more Google accounts per profile – for example 
 4. *Audience*: user type **External**, publishing status **Testing**; add every Google account you want to connect (private and work) as a **test user**.
 5. *Data access*: add the scope `https://www.googleapis.com/auth/calendar.events.readonly`.
 6. *Clients → Create client*: application type **Desktop app**. Note the client ID and the client secret.
+7. Optional, for signing in from the web UI: *Clients → Create client* once more, application type **Web application**, *Authorized redirect URIs*: `https://doormutex.org/oauth/` (the relay, see step 3). No JavaScript origins are needed. Note this client's ID and secret too. If your client is published, the relay's domain must be listed under *Branding → Authorized domains*.
 
 **Long-lived sign-in:** a client in "Testing" gets refresh tokens that expire after 7 days. To get rid of that, publish it: *Audience → Publish app*. Google first wants a complete *Branding* page – home page, privacy policy and terms of service on a domain you have verified in Google Search Console, and that domain under *Authorized domains*. Until Google has verified the app, the sign-in shows a warning ("Google hasn't verified this app") that you click through via *Advanced*; for a handful of accounts at home that's fine. Tokens issued while the client was in "Testing" keep their 7-day limit – sign in once more after publishing.
 
@@ -34,14 +35,37 @@ profiles:
           calendars: [primary] # default; add shared calendars by ID if needed
 ```
 
+With the web client (step 1.7) as well:
+
+```yaml
+google:
+  client_id: 1234567890-abc.apps.googleusercontent.com
+  web:
+    client_id: 1234567890-xyz.apps.googleusercontent.com
+    # relay: https://doormutex.org/oauth/ – the default
+```
+
 ```bash
 # .env next to compose.yaml – never commit it
 DOORMUTEX_GOOGLE_CLIENT_SECRET=GOCSPX-…
+DOORMUTEX_GOOGLE_WEB_CLIENT_SECRET=GOCSPX-… # only with the web client
 ```
+
+Either client alone is enough: without the desktop client there is no sign-in through the companion or the command line, and without the web client there are no sign-in buttons in the web UI. A token keeps working only with the client that issued it, so don't delete a client while accounts still use it – sign them in again with the other one first.
 
 ## 3. Sign in (per account)
 
-### With the companion (recommended)
+### In the web UI
+
+With the web client configured, *Settings → Calendar accounts* has a **Sign in** (or **Sign in again**) button per account. It works from any browser that can reach the hub, including a phone, and the hub doesn't have to be reachable from the internet:
+
+1. The hub creates Google's sign-in URL with the relay `https://doormutex.org/oauth/` as redirect.
+2. The relay page remembers in this browser which hub the sign-in came from. The first time, it asks you to confirm the hub's address. Then it continues to Google.
+3. After the sign-in, Google redirects to the relay page. It checks that the sign-in was started in this browser and sends the browser back to the hub's web UI with `code` and `state` in the address fragment. The web UI hands them to the hub, and the hub exchanges them.
+
+The relay is a static page that runs in your browser. doormutex.org has no server that sees your hub or your tokens. The code passing through is worthless on its own: the exchange also needs the PKCE verifier and the client secret, and both never leave the hub. To use your own relay, host the page from the [website repository](https://github.com/padalton/doormutex-site) yourself and set `google.web.relay`.
+
+### With the companion
 
 On the desktop with the [companion](../companion/README.md) installed and configured (hub address and the profile's token):
 

@@ -76,9 +76,22 @@ var ErrNotConnected = errors.New("not connected")
 // is in "Testing" – or was revoked. Only a new sign-in helps.
 var ErrTokenExpired = errors.New("sign-in expired or revoked")
 
+// ClientWeb marks a token issued to the "web application" client (sign-in
+// through the relay). Tokens without a mark come from the desktop client.
+const ClientWeb = "web"
+
+// storedToken is an account's token as stored. A refresh token only works
+// with the OAuth client that issued it, so the token says which one.
+type storedToken struct {
+	oauth2.Token
+	Client string `json:"client,omitempty"` // ClientWeb or "" (desktop)
+}
+
 // Options configure a Provider.
 type Options struct {
-	OAuth     *oauth2.Config // client id/secret, endpoint, scope
+	OAuth     *oauth2.Config // desktop client: id/secret, endpoint, scope; nil if there is none
+	Web       *oauth2.Config // web client for sign-in through Relay; nil if there is none
+	Relay     string         // the web client's redirect URI (the relay page)
 	Profile   string
 	Accounts  []Account
 	MirrorKey string // default DefaultMirrorKey
@@ -155,7 +168,7 @@ func (p *Provider) Events(ctx context.Context, from, to time.Time) ([]calendar.E
 
 func (p *Provider) account(ctx context.Context, a Account, from, to time.Time) ([]calendar.Event, error) {
 	key := TokenKey(p.o.Profile, a.Name)
-	var tok oauth2.Token
+	var tok storedToken
 	if err := p.o.Tokens.Get(key, &tok); err != nil {
 		if errors.Is(err, secret.ErrDecrypt) {
 			return nil, fmt.Errorf("stored token: %w – sign in again", err)
@@ -165,7 +178,11 @@ func (p *Provider) account(ctx context.Context, a Account, from, to time.Time) (
 	if p.o.HTTP != nil {
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, p.o.HTTP)
 	}
-	src := &savingSource{src: p.o.OAuth.TokenSource(ctx, &tok), store: p.o.Tokens, key: key, last: tok.AccessToken}
+	conf := p.client(tok.Client == ClientWeb)
+	if conf == nil {
+		return nil, fmt.Errorf("%w – the token comes from the %s client, which is no longer configured", ErrTokenExpired, clientName(tok.Client == ClientWeb))
+	}
+	src := &savingSource{src: conf.TokenSource(ctx, &tok.Token), store: p.o.Tokens, key: key, client: tok.Client, last: tok.AccessToken}
 	client := oauth2.NewClient(ctx, src)
 	cals := a.Calendars
 	if len(cals) == 0 {
@@ -191,6 +208,21 @@ func (p *Provider) account(ctx context.Context, a Account, from, to time.Time) (
 }
 
 // savingSource persists refreshed tokens (Google may rotate them).
+// client returns the desktop or the web client, nil if not configured.
+func (p *Provider) client(web bool) *oauth2.Config {
+	if web {
+		return p.o.Web
+	}
+	return p.o.OAuth
+}
+
+func clientName(web bool) string {
+	if web {
+		return "web"
+	}
+	return "desktop"
+}
+
 // invalidGrant reports whether Google refused the refresh token.
 func invalidGrant(err error) bool {
 	var re *oauth2.RetrieveError
@@ -198,9 +230,10 @@ func invalidGrant(err error) bool {
 }
 
 type savingSource struct {
-	src   oauth2.TokenSource
-	store TokenStore
-	key   string
+	src    oauth2.TokenSource
+	store  TokenStore
+	key    string
+	client string // storedToken.Client
 
 	mu   sync.Mutex
 	last string
@@ -215,7 +248,7 @@ func (s *savingSource) Token() (*oauth2.Token, error) {
 	defer s.mu.Unlock()
 	if t.AccessToken != s.last {
 		s.last = t.AccessToken
-		if err := s.store.Put(s.key, t); err != nil {
+		if err := s.store.Put(s.key, storedToken{Token: *t, Client: s.client}); err != nil {
 			return nil, fmt.Errorf("save refreshed token: %w", err)
 		}
 	}
