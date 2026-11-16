@@ -78,6 +78,9 @@
   "duration.min": "{n} min",
 
   "day.today": "Today",
+  "day.cal_login_expired": "Calendar sign-in expired – appointments are missing. Sign in again: doormutex-companion google login <account>",
+  "day.cal_not_connected": "Calendar not connected – appointments are missing.",
+  "day.cal_unavailable": "Calendar unavailable – appointments may be missing or out of date.",
 
   "settings.kinds": "Light per calendar event kind",
   "settings.ignore": "ignore",
@@ -97,6 +100,7 @@
   "settings.synced": "synced {time}, {n} events",
   "settings.connected": "connected",
   "settings.not_connected": "not connected",
+  "settings.login_expired": "sign-in expired, sign in again",
   "settings.device": "This device",
   "settings.language": "Language",
   "settings.language_auto": "Automatic (browser)",

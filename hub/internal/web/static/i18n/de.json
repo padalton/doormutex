@@ -78,6 +78,9 @@
   "duration.min": "{n} Min.",
 
   "day.today": "Heute",
+  "day.cal_login_expired": "Kalender-Anmeldung abgelaufen – Termine fehlen. Neu anmelden: doormutex-companion google login <Konto>",
+  "day.cal_not_connected": "Kalender nicht verbunden – Termine fehlen.",
+  "day.cal_unavailable": "Kalender nicht erreichbar – Termine fehlen oder sind veraltet.",
 
   "settings.kinds": "Licht je Terminart",
   "settings.ignore": "ignorieren",
@@ -97,6 +100,7 @@
   "settings.synced": "abgeglichen {time}, {n} Termine",
   "settings.connected": "verbunden",
   "settings.not_connected": "nicht verbunden",
+  "settings.login_expired": "Anmeldung abgelaufen, neu anmelden",
   "settings.device": "Dieses Gerät",
   "settings.language": "Sprache",
   "settings.language_auto": "Automatisch (Browser)",

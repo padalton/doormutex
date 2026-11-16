@@ -31,6 +31,7 @@ input { width: 100%; }
 .row input { flex: 1 1 12rem; }
 .muted { color: var(--muted); font-size: .9rem; margin: .25rem 0; }
 .error { color: var(--red); min-height: 1.2em; }
+.warn { border-left: .3rem solid var(--yellow); background: var(--card); border-radius: .5rem; padding: .5rem .75rem; margin: .25rem 0 .75rem; }
 .message { background: var(--card); border: 1px dashed var(--line); padding: .4rem .6rem; border-radius: .5rem; }
 .eink-frame { margin: .75rem 0 0; display: flex; flex-direction: column; align-items: flex-start; gap: .25rem; }
 /* E-ink paper: always light, pixels stay crisp when scaled. */

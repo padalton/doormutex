@@ -190,6 +190,12 @@ func (f *fakeGoogle) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Form.Get("grant_type") {
 		case "refresh_token":
+			if r.Form.Get("refresh_token") == "revoked" {
+				// What Google answers after 7 days in "Testing".
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = fmt.Fprint(w, `{"error":"invalid_grant","error_description":"Token has been expired or revoked."}`)
+				return
+			}
 			// The refresh token says which account it is.
 			_, _ = fmt.Fprintf(w, `{"access_token":"access-%s","token_type":"Bearer","expires_in":3600}`, r.Form.Get("refresh_token"))
 		case "authorization_code":
@@ -313,6 +319,37 @@ func TestNotConnected(t *testing.T) {
 	}
 	if st := p.Status(); st[1].Connected {
 		t.Errorf("work should not be connected: %+v", st)
+	}
+}
+
+func TestTokenExpired(t *testing.T) {
+	_, srv := setup(t)
+	store := &memStore{m: map[string][]byte{}}
+	expired := time.Now().Add(-time.Hour)
+	_ = store.Put(TokenKey("office", "private"), oauth2.Token{AccessToken: "old", RefreshToken: "private", Expiry: expired})
+	_ = store.Put(TokenKey("office", "work"), oauth2.Token{AccessToken: "old", RefreshToken: "revoked", Expiry: expired})
+	p := New(Options{OAuth: oauthConf(srv), Profile: "office", Tokens: store, Location: vienna,
+		Accounts: []Account{{Name: "private"}, {Name: "work"}}})
+	from := time.Date(2026, 10, 28, 0, 0, 0, 0, vienna)
+	_, err := p.Events(context.Background(), from, from.Add(24*time.Hour))
+	if !errors.Is(err, ErrTokenExpired) || !strings.Contains(err.Error(), "doormutex-companion google login work") {
+		t.Fatalf("err = %v", err)
+	}
+	st := p.Status()
+	if st[0].LoginExpired || !st[1].LoginExpired || st[1].Error == "" {
+		t.Fatalf("status = %+v", st)
+	}
+	if got := calendar.Problem(st); got != calendar.ProblemLoginExpired {
+		t.Errorf("problem = %q", got)
+	}
+
+	// After a new sign-in the flag is gone.
+	_ = store.Put(TokenKey("office", "work"), oauth2.Token{AccessToken: "old", RefreshToken: "work", Expiry: expired})
+	if _, err := p.Events(context.Background(), from, from.Add(24*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if st := p.Status(); st[1].LoginExpired || st[1].Error != "" {
+		t.Errorf("status after sign-in = %+v", st)
 	}
 }
 

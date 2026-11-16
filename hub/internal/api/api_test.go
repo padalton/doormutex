@@ -413,6 +413,23 @@ func TestPomodoroAndTimeline(t *testing.T) {
 	if tl.Slots[0].Status != status.DND || tl.Slots[1].Status != status.Free || tl.Slots[2].Status != status.Working {
 		t.Fatalf("timeline slots: %+v", tl.Slots)
 	}
+	if tl.CalendarProblem != "" {
+		t.Errorf("calendar problem without a problem: %q", tl.CalendarProblem)
+	}
+	// An expired Google sign-in shows up in the timeline, also for read-only tokens.
+	f.cal.SetStatus(calendar.AccountStatus{Name: "work", Connected: true, LoginExpired: true, Error: "sign-in expired or revoked"})
+	readTok, _ := f.store.CreateToken("phone", []string{"office"}, store.RoleRead)
+	req, _ := http.NewRequest(http.MethodGet, f.srv.URL+"/api/v1/timeline?from="+from+"&to="+to, nil)
+	req.Header.Set("Authorization", "Bearer "+readTok)
+	r2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tl = TimelineResponse{}
+	if err := json.NewDecoder(r2.Body).Decode(&tl); err != nil || tl.CalendarProblem != calendar.ProblemLoginExpired {
+		t.Errorf("read-only timeline: %+v %v", tl.CalendarProblem, err)
+	}
+	_ = r2.Body.Close()
 	if resp, _ := f.do(t, http.MethodGet, "/api/v1/timeline?from=yesterday", ""); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("bad from: %d", resp.StatusCode)
 	}
