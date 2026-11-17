@@ -34,10 +34,10 @@ front_wall = 2.4;
 edge_chamfer = 1.2;
 
 /* [Fits] */
-// Sliding fit – calibrate with a test print
-tol = 0.2;
-// Press fit
-press_tol = 0.1;
+// Sliding fit – calibrate with the fit test (0.1 on a Prusa MK3S, PLA)
+tol = 0.1;
+// Press fit (LEDs)
+press_tol = 0.05;
 
 /* [Lenses and chambers] */
 // Lens diameter (transparent PETG disc)
@@ -98,6 +98,8 @@ eink_hole_d = 1.8;
 /* [Back cover and modules] */
 // Screws for the back cover: heat-set inserts (M3 x 4) or self-tapping M3
 cover_screw = "insert"; // [insert, self_tap]
+// Hole for M3 screws that cut their own thread (foot, side plate, self-tapping cover)
+m3_hole_d = 2.8;
 // Size of the corner ribs that take all screws
 rib = 6;
 // Where the corner ribs start behind the front wall
@@ -134,11 +136,13 @@ pin_hole_d = 1.6;
 // Standoff height for the modules on the back cover
 standoff_h = 4;
 // Hole for M2.5 self-tapping screws
-m25_hole_d = 2.2;
+m25_hole_d = 2.4;
 
 /* [Magnets] */
 // Neodymium disc magnets: diameter
 magnet_d = 12;
+// Diameter of the side plate magnets (same height). Thin steel sheet such as a door frame: 15–20
+side_magnet_d = 12;
 // Magnet height
 magnet_h = 3;
 // Clearance around the magnet (press fit: 0.1–0.2)
@@ -155,7 +159,7 @@ foot_magnets = [[-11, 13], [11, 13]];
 foot_screw_y = 20;
 // Groove for a cable tie or cord around the post (y position)
 tie_groove_y = 28;
-// Side plate for steel railings: none, left or right
+// Side plate for steel railings or door frames: none, left or right
 side_plate = "right"; // [none, left, right]
 // Magnet positions in the side plate (y, z)
 side_magnets = [[22.5, 25], [22.5, 75], [22.5, 120], [22.5, 165]];
@@ -203,7 +207,7 @@ als_y = back_in - als_reach / 2;
 
 foot_t = pad_recess + magnet_skin + magnet_h + magnet_tol + (magnet_embed ? 0.6 : 0);
 
-cover_hole_d = cover_screw == "insert" ? 4.0 : 2.6;
+cover_hole_d = cover_screw == "insert" ? 4.0 : m3_hole_d;
 cover_hole_len = cover_screw == "insert" ? 6.5 : 8;   // inserts e.g. M3 x 5.7 mm
 
 // ---------------------------------------------------------------- helpers
@@ -307,11 +311,11 @@ module rib_holes() {
   for (sx = [-1, 1], z = rib_z)
     translate([sx * rib_x, back_in - cover_hole_len, z]) along_y() cylinder(d = cover_hole_d, h = cover_hole_len + 1);
   // foot screws from below, along z (teardrop: horizontal when printed)
-  for (sx = [-1, 1]) translate([sx * rib_x, foot_screw_y, -1]) linear_extrude(wall + rib) teardrop2d(2.6);
+  for (sx = [-1, 1]) translate([sx * rib_x, foot_screw_y, -1]) linear_extrude(wall + rib) teardrop2d(m3_hole_d);
   // side plate screws, along x, through both side walls
   for (sx = [-1, 1], z = rib_z)
     translate([sx * (width / 2 + 1), side_screw_y, z]) rotate([0, sx > 0 ? -90 : 90, 0])
-      linear_extrude(wall + rib) teardrop2d(2.6);
+      linear_extrude(wall + rib) teardrop2d(m3_hole_d);
 }
 
 module als_window() translate([0, als_y, ih_top - 1]) linear_extrude(wall + 2) teardrop2d(als_window_d);
@@ -465,8 +469,8 @@ module visor_local() {
 
 // ---------------------------------------------------------------- foot, side plate
 
-module magnet_pocket(open)
-  translate([0, 0, pad_recess + magnet_skin]) cylinder(d = magnet_d + 2 * magnet_tol, h = magnet_h + magnet_tol + (open ? 10 : 0));
+module magnet_pocket(open, d = magnet_d)
+  translate([0, 0, pad_recess + magnet_skin]) cylinder(d = d + 2 * magnet_tol, h = magnet_h + magnet_tol + (open ? 10 : 0));
 
 module pad_recess_cut(s) translate([2, 2, -1]) cube([s.x - 4, s.y - 4, 1 + pad_recess]);
 
@@ -491,7 +495,7 @@ module side_plate_local() {
   color(shell_color) difference() {
     translate([edge_chamfer, edge_chamfer, 0]) chamfered_plate(s, foot_t, edge_chamfer);
     translate([edge_chamfer, edge_chamfer, 0]) pad_recess_cut(s);
-    for (p = side_magnets) translate([p[0], p[1], 0]) magnet_pocket(!magnet_embed);
+    for (p = side_magnets) translate([p[0], p[1], 0]) magnet_pocket(!magnet_embed, side_magnet_d);
     for (z = rib_z) translate([side_screw_y, z, 0]) countersink(3.4, 6.4, foot_t + 1);
   }
 }

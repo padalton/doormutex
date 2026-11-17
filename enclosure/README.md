@@ -33,7 +33,7 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 
 | Item | Qty | Note |
 |---|---|---|
-| Neodymium disc magnets **Ø 12 × 3 mm**, N42–N52 | 2 (foot) + 4 (side plate) | other sizes: change `magnet_d` / `magnet_h` |
+| Neodymium disc magnets **Ø 12 × 3 mm**, N42–N52 | 2 (foot) + 4 (side plate) | other sizes: change `magnet_d` / `magnet_h`; on a door frame **Ø 15–20 × 3 mm** in the side plate (`side_magnet_d`, see [Door frame](#door-frame)) |
 | Heat-set inserts M3, short (e.g. M3 × 5.7 mm, 4.0 mm hole) | 4 | or `cover_screw = "self_tap"` and plain M3 screws |
 | M3 × 8 countersunk | 4 | back cover |
 | M3 × 10 countersunk | 2 + 2 | foot, side plate (cut their own thread in the ribs) |
@@ -50,7 +50,7 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 - **Lenses:** transparent PETG, 100 % infill, smooth side on a smooth sheet. Try `lens_t` 0.8–1.2 and `diffuser_pitch` in a test print.
 - **Embedded magnets** (`magnet_embed = true`, default): add a *pause* (M601) at the first layer above **4.25 mm** (4.4 mm at 0.2 mm layers) for the foot and the side plate. Check in the slicer preview that the pockets are still open in the layer below. Drop the magnets in and resume – no glue needed. The magnets stick to the MK3S steel sheet through the skin; that is harmless but makes removal a bit harder.
 - With `magnet_embed = false` the pockets are open and the magnets go in with a drop of CA glue or epoxy.
-- **Tolerances:** `tol` (sliding fits, default 0.2) and `press_tol` (LEDs, 0.1). Calibrate both with the [fit test](#fit-test) before the full shell – in the material you print the shell with.
+- **Tolerances:** `tol` (sliding fits, default 0.1) and `press_tol` (LEDs, 0.05). Calibrate both with the [fit test](#fit-test) before the full shell – in the material you print the shell with.
 
 ### Fit test
 
@@ -63,10 +63,12 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 | LED (front) | radial clearance 0.05–0.25 | push a 5 mm LED in from below | the tightest hole the LED goes into by hand and stays in | `press_tol` |
 | pin | radial clearance 0.1–0.3 | the loose pin | the tightest hole the pin slides into without force | `tol` |
 | bosses, left three | hole Ø 3.8 / 4.0 / 4.2 | press an M3 heat-set insert in with the soldering iron | straight, flush, no plastic bulging out at the top | `cover_hole_d` (insert) |
-| bosses, right three | hole Ø 2.4 / 2.6 / 2.8 | screw an M3 screw in | goes in by hand without cracking the boss and holds firmly | the `2.6` in `rib_holes()`; `cover_hole_d` (self-tapping) |
+| bosses, right three | hole Ø 2.4 / 2.6 / 2.8 | screw an M3 screw in | goes in by hand without cracking the boss and holds firmly | `m3_hole_d` |
 | small standoffs | hole Ø 2.0 / 2.2 / 2.4 | screw an M2.5 screw in | same as above | `m25_hole_d` |
 | magnet pockets | radial clearance 0.1 / 0.15 / 0.2 | drop a 12 × 3 mm magnet into the pocket | falls in by itself, but doesn't rattle – that's what the print pause needs | `magnet_tol` |
 | lens seat | `tol` | on the bed side; put a printed `diffuser` in once the PETG is there | the lens lies flat in the seat with a little play | `tol` |
+
+The defaults come from a PLA fit test on a Prusa MK3S (0.2 mm layers): LED 0.05, pin 0.1, inserts 4.0 (all three sizes worked at 270 °C), M3 2.8, M2.5 2.4, magnets 0.15 (0.1 works but needs a precise drop). Another printer or filament: print the plate once and set your own values.
 
 The magnet pockets also test the holding force: with a magnet in, hold the plate with the bottom (0.6 mm skin) against the railing.
 
@@ -112,7 +114,8 @@ All parameters are Customizer-compatible (also the MakerWorld configurator). The
 | `magnet_d`, `magnet_h`, `magnet_skin`, `magnet_embed` | 12, 3, 0.6, true | magnet pockets |
 | `foot_magnets`, `side_magnets` | 2, 4 positions | where the magnets go |
 | `side_plate` | `right` | `none`, `left`, `right` |
-| `tol`, `press_tol` | 0.2, 0.1 | fits |
+| `tol`, `press_tol` | 0.1, 0.05 | fits |
+| `m3_hole_d`, `m25_hole_d` | 2.8, 2.4 | holes for screws that cut their own thread |
 
 ## Mass and holding force
 
@@ -128,6 +131,16 @@ Volumes from the exported STL files (upper bound: 100 % infill, PETG 1.27 g/cm³
 | **total**, foot only / with side plate | **~210 / ~260** |
 
 With real infill the printed parts weigh ~20–30 % less. On the side wall the magnets carry ~2.6 N through friction: with a rubber pad (μ ≈ 0.6) and a safety factor of 3 they need ~13 N pull (~1.3 kg), without a pad ~2.6 kg. Four Ø 12 × 3 mm discs are rated 2.5–3.5 kg each on thick steel; behind 0.6 mm PETG and a 1 mm pad expect only a quarter to a third of that – still ~2.5–3.5 kg in total. The [hardware notes](../hardware/README.md#magnet-mount) explain the estimate; the tolerance print checks it on the real railing.
+
+### Door frame
+
+A steel door frame is thin sheet metal (~1–1.5 mm), and a stainless one may be weakly magnetic or not at all. Settings for the side plate there:
+
+- `side_plate = "left"` or `"right"` – the side that faces the frame, seen from the front.
+- `side_magnet_d = 15` or `20` with **Ø 15 × 3 mm N52** or **Ø 20 × 3 mm** discs. On thin sheet a wider disc holds better than a thicker one: the sheet saturates, and a wider disc spreads the flux over more steel. The 3 mm height keeps the plate as thick as before, so the pause height for embedded magnets stays the same.
+- `magnet_skin` stays at 0.6 mm (3 layers at 0.2 mm). The pad adds its own thickness to the gap – 0.5 mm silicone holds noticeably better than 1 mm.
+- **Test the frame first** with any magnet. If it barely sticks, the frame is austenitic stainless steel (1.4301/304) and no magnet will hold the light; glue a thin steel plate onto the frame (VHB tape) and put the light on that.
+- A slamming door shakes the frame; the pad's friction keeps the light from sliding down. To take the light off (cell swap), tilt it away from the frame from one end instead of pulling it straight off.
 
 ## Verify before printing (`TODO verify` in the source)
 
