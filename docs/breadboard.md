@@ -6,7 +6,7 @@ The first hardware prototype is built from ready-made modules on a breadboard �
 
 *Stage 1 running (2026-11-14): ESP32-C6-DevKitC-1 across two breadboards, three LEDs with MOSFETs, the VEML7700 light sensor and the Waveshare e-paper with the hub's sign. Wiring: [wiring.md](wiring.md).*
 
-> Parts as of 2026-10-29, shops and links checked on 2026-11-02. Prices are guidelines; check availability before ordering. Shop recommendations assume delivery to Austria.
+> Parts as of 2026-10-29, shops and links checked on 2026-11-02; stage 2 sources updated on 2026-11-17. Prices are guidelines; check availability before ordering. Shop recommendations assume delivery to Austria.
 
 ## Two stages
 
@@ -44,9 +44,9 @@ The first hardware prototype is built from ready-made modules on a breadboard �
 |---|---|---|---|---|
 | 13 | **Charger with power path** | 1 | Adafruit `4755` ("Universal USB/DC/Solar Lithium Ion/Polymer charger – bq24074"), the same charger IC as on the PCB | 15–20 |
 | 14 | **MAX17048 fuel gauge**, STEMMA QT | 1 | Adafruit `5580` | 6–8 |
-| 15 | **1S protection board** DW01A + 8205A | 2 | generic "1S 3.7 V Li-ion BMS / protection board" – the vape cells have no built-in protection | 2 × 1 |
+| 15 | **1S cell protection** DW01A + 8205A | 2 | a TP4056 charger module **with** protection (pads `B+`/`B−` *and* `OUT+`/`OUT−`) – only its protection part is used – or a bare "1S 3.7 V Li-ion protection board". The vape cells have no built-in protection | 2 × 1 |
 | 16 | **18650 holder** with leads | 2 | single, not a double holder | 2 × 2 |
-| 17 | **Buck-boost 3.3 V** | 1 | e.g. Pololu `S7V8F3` (2.7–11.8 V → 3.3 V). Feeds the DevKit via its 3V3 pin – then do *not* plug USB into the DevKit | 10–15 |
+| 17 | **Buck-boost 3.3 V** | 1 | a TPS63020 module (1.8–5.5 V → 3.3 V; the same TI family as the PCB's TPS63802) or Pololu `S7V8F3` (2.7–11.8 V → 3.3 V). Feeds the DevKit via its 3V3 pin – then do *not* plug USB into the DevKit. Many TPS63020 modules ship set to 4.2 V: [set it to 3.3 V](#setting-a-tps63020-module-to-33-v) first | 5–15 |
 | 18 | **NTC 10 kΩ** (B ≈ 3435) | 1 | optional, for charge temperature monitoring on the bq24074 | 1 |
 
 ### Optional – for precise measurements
@@ -62,14 +62,14 @@ The first hardware prototype is built from ready-made modules on a breadboard �
 
 Checked on 2026-11-02: every link below opened the right product, stock and prices as of that day (incl. 20 % VAT unless noted). Stock changes quickly; Adafruit boards in particular are often sold out at the smaller shops. Links are plain product links – the project uses no affiliate links.
 
-**Four orders cover stages 1 + 2 and the enclosure:**
+**Three orders cover stages 1 + 2 and the enclosure:**
 
 | Shop | What | approx. € | Shipping to AT |
 |---|---|---|---|
 | **DigiKey** | all electronics except the items below | 102 | free from €75, ~2 days, duties and VAT prepaid (DDP) |
-| **Opencircuit** (NL) | buck-boost, 18650 holders, protection boards | 26 | €11.50, free from €150 |
-| **Amazon.de** | e-paper module (sold by Waveshare), magnets, inserts, screws, silicone sheet, velcro | 63 | per seller |
+| **Amazon.de** | e-paper module (sold by Waveshare), stage 2 protection + cell holders + buck-boost, magnets, inserts, screws, silicone sheet, velcro | 83 | per seller, 2–4 days |
 | Prusa (CZ) | PETG clear for the lenses; black PETG only if you have no black PLA or PETG | 26–53 | varies (check the cart) |
+| *optional:* Opencircuit (NL) | the original stage 2 parts: Pololu buck-boost, SparkFun holders, protection boards | 26 | €11.50, free from €150; slow, see [below](#opencircuit--original-stage-2-parts-optional) |
 
 Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module or the cell holder in stock; DigiKey has no Waveshare displays and no cell protection boards, and the Pololu regulator there is a US marketplace item (customs on delivery, doesn't count towards free shipping).
 
@@ -117,7 +117,7 @@ Why not one shop: BerryBase had none of the Adafruit boards, the e-paper module 
 
 Or try the FastAdd link (fills the cart in one click; not tested from a browser yet): [add all to the DigiKey cart](https://www.digikey.at/classic/ordering/fastadd.aspx?part1=1965-ESP32-C6-DEVKITC-1-N8-ND&qty1=2&part2=1528-2891-ND&qty2=1&part3=IRLB3813PBF-ND&qty3=5&part4=732-5021-ND&qty4=10&part5=732-5022-ND&qty5=10&part6=732-5020-ND&qty6=10&part7=1568-10969-ND&qty7=1&part8=450-1650-ND&qty8=5&part9=1528-239-ND&qty9=2&part10=1528-1967-ND&qty10=1&part11=1528-1964-ND&qty11=1&part12=1528-4209-ND&qty12=2&part13=1528-4755-ND&qty13=1&part14=1528-5580-ND&qty14=1&part15=56-NTCLE350E4103FLB0-ND&qty15=2)
 
-### Opencircuit
+### Opencircuit – original stage 2 parts (optional)
 
 | # | Part | Qty | € each |
 |---|---|---|---|
@@ -125,7 +125,7 @@ Or try the FastAdd link (fills the cart in one click; not tested from a browser 
 | 16 | [SparkFun holder for one 18650, 15 cm leads (PRT-12899)](https://opencircuit.shop/product/battery-holder-1x18650-wire-leads) | 2 | 4.75 |
 | 15 | [1S protection board 3.7 V](https://opencircuit.shop/product/3.7V-lipo-batterij-protection-board) (cuts off at 4.25 V / 2.45 V, ≤ 2 A) | 2 | 0.45 |
 
-The Pololu regulator and the holders come from an external warehouse (5–7 days). Wire the protection board between cell and the bq24074's battery input: cell on `B+`/`B−`, the charger on `P+`/`P−` (the pad names vary by board).
+The Pololu regulator and the holders come from an external warehouse, listed as 5–7 days. In November 2026 an order sat on backorder for more than two weeks, which is why the [Amazon.de parts](#stage-2-on-amazonde) became the default. What still speaks for the Pololu: 11.8 V input headroom and no jumper to change. Wire the protection board between cell and the bq24074's battery input: cell on `B+`/`B−`, the charger on `P+`/`P−` (the pad names vary by board).
 
 ### Amazon.de
 
@@ -139,6 +139,29 @@ The Pololu regulator and the holders come from an external warehouse (5–7 days
 | [Velcro straps 12 mm](https://www.amazon.de/dp/B077BCT9M1) | 30 | 7.04 |
 
 Alternatives: magnets from [supermagnete.at](https://www.supermagnete.at/scheibenmagnete-neodym/scheibenmagnet-12mm-3mm_S-12-03-N) (10 for €5.40, €20 minimum order); the e-paper module from [OpenElab](https://openelab.io/de/products/waveshare-54inch-e-ink-display) (€11.50, may ship from China).
+
+#### Stage 2 on Amazon.de
+
+| # | Part | Pack | € |
+|---|---|---|---|
+| 15, 16 | [Diymore TP4056 USB-C modules with protection (DW01A + 8205A) and 18650 holders with leads](https://www.amazon.de/dp/B0GYYSZ71P) | 10 + 10 | 10.07 |
+| 17 | [XL63020 / TPS63020 buck-boost module, set to 4.2 V on delivery](https://www.amazon.de/dp/B0G43G93KF) | 2 | 10.07 |
+
+Checked on 2026-11-17. Both are third-party sellers with few reviews; the buck-boost listing has no product photo. Any TP4056 module works if it has the two extra chips (a 6-pin protection IC and the 8-pin 8205A dual MOSFET) and the pads `B+`/`B−` and `OUT+`/`OUT−` – the cheaper ones without protection only have two battery pads. Any TPS63020 module with a 3.3 V setting works too.
+
+- **TP4056 module:** only its protection part is used. Cell on `B+`/`B−`, the bq24074 on `OUT+`/`OUT−` ([wiring, step 8](wiring.md#step-8-cell-holder-and-protection-board)). **Never plug USB into it** – two chargers on one cell. Its thresholds per the listing: 4.28 V over-charge, 3.0 V over-discharge, 3 A over-current.
+- **TPS63020 module:** the input takes 1.8–5.5 V. That's enough here, because the bq24074 regulates its `OUT` to 4.4 V on USB. The output is chosen with solder jumpers – change it to 3.3 V before it gets near the DevKit (next section).
+
+#### Setting a TPS63020 module to 3.3 V
+
+The DevKit's 3V3 pin takes at most 3.6 V – 4.2 V destroys the ESP32-C6. The module has one solder jumper per voltage (3.3 / 4.2 / 5 V); exactly one may be closed.
+
+1. **Look first.** Find the closed jumper: a solder blob across two pads, or a thin trace between them.
+2. **Open the 4.2 V jumper.** A blob: flux on it, then soak it up with desoldering braid. A trace: cut it with a scalpel in several light strokes. The multimeter's continuity test must stay silent across the two pads.
+3. **Close the 3.3 V jumper.** Flux on the pads, a little solder on the tip, touch both pads until they bridge.
+4. **Measure before connecting.** A cell (or 3–5 V from a bench supply) on the input, the multimeter on the output: **3.3 V**. Only then wire it to the + rail.
+
+**Tools** – this is the only fine soldering in the build: a temperature-controlled iron with a small tip (conical or ~1–2 mm bevel; USB-C irons such as the Pinecil or Miniware TS101 are enough), 0.5–0.6 mm solder, no-clean flux, desoldering braid 1.5 mm, a scalpel, tweezers and a multimeter. A cheap unregulated iron with a thick tip does headers fine but not this.
 
 ### Filament (Prusa)
 

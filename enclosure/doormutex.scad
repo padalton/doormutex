@@ -120,8 +120,9 @@ charger_hole_inset = 2.5;
 holder = [21, 77, 19];
 // Fuel gauge Adafruit 5580 (STEMMA QT, 1" x 0.7"), mounted upright
 gauge = [17.8, 25.4];
-// Pololu S7V8F3 buck-boost (glued with a foam pad)
-boost = [10.2, 12.7];
+// Buck-boost module, glued with a foam pad: TPS63020 module (~16 x 24 mm). TODO verify
+// The Pololu S7V8F3 (10.2 x 12.7 mm) fits the same spot.
+boost = [16, 24];
 // Light sensor Adafruit 4162 VEML7700 (1" x 0.7"), lying under the top wall
 als = [25.4, 17.8];
 // Window for the light sensor in the top wall
@@ -194,7 +195,7 @@ holder_z = [ih_top - 10 - holder[1], ih_top - 10];
 holder_x = [-iw / 2 + 0.3, -iw / 2 + 0.3 + holder[0]];
 gauge_x = [iw / 2 - gauge[0], iw / 2];
 gauge_z = [holder_z[1] - gauge[1], holder_z[1]];
-boost_pos = [11, 146];                   // centre x, z
+boost_pos = [11, 140];                   // centre x, z
 als_clear = 4;                           // sensor board + parts under the top wall
 als_reach = 20;                          // bracket depth from the cover
 als_zb = ih_top - als_clear;             // top of the bracket

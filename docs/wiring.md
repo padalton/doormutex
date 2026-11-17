@@ -24,7 +24,8 @@ Kept free: GPIO 4, 5, 8, 9, 15 (strapping pins; 8 is the DevKit's RGB LED, 9 the
 ## Before you start
 
 - **Two breadboards side by side.** The DevKit is so wide that on a single 830 board no free contacts remain next to its pins. Across two boards it bridges the gap, and each header gets its own board.
-- **Solder the headers** onto the Adafruit boards (VEML7700, bq24074, MAX17048) and the Pololu regulator – through-hole, no SMD.
+- **Solder the headers** onto the Adafruit boards (VEML7700, bq24074, MAX17048) and the buck-boost – through-hole, no SMD.
+- **TPS63020 buck-boost:** many ship set to 4.2 V, which destroys the ESP32-C6. [Set it to 3.3 V and measure](breadboard.md#setting-a-tps63020-module-to-33-v) before it goes anywhere near the + rail. The Pololu S7V8F3 is fixed at 3.3 V.
 - **Rails:** the outer rail on each side is + (3.3 V), the inner one − (GND). The drawings only show the rails in use.
 - **Long leg = +.** LEDs: the long leg (anode) points to the resistor, the flat side of the rim (cathode) to the MOSFET.
 - **MOSFET IRLB3813:** with the printed side facing you and the legs pointing down, the legs are **G D S** from left to right. In the drawings the MOSFETs lie on their side, legs to the left: G at the top.
@@ -118,6 +119,7 @@ Safety first: [breadboard → safety for the battery build](breadboard.md#safety
 ![Step 8](wiring/step-08.svg)
 
 - Holder **+** → protection **B+**, holder **−** → **B−**.
+- **TP4056 module with protection** (the default from the [parts list](breadboard.md#stage-2-on-amazonde)): only its protection part is used. Its `OUT+`/`OUT−` are the `P+`/`P−` in the drawings. **Leave its USB socket empty** – the bq24074 is the charger.
 - Solder the leads or use screw or lever terminals – not the breadboard, its contacts are only good for about 1 A.
 - **Don't insert the cell yet.**
 
@@ -125,7 +127,7 @@ Safety first: [breadboard → safety for the battery build](breadboard.md#safety
 
 ![Step 9](wiring/step-09.svg)
 
-- Protection **P+** → bq24074 **LIPO**, **P−** → bq24074 **GND** (again soldered or with terminals).
+- Protection **P+** (`OUT+` on a TP4056 module) → bq24074 **LIPO**, **P−** (`OUT−`) → bq24074 **GND** (again soldered or with terminals).
 - bq24074 **GND** → − rail.
 - Leave the board's defaults: 1 A charge current, THERM jumper closed (no thermistor).
 
@@ -141,8 +143,9 @@ Safety first: [breadboard → safety for the battery build](breadboard.md#safety
 
 ![Step 11](wiring/step-11.svg)
 
-- bq24074 **OUT** → S7V8F3 **VIN**.
-- S7V8F3 **VOUT** → left + rail, **GND** → − rail.
+- bq24074 **OUT** → buck-boost **VIN**.
+- Buck-boost **VOUT** → left + rail, **GND** → − rail. Pad names vary by module (`IN+`/`OUT+`); the drawing shows the Pololu S7V8F3.
+- If the module has an enable pin (`EN`, on the Pololu `SHDN`): leave it open if the board pulls it up, otherwise tie it to VIN. Check with the multimeter: 3.3 V at VOUT before the + rail gets connected.
 - From now on the + rail feeds the DevKit through its 3V3 pin (the wire from step 1). **The DevKit's USB stays unplugged** – otherwise its own regulator and the buck-boost both drive the 3.3 V rail.
 - The LEDs stay on the 3.3 V rail. Because the LED supply no longer follows the cell, set `menuconfig → doormutex → LEDs → Supply voltage the series resistors are sized for` to **5000** mV; otherwise the firmware dims the LEDs as the cell voltage rises.
 

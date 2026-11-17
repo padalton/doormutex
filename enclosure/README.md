@@ -108,7 +108,7 @@ All parameters are Customizer-compatible (also the MakerWorld configurator). The
 | `visor_len`, `visor_cover`, `visor_slant` | 15, 200°, 35° | visor shape |
 | `eink_*` | Waveshare 1.54″ V2 | module, panel and active area, mounting holes |
 | `devkit`, `usb_x`, `devkit_buttons` | ESP32-C6-DevKitC-1 | board size, USB-C socket, pin holes for BOOT/RESET |
-| `charger`, `holder`, `gauge`, `boost`, `als` | Adafruit / Pololu modules | footprints on the back cover |
+| `charger`, `holder`, `gauge`, `boost`, `als` | Adafruit modules, buck-boost | footprints on the back cover |
 | `magnet_d`, `magnet_h`, `magnet_skin`, `magnet_embed` | 12, 3, 0.6, true | magnet pockets |
 | `foot_magnets`, `side_magnets` | 2, 4 positions | where the magnets go |
 | `side_plate` | `right` | `none`, `left`, `right` |
