@@ -535,7 +535,7 @@ Rough estimate before the schematic, as of 2026-10-29, incl. shipping and 20 % V
 |---|---|
 | Breadboard stage 1 (incl. transparent PETG) | 80–105 |
 | Breadboard stage 2 (battery) | 40–55 |
-| Shipping (DigiKey free from €75; Opencircuit, Amazon) | 15–20 |
+| Shipping (DigiKey free from €75; Amazon) | 15–20 |
 | Dark grey/black filament for the enclosure, if not at hand | 20–25 |
 | **before ordering the PCB** | **≈ 150–200** |
 | first JLCPCB order (5 PCBs, 2 assembled) + e-ink panel | 90–130 |
@@ -810,3 +810,4 @@ doormutex/
 | 2026-11-15 | Stream Deck plugin as a native Go binary speaking the Elgato SDK's WebSocket protocol, in the companion's module (`CodePaths` per platform), instead of TypeScript/Node.js | the OpenDeck Flatpak has no Node.js; one binary per platform still runs in Elgato's app; reuses the companion's hub client; keys drawn in Go, no assets to keep in sync |
 | 2026-11-16 | The timeline reports `calendar_problem` (`login_expired`, `not_connected`, `unavailable`), also to read-only tokens; the web UI and the Android app warn in the day view. Stage 1 starts: doormutex.org gets terms of service so the reference build's OAuth client can be published | both accounts of the reference build hit the 7-day expiry unnoticed – without a calendar the day just looked free. A one-word summary reveals nothing about the accounts |
 | 2026-11-16 | Google sign-in from the web UI through the redirect relay `https://doormutex.org/oauth/` with an optional second OAuth client ("web application"); each stored token records the client that issued it | the family's hub has no public address, and re-authenticating should not need the desktop companion; Google allows a desktop client only loopback redirects, and a refresh token only works with its own client |
+| 2026-11-17 | Stage 2 parts from Amazon.de: TP4056 modules with DW01A + 8205A protection (only the protection is used) with 18650 holders, and a TPS63020 buck-boost module set to 3.3 V by solder jumper; the Opencircuit parts (Pololu S7V8F3, SparkFun holders) stay as the optional alternative | the Opencircuit order sat on backorder for over two weeks; the Amazon parts arrive in 2–4 days, and the TPS63020 is from the same TI family as the PCB's TPS63802 |
