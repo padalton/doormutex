@@ -47,7 +47,7 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 ## Print settings
 
 - **Layer height 0.2 mm**, 4 perimeters (walls are 1.8 mm = 4 × 0.45 mm), 15–20 % infill. The shell prints front face down: smooth, sharp front, no supports.
-- **Lenses:** transparent PETG, 100 % infill, smooth side on a smooth sheet. Try `lens_t` 0.8–1.2 and `diffuser_pitch` in a test print.
+- **Lenses:** transparent PETG, 100 % infill, smooth side on a smooth sheet. `lens_t` 1.2 won a print test of 0.8, 1.0 and 1.2 mm; try `diffuser_pitch` in a test print.
 - **Embedded magnets** (`magnet_embed = true`, default): add a *pause* (M601) at the first layer above **4.25 mm** (4.4 mm at 0.2 mm layers) for the foot and the side plate. Check in the slicer preview that the pockets are still open in the layer below. Drop the magnets in and resume – no glue needed. The magnets stick to the MK3S steel sheet through the skin; that is harmless but makes removal a bit harder.
 - With `magnet_embed = false` the pockets are open and the magnets go in with a drop of CA glue or epoxy.
 - **Tolerances:** `tol` (sliding fits, default 0.1) and `press_tol` (LEDs, 0.05). Calibrate both with the [fit test](#fit-test) before the full shell – in the material you print the shell with.
@@ -106,7 +106,7 @@ All parameters are Customizer-compatible (also the MakerWorld configurator). The
 | `width`, `chamber_h`, `sign_h`, `roof_h` | 45, 45, 52, 5 | outer size; height = roof + 3 chambers + sign = 192 mm |
 | `depth` | 45 | incl. back cover; the breadboard modules need it, the PCB version will be ~38 |
 | `wall`, `front_wall` | 1.8, 2.4 | wall thicknesses |
-| `lens_d`, `lens_t`, `cone_depth` | 30, 1.0, 15 | lens and reflector |
+| `lens_d`, `lens_t`, `cone_depth` | 30, 1.2, 15 | lens and reflector |
 | `visor_len`, `visor_cover`, `visor_slant` | 15, 200°, 35° | visor shape |
 | `eink_*` | Waveshare 1.54″ V2 | module, panel and active area, mounting holes |
 | `devkit`, `usb_x`, `devkit_buttons` | ESP32-C6-DevKitC-1 | board size, USB-C socket, pin holes for BOOT/RESET |
