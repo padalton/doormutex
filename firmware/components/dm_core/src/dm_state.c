@@ -195,3 +195,23 @@ const char *dm_fault_name(dm_fault_t fault)
     }
     return "unknown";
 }
+
+int64_t dm_netwatch_restart_after(const dm_netwatch_cfg_t *cfg, uint32_t restarts)
+{
+    int64_t after = cfg->restart_after_ms;
+    for (uint32_t i = 0; i < restarts && after < cfg->restart_max_ms; i++) {
+        after *= 2;
+    }
+    return after < cfg->restart_max_ms ? after : cfg->restart_max_ms;
+}
+
+dm_netwatch_t dm_netwatch(const dm_netwatch_cfg_t *cfg, int64_t down_ms, int64_t since_kick_ms, uint32_t restarts)
+{
+    if (down_ms >= dm_netwatch_restart_after(cfg, restarts)) {
+        return DM_NETWATCH_RESTART;
+    }
+    if (down_ms >= cfg->kick_after_ms && (since_kick_ms < 0 || since_kick_ms >= cfg->kick_after_ms)) {
+        return DM_NETWATCH_KICK;
+    }
+    return DM_NETWATCH_WAIT;
+}

@@ -18,6 +18,7 @@
 #include "dm_state.h"
 #include "dm_telemetry.h"
 #include "esp_app_desc.h"
+#include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_ota_ops.h"
@@ -47,6 +48,52 @@ static struct {
     bool announce; // (re)connected: publish discovery and telemetry
     bool app_confirmed;
 } sh;
+
+// ---- connection watchdog note
+//
+// Survives esp_restart() (not a power cut): what the watchdog saw when it
+// restarted the chip, and how many restarts in a row it has done.
+#define NOTE_MAGIC 0x646d7764u // "dmwd"
+typedef struct {
+    uint32_t magic;
+    dm_outage_t outage;
+} watchdog_note_t;
+static RTC_NOINIT_ATTR watchdog_note_t note;
+
+static const char *reset_reason = "unknown";
+static const dm_outage_t *last_outage; // set after a watchdog restart
+static uint32_t watchdog_restarts;     // in a row; 0 again once connected
+
+static const char *reset_name(esp_reset_reason_t r, bool watchdog)
+{
+    if (watchdog) {
+        return "net_watchdog";
+    }
+    switch (r) {
+    case ESP_RST_POWERON:
+        return "power_on";
+    case ESP_RST_SW:
+        return "software"; // restart command, console, after flashing
+    case ESP_RST_PANIC:
+        return "panic";
+    case ESP_RST_INT_WDT:
+    case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT:
+        return "wdt";
+    case ESP_RST_BROWNOUT:
+        return "brownout";
+    case ESP_RST_DEEPSLEEP:
+        return "deep_sleep";
+    case ESP_RST_USB:
+        return "usb"; // e.g. a serial terminal toggling DTR/RTS
+    case ESP_RST_JTAG:
+        return "jtag";
+    case ESP_RST_EXT:
+        return "external";
+    default:
+        return "other";
+    }
+}
 
 static int64_t now_ms(void)
 {
@@ -148,9 +195,19 @@ static void status(char *out, size_t cap)
     if (pw.gauge) {
         snprintf(bat, sizeof(bat), "%.0f %% (%d mV)", (double)pw.soc_pct, pw.cell_mv);
     }
-    snprintf(out, cap, "light      %s\nambient    %s -> brightness %.0f %%\nbattery    %s%s%s\neink       %s\n",
+    char restart[160];
+    snprintf(restart, sizeof(restart), "%s", reset_reason);
+    if (last_outage) {
+        const dm_outage_t *o = last_outage;
+        snprintf(restart, sizeof(restart), "%s after %lu s offline (Wi-Fi %s, IP %s, MQTT %s, reason %d, errno %d, %s)",
+                 reset_reason, (unsigned long)o->down_s, o->wifi ? "up" : "down", o->ip ? "yes" : "no",
+                 o->mqtt ? "up" : "down", o->wifi_reason, o->sock_errno,
+                 o->mqtt_error[0] ? o->mqtt_error : "no MQTT error");
+    }
+    snprintf(out, cap,
+             "light      %s\nambient    %s -> brightness %.0f %%\nbattery    %s%s%s\neink       %s\nrestart    %s\n",
              dm_light_name(dm_lights_current()), lux, (double)(live.brightness * 100.0f), bat, pw.usb ? ", USB" : "",
-             pw.charging ? ", charging" : "", dm_eink_status());
+             pw.charging ? ", charging" : "", dm_eink_status(), restart);
 }
 
 // ---- main loop
@@ -169,8 +226,10 @@ static void publish_telemetry(const char *light, const char *fault, const dm_pow
         .fault = fault,
         .uptime_s = (uint32_t)(now_ms() / 1000),
         .firmware = dev.firmware,
+        .reset = reset_reason,
+        .outage = last_outage,
     };
-    char doc[384];
+    char doc[512];
     size_t n = dm_telemetry_json(&t, doc, sizeof(doc));
     if (n > 0) {
         dm_net_publish(topics.telemetry, doc, n, true);
@@ -179,7 +238,7 @@ static void publish_telemetry(const char *light, const char *fault, const dm_pow
 
 static void publish_discovery(void)
 {
-    static char payload[3072];
+    static char payload[4096]; // ~3.4 kB today; test_discovery checks it fits
     char topic[128];
     size_t n = dm_discovery(&dev, topic, sizeof(topic), payload, sizeof(payload));
     if (n == 0) {
@@ -189,13 +248,44 @@ static void publish_discovery(void)
     dm_net_publish(topic, payload, n, true);
 }
 
-static void run(void)
+// watchdog_restart notes what the network layer saw and restarts the chip.
+static void watchdog_restart(int64_t down_ms)
+{
+    dm_net_diag_t d;
+    dm_net_diag(&d);
+    note.outage = (dm_outage_t){
+        .down_s = (uint32_t)(down_ms / 1000),
+        .restarts = watchdog_restarts + 1,
+        .wifi = d.associated,
+        .ip = d.ip,
+        .mqtt = d.mqtt,
+        .wifi_reason = d.wifi_reason,
+        .sock_errno = d.sock_errno,
+    };
+    strlcpy(note.outage.mqtt_error, d.mqtt_error, sizeof(note.outage.mqtt_error));
+    note.magic = NOTE_MAGIC;
+    ESP_LOGE(TAG, "offline for %lld s (Wi-Fi %s, IP %s, MQTT %s, reason %d, errno %d, %s) – restart %lu",
+             (long long)(down_ms / 1000), d.associated ? "up" : "down", d.ip ? "yes" : "no", d.mqtt ? "up" : "down",
+             d.wifi_reason, d.sock_errno, d.mqtt_error[0] ? d.mqtt_error : "no MQTT error",
+             (unsigned long)note.outage.restarts);
+    esp_restart();
+}
+
+static void run(bool net_started)
 {
     const dm_failsafe_cfg_t fs = {
-        .boot_grace_ms = CONFIG_DM_BOOT_GRACE_S * 1000,
+        // After a watchdog restart the light was blinking yellow already:
+        // keep blinking instead of going dark for the boot grace period.
+        .boot_grace_ms = last_outage ? 0 : CONFIG_DM_BOOT_GRACE_S * 1000,
         .stale_after_ms = CONFIG_DM_STALE_AFTER_S * 1000,
         .until_grace_s = CONFIG_DM_UNTIL_GRACE_S,
     };
+    const dm_netwatch_cfg_t nw = {
+        .kick_after_ms = CONFIG_DM_NET_KICK_AFTER_S * 1000,
+        .restart_after_ms = CONFIG_DM_NET_RESTART_AFTER_S * 1000,
+        .restart_max_ms = CONFIG_DM_NET_RESTART_MAX_S * 1000,
+    };
+    int64_t last_kick = -1;
     const int64_t boot = now_ms();
     int64_t next_telemetry = 0;
     dm_fault_t last_fault = DM_FAULT_BOOTING;
@@ -223,6 +313,25 @@ static void run(void)
         xSemaphoreGive(sh.mu);
         link.clock_valid = dm_net_clock_valid();
         link.now_unix = time(NULL);
+
+        if (link.connected) {
+            last_kick = -1;
+            watchdog_restarts = 0;
+        } else if (net_started) {
+            // Without credentials or a broker there's nothing to fix.
+            int64_t down = link.now_ms - link.disconnected_ms;
+            switch (dm_netwatch(&nw, down, last_kick < 0 ? -1 : link.now_ms - last_kick, watchdog_restarts)) {
+            case DM_NETWATCH_KICK:
+                dm_net_kick();
+                last_kick = link.now_ms;
+                break;
+            case DM_NETWATCH_RESTART:
+                watchdog_restart(down);
+                break;
+            case DM_NETWATCH_WAIT:
+                break;
+            }
+        }
 
         dm_fault_t fault = dm_failsafe_check(&fs, &link, link.have_state ? &st : NULL);
         dm_light_t light = dm_effective_light(fault, &st);
@@ -275,6 +384,19 @@ void app_main(void)
 {
     main_task = xTaskGetCurrentTaskHandle();
     sh.mu = xSemaphoreCreateMutex();
+
+    // Read and clear the watchdog's note: RTC memory keeps it across a
+    // software restart, but it only counts for the one boot right after.
+    static dm_outage_t outage;
+    esp_reset_reason_t rr = esp_reset_reason();
+    bool by_watchdog = rr == ESP_RST_SW && note.magic == NOTE_MAGIC;
+    note.magic = 0;
+    if (by_watchdog) {
+        outage = note.outage;
+        last_outage = &outage;
+        watchdog_restarts = outage.restarts;
+    }
+    reset_reason = reset_name(rr, by_watchdog);
 
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -349,6 +471,7 @@ void app_main(void)
     const dm_serial_cfg_t sc = {.device_id = dev.id, .firmware = dev.firmware, .on_identify = identify, .on_status = status};
     ESP_ERROR_CHECK(dm_serial_start(&cfg, &sc));
 
+    bool net_started = false;
     if (!dm_net_has_credentials()) {
         ESP_LOGW(TAG, "no Wi-Fi yet – set it up with ESP Web Tools (Improv), then `set mqtt_url …`");
     } else if (!dm_config_ready(&cfg)) {
@@ -362,6 +485,7 @@ void app_main(void)
             .on_link = on_link,
         };
         ESP_ERROR_CHECK(dm_net_start(&cfg, &dev, &cb));
+        net_started = true;
     }
-    run();
+    run(net_started);
 }

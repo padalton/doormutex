@@ -180,7 +180,7 @@ static void print_settings(void)
                                       : "not configured (use ESP Web Tools / Improv)");
     out(buf);
     if (s.sc.on_status) {
-        char st[256];
+        char st[384];
         s.sc.on_status(st, sizeof(st));
         out(st);
     }

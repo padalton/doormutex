@@ -38,6 +38,19 @@ typedef struct {
 // dm_topics fills the light's own topics and the hub topics it subscribes to.
 void dm_topics(const dm_device_t *dev, dm_topics_t *t);
 
+// What the connection watchdog saw when it last restarted the chip – so the
+// cause of an outage is visible in the telemetry afterwards, without USB.
+typedef struct {
+    uint32_t down_s;   // how long the connection had been down
+    uint32_t restarts; // watchdog restarts in a row, this one included
+    bool wifi;         // associated with an access point
+    bool ip;           // had an IP address
+    bool mqtt;         // MQTT connected (as far as the client knew)
+    int wifi_reason;   // last Wi-Fi disconnect reason (wifi_err_reason_t), 0 = none
+    int sock_errno;    // last MQTT socket error, 0 = none
+    char mqtt_error[40]; // last MQTT connection error, e.g. "ESP_ERR_ESP_TLS_CONNECTION_TIMEOUT"; "" = none
+} dm_outage_t;
+
 typedef struct {
     float battery_pct;   // < 0 = unknown (no fuel gauge)
     int battery_mv;      // <= 0 = unknown
@@ -50,6 +63,8 @@ typedef struct {
     const char *fault;   // failsafe reason, "none" if fine
     uint32_t uptime_s;
     const char *firmware;
+    const char *reset;         // why the chip last started, e.g. "power_on", "net_watchdog"
+    const dm_outage_t *outage; // set after a watchdog restart, else NULL
 } dm_telemetry_t;
 
 // dm_telemetry_json writes the telemetry document; returns its length or

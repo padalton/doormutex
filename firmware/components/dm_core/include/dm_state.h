@@ -120,6 +120,38 @@ dm_light_t dm_effective_light(dm_fault_t fault, const dm_state_t *state);
 
 const char *dm_fault_name(dm_fault_t fault);
 
+// ---- connection watchdog
+//
+// The failsafe only shows a lost connection; the watchdog tries to fix it.
+// Wi-Fi and MQTT reconnect by themselves, but once, after a network outage,
+// the breadboard light stayed disconnected for a whole day. So: restart
+// Wi-Fi after a while, and if that doesn't help either, the whole chip –
+// with a growing interval, so a light whose network is really gone doesn't
+// reboot every few minutes for days.
+
+typedef enum {
+    DM_NETWATCH_WAIT = 0,
+    DM_NETWATCH_KICK,    // restart Wi-Fi
+    DM_NETWATCH_RESTART, // restart the chip
+} dm_netwatch_t;
+
+typedef struct {
+    uint32_t kick_after_ms;    // restart Wi-Fi after this long down, then again every kick_after (default 5 min)
+    uint32_t restart_after_ms; // restart the chip after this long down (default 15 min) …
+    uint32_t restart_max_ms;   // … doubling with every watchdog restart in a row, up to this (default 4 h)
+} dm_netwatch_cfg_t;
+
+#define DM_NETWATCH_DEFAULTS {.kick_after_ms = 300000, .restart_after_ms = 900000, .restart_max_ms = 14400000}
+
+// dm_netwatch_restart_after is how long the connection may be down before
+// the chip restarts, after `restarts` watchdog restarts in a row.
+int64_t dm_netwatch_restart_after(const dm_netwatch_cfg_t *cfg, uint32_t restarts);
+
+// dm_netwatch decides what to do: down_ms is how long the connection has
+// been down (counting from boot after a restart), since_kick_ms how long
+// ago the last kick in this outage was (< 0: none yet).
+dm_netwatch_t dm_netwatch(const dm_netwatch_cfg_t *cfg, int64_t down_ms, int64_t since_kick_ms, uint32_t restarts);
+
 #ifdef __cplusplus
 }
 #endif

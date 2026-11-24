@@ -45,11 +45,17 @@ void test_discovery(void)
     CHECK_STR(str(battery, "device_class"), "battery");
     const cJSON *charging = cJSON_GetObjectItemCaseSensitive(c, "charging");
     CHECK_STR(str(charging, "default_entity_id"), "binary_sensor.doormutex_teen_room_charging");
+    const cJSON *last_restart = cJSON_GetObjectItemCaseSensitive(c, "last_restart");
+    CHECK_STR(str(last_restart, "json_attributes_topic"), t.telemetry);
+    CHECK_STR(str(last_restart, "entity_category"), "diagnostic");
     const cJSON *identify = cJSON_GetObjectItemCaseSensitive(c, "identify");
     CHECK_STR(str(identify, "command_topic"), t.cmd);
     CHECK_STR(str(identify, "payload_press"), "identify");
     cJSON_Delete(root);
 
+    // main.c publishes it from a 4096-byte buffer – with room for a longer
+    // profile name and a few more entities.
+    CHECK(n < 3600);
     // Too small a buffer fails cleanly.
     CHECK_INT(dm_discovery(&dev, topic, sizeof(topic), payload, 64), 0);
 
@@ -87,5 +93,37 @@ void test_discovery(void)
     CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, "battery")));
     CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, "voltage")));
     CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, "rssi")));
+    CHECK_STR(str(root, "reset"), "unknown");
+    CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, "outage")));
+    cJSON_Delete(root);
+
+    // After a watchdog restart: the outage it saw. Every field at its widest
+    // still fits the main loop's 512-byte buffer.
+    const dm_outage_t outage = {.down_s = 4294967295u, .restarts = 4294967295u, .wifi = true, .ip = false,
+                                .mqtt = false, .wifi_reason = -2147483647, .sock_errno = -2147483647,
+                                .mqtt_error = "ESP_ERR_ESP_TLS_CANNOT_RESOLVE_HOSTNAME"};
+    dm_telemetry_t wide = {.battery_pct = 100.0f, .battery_mv = 4200, .charging = true, .usb = true, .rssi = -100,
+                           .has_lux = true, .lux = 120000.0f, .light = "red_yellow_alternate",
+                           .fault = "unknown_light", .uptime_s = 4294967295u, .firmware = "0.10.10-dev+g0123456789",
+                           .reset = "net_watchdog", .outage = &outage};
+    CHECK(dm_telemetry_json(&wide, doc, sizeof(doc)) > 0);
+    root = cJSON_Parse(doc);
+    CHECK_STR(str(root, "reset"), "net_watchdog");
+    const cJSON *o = cJSON_GetObjectItemCaseSensitive(root, "outage");
+    CHECK(cJSON_GetObjectItemCaseSensitive(o, "down")->valuedouble == 4294967295.0);
+    CHECK(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(o, "wifi")));
+    CHECK(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(o, "ip")));
+    CHECK(cJSON_IsFalse(cJSON_GetObjectItemCaseSensitive(o, "mqtt")));
+    CHECK_INT(cJSON_GetObjectItemCaseSensitive(o, "wifi_reason")->valueint, -2147483647);
+    CHECK_STR(str(o, "mqtt_error"), "ESP_ERR_ESP_TLS_CANNOT_RESOLVE_HOSTNAME");
+    cJSON_Delete(root);
+
+    // No MQTT error → null.
+    dm_outage_t quiet = outage;
+    quiet.mqtt_error[0] = '\0';
+    wide.outage = &quiet;
+    CHECK(dm_telemetry_json(&wide, doc, sizeof(doc)) > 0);
+    root = cJSON_Parse(doc);
+    CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(root, "outage"), "mqtt_error")));
     cJSON_Delete(root);
 }

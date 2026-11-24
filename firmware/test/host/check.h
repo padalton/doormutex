@@ -39,6 +39,7 @@ extern int dm_checks;
 void test_time(void);
 void test_state(void);
 void test_failsafe(void);
+void test_netwatch(void);
 void test_pattern(void);
 void test_improv(void);
 void test_config(void);

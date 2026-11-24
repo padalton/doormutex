@@ -132,3 +132,30 @@ void test_failsafe(void)
         CHECK(strcmp(dm_fault_name((dm_fault_t)f), "unknown") != 0);
     }
 }
+
+void test_netwatch(void)
+{
+    const dm_netwatch_cfg_t cfg = DM_NETWATCH_DEFAULTS;
+    const int64_t min = 60000;
+
+    // Short outages: the reconnect chain is given time.
+    CHECK_INT(dm_netwatch(&cfg, 0, -1, 0), DM_NETWATCH_WAIT);
+    CHECK_INT(dm_netwatch(&cfg, 5 * min - 1, -1, 0), DM_NETWATCH_WAIT);
+    // After 5 min Wi-Fi is restarted, then every 5 min again.
+    CHECK_INT(dm_netwatch(&cfg, 5 * min, -1, 0), DM_NETWATCH_KICK);
+    CHECK_INT(dm_netwatch(&cfg, 6 * min, 1 * min, 0), DM_NETWATCH_WAIT);
+    CHECK_INT(dm_netwatch(&cfg, 10 * min, 5 * min, 0), DM_NETWATCH_KICK);
+    // After 15 min the chip restarts – even if a kick is due as well.
+    CHECK_INT(dm_netwatch(&cfg, 15 * min - 1, 5 * min, 0), DM_NETWATCH_KICK);
+    CHECK_INT(dm_netwatch(&cfg, 15 * min, 5 * min, 0), DM_NETWATCH_RESTART);
+
+    // Restarts in a row double the interval: 15, 30, 60, 120, 240, 240 min.
+    CHECK_INT(dm_netwatch_restart_after(&cfg, 0), 15 * min);
+    CHECK_INT(dm_netwatch_restart_after(&cfg, 1), 30 * min);
+    CHECK_INT(dm_netwatch_restart_after(&cfg, 4), 240 * min);
+    CHECK_INT(dm_netwatch_restart_after(&cfg, 5), 240 * min);
+    CHECK_INT(dm_netwatch_restart_after(&cfg, 4000000000u), 240 * min);
+    CHECK_INT(dm_netwatch(&cfg, 15 * min, 0, 1), DM_NETWATCH_WAIT);
+    CHECK_INT(dm_netwatch(&cfg, 20 * min, 5 * min, 1), DM_NETWATCH_KICK);
+    CHECK_INT(dm_netwatch(&cfg, 30 * min, 0, 1), DM_NETWATCH_RESTART);
+}

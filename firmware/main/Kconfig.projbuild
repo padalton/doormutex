@@ -104,6 +104,18 @@ menu "doormutex"
         config DM_UNTIL_GRACE_S
             int "How far 'until' may be in the past without a new state (s)"
             default 120
+        config DM_NET_KICK_AFTER_S
+            int "Restart Wi-Fi after this long offline, and again at this interval (s)"
+            default 300
+        config DM_NET_RESTART_AFTER_S
+            int "Restart the chip after this long offline (s)"
+            default 900
+            help
+                Doubles with every watchdog restart in a row, up to
+                DM_NET_RESTART_MAX_S. Back to this value once connected.
+        config DM_NET_RESTART_MAX_S
+            int "Longest interval between watchdog restarts (s)"
+            default 14400
     endmenu
 
     config DM_TELEMETRY_INTERVAL_S

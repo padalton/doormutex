@@ -62,6 +62,25 @@ size_t dm_telemetry_json(const dm_telemetry_t *t, char *out, size_t cap)
     cJSON_AddStringToObject(root, "fault", t->fault ? t->fault : "none");
     cJSON_AddNumberToObject(root, "uptime", t->uptime_s);
     cJSON_AddStringToObject(root, "firmware", t->firmware ? t->firmware : "");
+    cJSON_AddStringToObject(root, "reset", t->reset ? t->reset : "unknown");
+    if (t->outage) {
+        const dm_outage_t *o = t->outage;
+        cJSON *j = cJSON_AddObjectToObject(root, "outage");
+        cJSON_AddNumberToObject(j, "down", o->down_s);
+        cJSON_AddNumberToObject(j, "restarts", o->restarts);
+        cJSON_AddBoolToObject(j, "wifi", o->wifi);
+        cJSON_AddBoolToObject(j, "ip", o->ip);
+        cJSON_AddBoolToObject(j, "mqtt", o->mqtt);
+        cJSON_AddNumberToObject(j, "wifi_reason", o->wifi_reason);
+        cJSON_AddNumberToObject(j, "errno", o->sock_errno);
+        if (o->mqtt_error[0]) {
+            cJSON_AddStringToObject(j, "mqtt_error", o->mqtt_error);
+        } else {
+            cJSON_AddNullToObject(j, "mqtt_error");
+        }
+    } else {
+        cJSON_AddNullToObject(root, "outage");
+    }
     return print_into(root, out, cap);
 }
 
@@ -169,6 +188,15 @@ size_t dm_discovery(const dm_device_t *dev, char *topic, size_t topic_cap, char 
     cJSON_AddStringToObject(e, "icon", "mdi:traffic-light-outline");
     cJSON_AddStringToObject(e, "entity_category", "diagnostic");
     cJSON_AddStringToObject(e, "value_template", "{{ value_json.fault }}");
+
+    // Why the light last started; after a watchdog restart the outage it
+    // saw comes along as attributes.
+    e = entity(c, dev, base, "sensor", "last_restart", "Last restart");
+    cJSON_AddStringToObject(e, "icon", "mdi:restart-alert");
+    cJSON_AddStringToObject(e, "entity_category", "diagnostic");
+    cJSON_AddStringToObject(e, "value_template", "{{ value_json.reset }}");
+    cJSON_AddStringToObject(e, "json_attributes_topic", t.telemetry);
+    cJSON_AddStringToObject(e, "json_attributes_template", "{{ (value_json.outage or {}) | tojson }}");
 
     e = entity(c, dev, base, "button", "identify", "Identify");
     cJSON_AddStringToObject(e, "device_class", "identify");
