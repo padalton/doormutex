@@ -104,11 +104,11 @@ The light subscribes to the hub's topics and has three of its own (`<id>` = `doo
 | `doormutex/<profile>/state` | hub → light | retained state JSON; the light uses `light` (and `until` for the failsafe) |
 | `doormutex/hub/online` | hub → light | `offline` (the hub's Last Will) → yellow blinks |
 | `doormutex/<profile>/display` | hub → light | e-ink frame, 5000 bytes (200 × 200, 1 bit, rows, MSB = left) |
-| `doormutex/device/<id>/telemetry` | light → | retained: `battery` (%), `voltage` (V), `charging`, `usb`, `rssi`, `lux`, `light`, `fault`, `uptime`, `firmware` |
+| `doormutex/device/<id>/telemetry` | light → | retained: `battery` (%), `voltage` (V), `charging`, `usb`, `rssi`, `lux`, `light`, `fault`, `uptime`, `firmware`, `reset`, `outage` (see [connection watchdog](#connection-watchdog)) |
 | `doormutex/device/<id>/online` | light → | `online` / `offline` (Last Will) |
 | `doormutex/device/<id>/cmd` | → light | `identify`, `restart`, `ota <url>` (not implemented yet) |
 
-**Home Assistant:** the light announces its own device (`homeassistant/device/doormutex_<mac>/config`), linked to its profile's hub device: battery, battery voltage, charging, USB power, Wi-Fi signal, illuminance, light fault, and *Identify* / *Restart* buttons. Entity IDs follow the hub's scheme, e.g. `sensor.doormutex_office_battery`.
+**Home Assistant:** the light announces its own device (`homeassistant/device/doormutex_<mac>/config`), linked to its profile's hub device: battery, battery voltage, charging, USB power, Wi-Fi signal, illuminance, light fault, last restart (with the outage as attributes), and *Identify* / *Restart* buttons. Entity IDs follow the hub's scheme, e.g. `sensor.doormutex_office_battery`.
 
 ## Lamp patterns and failsafe
 
@@ -132,6 +132,30 @@ The hub schedules the phases (StVO: green blinks 4 s, yellow 3 s, red+yellow 2 s
 | `unknown_light` | a pattern this firmware doesn't know (newer hub) |
 
 The hub publishes only on change, so the state's `updated` time can be hours old – that alone is no fault.
+
+### Connection watchdog
+
+The failsafe shows a lost connection; the watchdog also tries to fix it. Wi-Fi and MQTT reconnect by themselves (Wi-Fi with a back-off up to 60 s, MQTT every 5 s) – but once, after an 11-minute network outage, the breadboard light stayed disconnected for a whole day. So, while the light has Wi-Fi credentials and a broker but no connection:
+
+| Offline for | The light … |
+|---|---|
+| 5 min, then every 5 min | restarts Wi-Fi |
+| 15 min | restarts the chip – and keeps blinking yellow right away instead of staying dark for the boot grace period |
+| each further restart in a row | waits twice as long (30, 60, 120 min), at most 4 h – a light whose network is really gone doesn't reboot every few minutes for days |
+
+All times are in `menuconfig → doormutex → Failsafe`. Once connected, the interval starts at 15 min again.
+
+What the watchdog saw survives the restart (RTC memory) and comes along in the telemetry until the next restart:
+
+```json
+"reset": "net_watchdog",
+"outage": {"down": 900, "restarts": 1, "wifi": true, "ip": true, "mqtt": false, "wifi_reason": 0, "errno": 0,
+           "mqtt_error": "ESP_ERR_ESP_TLS_CONNECTION_TIMEOUT"}
+```
+
+`reset` is also set after any other start (`power_on`, `software`, `panic`, `wdt`, `brownout`, `usb`, …), `outage` is `null` then. `wifi_reason` is the last Wi-Fi disconnect reason (`wifi_err_reason_t`, e.g. 200 = beacon timeout), `errno` the last MQTT socket error (e.g. 113 = connection aborted), `mqtt_error` why the last MQTT connect failed (esp-tls: DNS, timeout, closed …, or `connack N` if the broker refused). Restarting Wi-Fi itself doesn't overwrite `wifi_reason`. The console's `show` prints the same as `restart`.
+
+The [ESPHome variant](#esphome-mains-power) has the same built in: `reboot_timeout` of `wifi` and `mqtt`, 15 min by default.
 
 ## Power
 
@@ -172,6 +196,7 @@ LED brightness: duty = brightness² (perceived brightness), scaled down by (3.0 
 
 ### Known issues
 
+- **Opening the console can reset the chip:** the USB-Serial-JTAG port resets the C6 when RTS is set while DTR is not. `picocom` and `idf.py monitor` don't; a script that clears DTR first does (pyserial with `dtr = False` before `open()`) – and takes the log of whatever you wanted to look at with it. The `reset` field in the telemetry shows `usb` then.
 - **Console silent after plugging USB in:** after a power-on by plugging the cable in, the console sometimes doesn't answer although the port is there and the light runs normally (Wi-Fi, MQTT, LEDs). Any reset from the PC brings it back (`esptool … chip-id`, or toggling RTS). A reset by the PC, flashing and `restart` don't show it. Keeping the chip awake at full clock for 5 s after boot did not help; still to be narrowed down.
 
 ## ESPHome (mains power)

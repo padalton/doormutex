@@ -33,7 +33,12 @@ static struct {
     esp_timer_handle_t retry;
     uint32_t retry_ms;
     bool want_connection;
+    bool associated; // with an access point, maybe without an IP yet
     bool wifi_up, mqtt_up;
+    int wifi_reason; // last disconnect reason not caused by dm_net_kick
+    bool kicked;     // the next disconnect is our own
+    int sock_errno;  // last MQTT socket error
+    char mqtt_error[40];
     bool clock_valid;
     esp_mqtt_client_handle_t mqtt;
     const dm_config_t *cfg;
@@ -71,11 +76,36 @@ static void link_changed(void)
     }
 }
 
+// schedule_retry calls wifi_connect() again after the back-off: up to 60 s – a
+// light at the end of the hallway retries forever, but doesn't drain the
+// cell doing it.
+static void schedule_retry(void)
+{
+    esp_timer_stop(n.retry); // a retry already pending is replaced
+    esp_timer_start_once(n.retry, (uint64_t)n.retry_ms * 1000);
+    n.retry_ms = n.retry_ms < 30000 ? n.retry_ms * 2 : 60000;
+}
+
+// wifi_connect starts a connection attempt. A failed attempt ends in a
+// DISCONNECTED event, which schedules the next one – but if the call
+// itself fails, no event follows, and without a timer of its own the
+// light would never try again.
+static void wifi_connect(void)
+{
+    esp_err_t err = esp_wifi_connect();
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Wi-Fi connect: %s, retry in %lu ms", esp_err_to_name(err), (unsigned long)n.retry_ms);
+        schedule_retry();
+    }
+}
+
 static void retry_cb(void *arg)
 {
     (void)arg;
-    if (n.want_connection) {
-        esp_wifi_connect();
+    // A retry scheduled after a failed call may come late: if another
+    // attempt got through in the meantime, leave it alone.
+    if (n.want_connection && !n.associated) {
+        wifi_connect();
     }
 }
 
@@ -86,23 +116,26 @@ static void on_wifi(void *arg, esp_event_base_t base, int32_t id, void *data)
     switch (id) {
     case WIFI_EVENT_STA_START:
         if (n.want_connection) {
-            esp_wifi_connect();
+            wifi_connect();
         }
         break;
     case WIFI_EVENT_STA_CONNECTED:
+        n.associated = true;
         n.retry_ms = 1000;
         break;
     case WIFI_EVENT_STA_DISCONNECTED: {
         const wifi_event_sta_disconnected_t *d = data;
         ESP_LOGW(TAG, "Wi-Fi lost (reason %d), retry in %lu ms", d->reason, (unsigned long)n.retry_ms);
         xEventGroupClearBits(n.events, BIT_GOT_IP);
+        n.associated = false;
         n.wifi_up = false;
+        if (!n.kicked) {
+            n.wifi_reason = d->reason;
+        }
+        n.kicked = false;
         link_changed();
-        // Back off up to 60 s – a light at the end of the hallway retries
-        // forever, but doesn't drain the cell doing it.
         if (n.want_connection) {
-            esp_timer_start_once(n.retry, (uint64_t)n.retry_ms * 1000);
-            n.retry_ms = n.retry_ms < 30000 ? n.retry_ms * 2 : 60000;
+            schedule_retry();
         }
         break;
     }
@@ -173,7 +206,7 @@ esp_err_t dm_net_try_wifi(const char *ssid, const char *password, uint32_t timeo
     esp_wifi_disconnect();
     configure_sta(ssid, password);
     xEventGroupClearBits(n.events, BIT_GOT_IP);
-    esp_wifi_connect();
+    wifi_connect();
     EventBits_t bits = xEventGroupWaitBits(n.events, BIT_GOT_IP, pdFALSE, pdTRUE, pdMS_TO_TICKS(timeout_ms));
     return (bits & BIT_GOT_IP) ? ESP_OK : ESP_ERR_TIMEOUT;
 }
@@ -247,6 +280,18 @@ static void on_mqtt(void *arg, esp_event_base_t base, int32_t id, void *data)
         on_data(e);
         break;
     case MQTT_EVENT_ERROR:
+        // A failed connect only says why in esp-tls' error code (DNS,
+        // timeout, refused …) – the socket errno stays 0 then.
+        if (e->error_handle && e->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+            snprintf(n.mqtt_error, sizeof(n.mqtt_error), "connack %d", e->error_handle->connect_return_code);
+        } else if (e->error_handle && e->error_handle->esp_tls_last_esp_err != ESP_OK) {
+            strlcpy(n.mqtt_error, esp_err_to_name(e->error_handle->esp_tls_last_esp_err), sizeof(n.mqtt_error));
+            ESP_LOGW(TAG, "MQTT connection: %s", n.mqtt_error);
+        }
+        if (e->error_handle && e->error_handle->esp_transport_sock_errno != 0) {
+            n.sock_errno = e->error_handle->esp_transport_sock_errno;
+            ESP_LOGW(TAG, "MQTT socket error %d (%s)", n.sock_errno, strerror(n.sock_errno));
+        }
         if (e->error_handle && e->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
             ESP_LOGE(TAG, "MQTT refused the connection (code %d) – check mqtt_user/mqtt_pass",
                      e->error_handle->connect_return_code);
@@ -279,7 +324,7 @@ esp_err_t dm_net_start(const dm_config_t *cfg, const dm_device_t *dev, const dm_
     ESP_RETURN_ON_ERROR(esp_wifi_set_ps(WIFI_PS_MAX_MODEM), TAG, "power save");
     n.want_connection = true;
     if (!n.wifi_up) {
-        esp_wifi_connect();
+        wifi_connect();
     }
 
     esp_sntp_config_t sntp = ESP_NETIF_SNTP_DEFAULT_CONFIG(cfg->ntp);
@@ -322,6 +367,36 @@ esp_err_t dm_net_publish(const char *topic, const char *payload, size_t len, boo
 bool dm_net_connected(void)
 {
     return n.wifi_up && n.mqtt_up;
+}
+
+void dm_net_kick(void)
+{
+    if (!n.want_connection) {
+        return;
+    }
+    ESP_LOGW(TAG, "still offline (Wi-Fi %s, IP %s, MQTT %s) – restarting Wi-Fi", n.associated ? "up" : "down",
+             n.wifi_up ? "yes" : "no", n.mqtt_up ? "up" : "down");
+    n.retry_ms = 1000;
+    if (n.associated) {
+        // The DISCONNECTED event reconnects, and MQTT follows the new IP.
+        n.kicked = true;
+        esp_wifi_disconnect();
+    } else {
+        // Don't wait for the back-off: try now. If this doesn't help either,
+        // the watchdog restarts the chip.
+        esp_timer_stop(n.retry);
+        wifi_connect();
+    }
+}
+
+void dm_net_diag(dm_net_diag_t *d)
+{
+    d->associated = n.associated;
+    d->ip = n.wifi_up;
+    d->mqtt = n.mqtt_up;
+    d->wifi_reason = n.wifi_reason;
+    d->sock_errno = n.sock_errno;
+    strlcpy(d->mqtt_error, n.mqtt_error, sizeof(d->mqtt_error));
 }
 
 int dm_net_rssi(void)

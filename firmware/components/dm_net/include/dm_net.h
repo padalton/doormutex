@@ -48,6 +48,21 @@ esp_err_t dm_net_start(const dm_config_t *cfg, const dm_device_t *dev, const dm_
 esp_err_t dm_net_publish(const char *topic, const char *payload, size_t len, bool retain);
 
 bool dm_net_connected(void);
+
+// dm_net_kick restarts the Wi-Fi connection – the connection watchdog's
+// first remedy when the light stays offline although it keeps retrying.
+void dm_net_kick(void);
+
+// What the network layer knows about a missing connection.
+typedef struct {
+    bool associated; // with an access point
+    bool ip;         // has an IP address
+    bool mqtt;       // MQTT connected
+    int wifi_reason; // last Wi-Fi disconnect reason (wifi_err_reason_t), 0 = none
+    int sock_errno;  // last MQTT socket error, 0 = none
+    char mqtt_error[40]; // last MQTT connection error (esp-tls error name or "connack N"), "" = none
+} dm_net_diag_t;
+void dm_net_diag(dm_net_diag_t *d);
 int dm_net_rssi(void); // dBm, 0 if unknown
 bool dm_net_clock_valid(void);
 
