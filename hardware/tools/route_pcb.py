@@ -90,6 +90,25 @@ def fix_vias(board):
     print("vias (diameter, drill): count", sizes)
 
 
+def drop_stubs(board):
+    """Freerouting leaves the odd stub behind: a millimetre of track that ends
+    on nothing, or lies inside a wide hand-laid track. The DRC that follows
+    would report a connection that depended on one."""
+    removed = 0
+    while True:
+        board.BuildConnectivity()
+        conn = board.GetConnectivity()
+        stubs = [t for t in board.GetTracks() if t.GetClass() == "PCB_TRACK" and not t.IsLocked()
+                 and t.GetLength() < pcbnew.FromMM(2) and conn.TestTrackEndpointDangling(t, False)]
+        if not stubs:
+            break
+        for t in stubs:
+            board.Remove(t)
+        removed += len(stubs)
+    if removed:
+        print(f"removed {removed} dangling stubs")
+
+
 def main():
     board = pcbnew.LoadBoard(PCB)
     # inner layer 2 is the ground plane: not for routing
@@ -118,6 +137,7 @@ def main():
         if not pcbnew.ImportSpecctraSES(board, ses):
             sys.exit("SES import failed")
     fix_vias(board)
+    drop_stubs(board)
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
         ground_pour(board, layer)
     fill(board)

@@ -195,9 +195,15 @@ KEEPOUTS = [
     # the gauge's CSN pin hangs on the sense resistor's pad by its own track only
     ("B", 36.6, 40.3, 37.8, 44.05, False),
 ]
-# Marks that stay readable once the parts are on: (text, x, y, side, size)
+# What is printed on the board besides the footprints' own outlines: (text, x, y, side, size).
+# The cell's polarity beside the holder's contacts and, large, where the
+# board shows through the holder's open floor; the test points by their nets.
 LABELS = [
     ("+", 14.0, 111.2, B, 2.4), ("+", 27.0, 111.2, B, 2.4), ("-", 14.0, 28.8, B, 2.4), ("-", 27.0, 28.8, B, 2.4),
+    ("+", 20.5, 88.0, B, 4.0), ("-", 20.5, 52.0, B, 4.0),
+    ("USB", 8.2, 36.0, B, 0.8), ("BAT", 8.2, 38.6, B, 0.8), ("SYS", 8.2, 41.2, B, 0.8), ("3V3", 8.2, 43.8, B, 0.8),
+    ("GND", 8.2, 46.4, B, 0.8), ("P_N", 8.2, 49.0, B, 0.8), ("TX", 8.2, 51.6, B, 0.8),   # TP1 … TP7
+    ("R5", 13.4, 119.0, B, 0.9), ("J3", 9.5, 111.4, B, 0.9),
     ("RESET", 8.0, 23.0, B, 1.0), ("BOOT", 33.0, 23.0, B, 1.0), ("INFO", 34.6, L - 3.2, B, 1.0),
     ("BUSY", 12.0, 128.4, B, 0.9), ("3V3", 29.4, 128.4, B, 0.9), ("BUSY", 12.4, 128.3, F, 0.9), ("3V3", 28.8, 128.3, F, 0.9),
     ("doormutex PCB v1", 20.5, 164.0, B, 1.5),
@@ -334,6 +340,28 @@ def main():
     unplaced = [r for r in fps if r not in PLACE]
     if unplaced:
         sys.exit("no place for: " + ", ".join(unplaced))
+
+    # Silkscreen. EasyEDA's footprints put their reference 4 mm beside the
+    # part, across whatever lies there: the references go to the fab layer,
+    # at the part (LABELS prints what is worth reading on the board). An
+    # outline that would land on a pad or past the board edge is dropped –
+    # the factory would cut it off there anyway.
+    edge = pcbnew.BOX2I(vec(0.3, 0.3), pcbnew.VECTOR2I(mm(W - 0.6), mm(L - 0.6)))
+    openings = {side: [p.GetBoundingBox() for f in fps.values() for p in f.Pads() if p.IsOnLayer(side)] for side in (pcbnew.F_Mask, pcbnew.B_Mask)}
+    for fp in fps.values():
+        back = fp.GetLayer() == pcbnew.B_Cu
+        ref = fp.Reference()
+        ref.SetLayer(pcbnew.B_Fab if back else pcbnew.F_Fab)
+        ref.SetPosition(fp.GetBoundingBox(False).GetCenter())
+        ref.SetTextSize(pcbnew.VECTOR2I(mm(0.5), mm(0.5)))
+        ref.SetTextThickness(mm(0.08))
+        for g in list(fp.GraphicalItems()):
+            if g.GetLayer() not in (pcbnew.F_SilkS, pcbnew.B_SilkS):
+                continue
+            box = g.GetBoundingBox()
+            box.Inflate(mm(0.1))
+            if not edge.Contains(box) or any(box.Intersects(o) for o in openings[pcbnew.B_Mask if back else pcbnew.F_Mask]):
+                fp.Remove(g)
 
     # Mounting holes (M2.5) into the enclosure's ribs
     for i, (x, y) in enumerate(MOUNT, start=1):
