@@ -52,9 +52,8 @@ def gerbers():
         layers = "F.Cu,In1.Cu,In2.Cu,B.Cu,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts"
         subprocess.run(["kicad-cli", "pcb", "export", "gerbers", "--layers", layers, "--subtract-soldermask",
                         "--no-protel-ext", "-o", tmp + "/", PCB], check=True, capture_output=True)
-        # No drill maps: they draw a legend beside the board, and JLCPCB's order
-        # form then takes the board for 71 mm wide instead of 41. No job file
-        # either – the layers and the two drill files are all JLCPCB reads.
+        # No drill maps (they draw a legend beside the board) and no job file:
+        # the layers and the two drill files are all JLCPCB reads.
         subprocess.run(["kicad-cli", "pcb", "export", "drill", "--format", "excellon", "--excellon-separate-th",
                         "-o", tmp + "/", PCB], check=True, capture_output=True)
         files = sorted(f for f in os.listdir(tmp) if f.endswith((".gbr", ".drl")))
