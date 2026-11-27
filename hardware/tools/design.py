@@ -231,6 +231,13 @@ B = "Test"
 for i, net in enumerate(["VBUS", "VBAT", "SYS", "3V3", "GND", "P_N", "TXD0"], start=1):
     jlc(f"TP{i}", "RH-5015", net, "C5199798", {"1": net}, B)
 
+# Bare pads, nothing fitted: the three lamp signals (they are the lamps of the
+# traffic light printed on the board), I²C, the buck-boost's enable and the
+# charger's two status outputs.
+for i, net in enumerate(["LED_R", "LED_Y", "LED_G", "SDA", "SCL", "EN_3V3", "CHG", "PGOOD"], start=8):
+    part(f"TP{i}", "Connector:TestPoint", net, {"1": net},
+         "TestPoint:TestPoint_Pad_D2.0mm" if net.startswith("LED_") else "TestPoint:TestPoint_Pad_D1.5mm", block=B)
+
 # ---- PWR_FLAGs: these nets are driven by passives or connectors only
 for i, net in enumerate(["VBUS", "VBAT", "SYS", "3V3", "GND", "CELL_N", "P_N"], start=1):
     part(f"#FLG{i}", "power:PWR_FLAG", "PWR_FLAG", {"1": net}, block="Power flags")

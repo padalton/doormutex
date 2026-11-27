@@ -85,8 +85,8 @@ def parts():
     rows, unknown = [], []
     for fp in sorted(board.GetFootprints(), key=lambda f: (f.GetReference().rstrip("0123456789"), int("0" + f.GetReference().lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ")))):
         name = fp.GetFPIDAsString().split(":")[-1]
-        if name.startswith("MountingHole"):
-            continue
+        if name.startswith(("MountingHole", "TestPoint_Pad", "OSHW")):
+            continue  # nothing that stands on the board
         h = height_of(name)
         if h is None:
             unknown.append(f"{fp.GetReference()} ({name})")

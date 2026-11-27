@@ -37,6 +37,9 @@ OUT = os.path.join(HW, "doormutex.kicad_pcb")
 FP_DIRS = {"doormutex": os.path.join(HW, "lib", "doormutex.pretty")}
 KICAD_FP = os.environ.get("KICAD_FOOTPRINT_DIR", "/usr/share/kicad/footprints")
 
+REV, DATE = "v1.0", "2026-11"   # printed on the board: revision and the month it was ordered
+URL = "https://doormutex.org"   # the QR code on the back
+
 # ---- geometry (mm). Board coordinates: x across (0 left seen from the front),
 # y down from the top edge. Origin on the page at ORIGIN.
 W, L = 41.0, 191.5
@@ -78,6 +81,12 @@ PLACE = {
     "TH1": (8.6, 70.0, 90, B),
     "TP1": (5.0, 36.0, 0, B), "TP2": (5.0, 38.6, 0, B), "TP3": (5.0, 41.2, 0, B), "TP4": (5.0, 43.8, 0, B),
     "TP5": (5.0, 46.4, 0, B), "TP6": (5.0, 49.0, 0, B), "TP7": (5.0, 51.6, 0, B),
+    # bare pads: the lamp signals as the three lamps of the printed traffic
+    # light (LIGHT below), I²C at the gauge, the buck-boost's enable, the
+    # charger's status outputs
+    "TP8": (4.5, 78.0, 0, B), "TP9": (4.5, 81.6, 0, B), "TP10": (4.5, 85.2, 0, B),
+    "TP11": (34.2, 51.2, 0, B), "TP12": (37.4, 51.2, 0, B),
+    "TP13": (24.6, 144.2, 0, B), "TP14": (11.0, 144.6, 0, B), "TP15": (8.0, 144.6, 0, B),
     # -- right of the holder, at its minus end (top): protection, sense
     # resistor and gauge in the order the current takes
     "U3": (35.0, 29.5, 0, B), "R7": (38.9, 28.0, 90, B), "C5": (38.9, 30.8, 90, B), "R8": (38.9, 33.9, 90, B),
@@ -185,8 +194,11 @@ VIAS = [  # net, x, y, diameter, drill
     ("3V3", TRUNK_X, UY - 3.15, 0.8, 0.4), ("3V3", TRUNK_X, UY - 4.15, 0.8, 0.4), ("3V3", TRUNK_X, 6.0, 0.8, 0.4), ("3V3", TRUNK_X, 7.0, 0.8, 0.4),
     # the charger's thermal pad: its heat goes into the ground plane and the front pour
     ("GND", 6.55, 149.55, 0.6, 0.3), ("GND", 7.45, 149.55, 0.6, 0.3), ("GND", 6.55, 150.45, 0.6, 0.3), ("GND", 7.45, 150.45, 0.6, 0.3),
+    # ties the back's ground pour under the bare-copper name to the plane
+    ("GND", 11.6, 155.3, 0.6, 0.3),
 ]
-# No copper here: (layers, x0, y0, x1, y1, tracks and vias too?)
+# No copper here: (layers, x0, y0, x1, y1, tracks and vias too?); "Bt" keeps
+# tracks and vias out of the back but lets the ground pour in
 KEEPOUTS = [
     # the strip of board under the module's antenna end, above its first pad row
     ("all", 13.2, 0.0, 27.8, 0.8, True),
@@ -194,20 +206,44 @@ KEEPOUTS = [
     ("B", 29.0, L - 1.75, 31.0, L - 0.5, True),
     # the gauge's CSN pin hangs on the sense resistor's pad by its own track only
     ("B", 36.6, 40.3, 37.8, 44.05, False),
+    # nothing but ground under the bare-copper name, a flat ground under the QR code
+    ("Bt", 12.4, 153.2, 36.6, 157.4, True), ("Bt", 25.4, 158.4, 39.8, 172.8, True),
 ]
-# What is printed on the board besides the footprints' own outlines: (text, x, y, side, size).
-# The cell's polarity beside the holder's contacts and, large, where the
-# board shows through the holder's open floor; the test points by their nets.
+# What is printed on the board besides the footprints' own outlines:
+# (text, x, y, side, size[, angle]). The cell's polarity beside the holder's
+# contacts and, large, where the board shows through the holder's open floor;
+# the test points by their nets; who made this and under which licence.
 LABELS = [
     ("+", 14.0, 111.2, B, 2.4), ("+", 27.0, 111.2, B, 2.4), ("-", 14.0, 28.8, B, 2.4), ("-", 27.0, 28.8, B, 2.4),
     ("+", 20.5, 88.0, B, 4.0), ("-", 20.5, 52.0, B, 4.0),
     ("USB", 8.2, 36.0, B, 0.8), ("BAT", 8.2, 38.6, B, 0.8), ("SYS", 8.2, 41.2, B, 0.8), ("3V3", 8.2, 43.8, B, 0.8),
     ("GND", 8.2, 46.4, B, 0.8), ("P_N", 8.2, 49.0, B, 0.8), ("TX", 8.2, 51.6, B, 0.8),   # TP1 … TP7
+    ("SDA", 34.2, 53.0, B, 0.8), ("SCL", 37.4, 53.0, B, 0.8), ("3V3EN", 24.6, 142.5, B, 0.8),
+    ("CHG", 11.0, 142.9, B, 0.8), ("PG", 8.0, 142.9, B, 0.8),
     ("R5", 13.4, 119.0, B, 0.9), ("J3", 9.5, 111.4, B, 0.9),
     ("RESET", 8.0, 23.0, B, 1.0), ("BOOT", 33.0, 23.0, B, 1.0), ("INFO", 34.6, L - 3.2, B, 1.0),
     ("BUSY", 12.0, 128.4, B, 0.9), ("3V3", 29.4, 128.4, B, 0.9), ("BUSY", 12.4, 128.3, F, 0.9), ("3V3", 28.8, 128.3, F, 0.9),
-    ("doormutex PCB v1", 20.5, 164.0, B, 1.5),
+    # title block, left of the QR code
+    ("PCB " + REV, 18.2, 160.2, B, 1.5), (DATE, 18.2, 162.6, B, 1.2),
+    ("doormutex.org", 18.2, 165.2, B, 1.1), ("CERN-OHL-S-2.0", 18.2, 167.4, B, 0.9),
+    # The lamps by what they say, in errno: the front faces the reflector
+    # cones and is never seen again once the light is closed.
+    ("16 EBUSY", X_MID, LAMP_Y["R"] + 8.0, F, 1.2), ("11 EAGAIN", X_MID, LAMP_Y["Y"] + 8.0, F, 1.2), ("0 OK", X_MID, LAMP_Y["G"] + 8.0, F, 1.2),
+    ("// if you can read this, I am not busy", X_MID, 160.0, F, 0.9),
+    # under the cell, readable through the holder's floor when the cell is out
+    ("mutex_lock(&door);", 20.5, 70.0, B, 1.6, 90),
+    # under the holder's left rail: only a board without its holder shows it
+    ("/* no deadlocks were harmed in the making of this board */", 13.3, 64.0, B, 1.0, 90),
+    # the traffic light: U+1F6A6 is its code point
+    ("U+1F6A6", 4.6, 89.6, B, 0.8),
 ]
+# The name in bare copper (gold with ENIG): an opening in the solder mask
+# over the ground pour. (text, x, y, size) on the back.
+WORDMARK = ("doormutex", 24.5, 155.3, 3.0)
+# The traffic light's housing around TP8…TP10, on the back: (x0, y0, x1, y1)
+LIGHT = (2.5, 75.9, 6.5, 87.3)
+QR = (25.6, 158.6, 0.45, 3)   # x, y of its top left corner, module size, quiet zone in modules
+OSHW = (18.2, 171.9)           # the open hardware gear
 
 
 def mm(v):
@@ -425,7 +461,7 @@ def main():
     for layers, x0, y0, x1, y1, tracks_too in KEEPOUTS:
         z = pcbnew.ZONE(board)
         z.SetIsRuleArea(True)
-        z.SetDoNotAllowZoneFills(True)
+        z.SetDoNotAllowZoneFills(layers != "Bt")
         z.SetDoNotAllowTracks(tracks_too)
         z.SetDoNotAllowVias(tracks_too)
         z.SetDoNotAllowPads(False)
@@ -433,22 +469,89 @@ def main():
         if layers == "all":
             z.SetLayerSet(pcbnew.LSET.AllCuMask())
         else:
-            z.SetLayer(pcbnew.B_Cu if layers == "B" else pcbnew.F_Cu)
+            z.SetLayer(pcbnew.B_Cu if layers in ("B", "Bt") else pcbnew.F_Cu)
         o = z.Outline()
         o.NewOutline()
         for x, y in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]:
             o.Append(mm(ORIGIN[0] + x), mm(ORIGIN[1] + y))
         board.Add(z)
 
-    for text, x, y, side, size in LABELS:
+    def text(string, x, y, layer, size, angle=0):
         s = pcbnew.PCB_TEXT(board)
-        s.SetText(text)
+        s.SetText(string)
         s.SetPosition(vec(x, y))
-        s.SetLayer(pcbnew.B_SilkS if side == "B" else pcbnew.F_SilkS)
+        s.SetLayer(layer)
         s.SetTextSize(pcbnew.VECTOR2I(mm(size), mm(size)))
         s.SetTextThickness(mm(max(0.15, size * 0.15)))
-        s.SetMirrored(side == "B")
+        s.SetTextAngle(pcbnew.EDA_ANGLE(angle, pcbnew.DEGREES_T))
+        s.SetMirrored(layer in (pcbnew.B_SilkS, pcbnew.B_Mask))
         board.Add(s)
+
+    for string, x, y, side, size, *angle in LABELS:
+        text(string, x, y, pcbnew.B_SilkS if side == "B" else pcbnew.F_SilkS, size, *angle)
+    text(WORDMARK[0], WORDMARK[1], WORDMARK[2], pcbnew.B_Mask, WORDMARK[3])
+
+    def silk(shape, layer=pcbnew.B_SilkS, width=0.2):
+        shape.SetLayer(layer)
+        shape.SetWidth(mm(width))
+        board.Add(shape)
+
+    # the traffic light's housing and post; its lamps are TP8…TP10
+    x0, y0, x1, y1 = LIGHT
+    box = pcbnew.PCB_SHAPE(board, pcbnew.SHAPE_T_RECT)
+    box.SetStart(vec(x0, y0))
+    box.SetEnd(vec(x1, y1))
+    silk(box)
+    post = pcbnew.PCB_SHAPE(board, pcbnew.SHAPE_T_SEGMENT)
+    post.SetStart(vec((x0 + x1) / 2, y1))
+    post.SetEnd(vec((x0 + x1) / 2, y1 + 1.2))
+    silk(post, width=0.5)
+
+    # QR code: the light modules are print, the dark ones bare board – one
+    # polygon, mirrored so that it reads from the back
+    sys.path.insert(0, os.environ.get("KICAD_PLUGIN_DIR", "/usr/share/kicad/scripting/plugins"))
+    import kicad_qrcode
+    qr = kicad_qrcode.QRCode.getMinimumQRCode(URL, kicad_qrcode.ErrorCorrectLevel.M)
+    qx, qy, m, quiet = QR
+    n = qr.getModuleCount()
+    side = (n + 2 * quiet) * m
+
+    def square(poly, x, y, w, h):
+        poly.NewOutline()
+        for px, py in ((x, y), (x + w, y), (x + w, y + h), (x, y + h)):
+            poly.Append(mm(ORIGIN[0] + px), mm(ORIGIN[1] + py))
+
+    light, dark = pcbnew.SHAPE_POLY_SET(), pcbnew.SHAPE_POLY_SET()
+    square(light, qx, qy, side, side)
+    for row in range(n):
+        col = 0
+        while col < n:
+            if not qr.isDark(row, col):
+                col += 1
+                continue
+            run = col
+            while run < n and qr.isDark(row, run):
+                run += 1
+            # column 0 is on the right in board coordinates: the back is seen mirrored
+            square(dark, qx + side - (quiet + run) * m, qy + (quiet + row) * m, (run - col) * m, m)
+            col = run
+    dark.Simplify()
+    light.BooleanSubtract(dark)
+    light.Fracture()
+    code = pcbnew.PCB_SHAPE(board, pcbnew.SHAPE_T_POLY)
+    code.SetPolyShape(light)
+    code.SetFilled(True)
+    silk(code, width=0)
+
+    # the open source hardware gear
+    gear = load_fp("Symbol:OSHW-Logo_5.7x6mm_SilkScreen")
+    gear.SetReference("G1")
+    gear.Reference().SetVisible(False)
+    gear.Value().SetVisible(False)
+    gear.SetAttributes(pcbnew.FP_BOARD_ONLY | pcbnew.FP_EXCLUDE_FROM_BOM | pcbnew.FP_EXCLUDE_FROM_POS_FILES)
+    board.Add(gear)                     # a footprint can only be flipped once it is on a board
+    gear.SetLayerAndFlip(pcbnew.B_Cu)
+    gear.SetPosition(vec(*OSHW))
 
     # Ground on the inner layer next to the parts (inner layer 2 is 0.2 mm
     # below the back, where everything but the LEDs sits), everywhere

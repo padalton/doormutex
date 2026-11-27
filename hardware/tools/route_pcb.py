@@ -130,6 +130,23 @@ def vias_in_pads(board):
     return holes, touching
 
 
+def off_copper(board):
+    """Texts cut into the solder mask (the name in bare copper) that do not lie
+    on the ground pour all over: they would show bare board instead."""
+    bad = []
+    for d in board.GetDrawings():
+        if d.GetClass() != "PCB_TEXT" or d.GetLayer() not in (pcbnew.F_Mask, pcbnew.B_Mask):
+            continue
+        layer = pcbnew.F_Cu if d.GetLayer() == pcbnew.F_Mask else pcbnew.B_Cu
+        pours = [z for z in board.Zones() if not z.GetIsRuleArea() and z.GetNetname() == "GND" and z.IsOnLayer(layer)]
+        bb = d.GetBoundingBox()
+        step = pcbnew.FromMM(0.25)
+        points = [pcbnew.VECTOR2I(x, y) for x in range(bb.GetLeft(), bb.GetRight() + 1, step) for y in range(bb.GetTop(), bb.GetBottom() + 1, step)]
+        if not all(any(z.HitTestFilledArea(layer, p, 0) for z in pours) for p in points):
+            bad.append(d.GetText())
+    return bad
+
+
 def main():
     board = pcbnew.LoadBoard(PCB)
     # inner layer 2 is the ground plane: not for routing
@@ -183,11 +200,14 @@ def main():
     thin = sorted({t.GetNetname() for t in tracks if pcbnew.ToMM(t.GetWidth()) < 0.199})
     if thin:
         print("tracks below 0.2 mm on: " + ", ".join(thin))
+    bare = off_copper(board)
+    if bare:
+        print("cut into the mask but not on the ground pour all over: " + ", ".join(bare))
     holes, touching = vias_in_pads(board)
     print(f"router vias with their hole in a pad: {len(holes)}, with their copper on a pad: {len(touching)}")
     if holes or touching:
         print("  " + ", ".join(sorted(set(holes + touching))))
-    if errors or thin or holes or touching or not ok:
+    if errors or thin or bare or holes or touching or not ok:
         sys.exit(1)
 
 

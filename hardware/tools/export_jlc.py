@@ -88,8 +88,10 @@ def bom_cpl():
     rows, groups = [], {}
     for fp in board.GetFootprints():
         ref = fp.GetReference()
-        if ref.startswith(("H", "#")) or fp.IsDNP() or ref in HAND_SOLDERED:
+        if ref.startswith(("H", "G", "#")) or fp.IsDNP() or ref in HAND_SOLDERED:
             continue
+        if fp.GetFPIDAsString().split(":")[-1].startswith("TestPoint_Pad"):
+            continue  # a bare pad, no part
         field = fp.GetField("LCSC")
         lcsc = field.GetText() if field else ""
         if not lcsc:
