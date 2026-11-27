@@ -26,15 +26,14 @@ C0805 = ("Device:C", "Capacitor_SMD:C_0805_2012Metric")
 LCSC = {
     # resistors (JLCPCB basic unless noted)
     "5.1k": "C25905", "10k": "C25744", "100k": "C25741", "4.7k": "C25900", "100": "C25076", "1k": "C11702",
-    "10M": "C7250",  # 0603
+    "1M": "C26083", "47k": "C25792",
     "887": "C474137",  # ext
     "1.1k": "C25860",  # ext
     "511k": "C64042",  # ext
     "91k": "C4147",  # ext
-    "68": "C25131",  # ext
     "150": "C25082",  # ext, preferred
     # capacitors
-    "100n": "C1525", "1u": "C52923", "470n": "C47339", "4.7u": "C19666", "10u": "C19702", "22u": "C59461",
+    "100n": "C1525", "1u": "C52923", "470n": "C47339", "10u": "C19702", "22u": "C59461",
     "47u": "C16780",  # 0805
     "10p": "C32949",
 }
@@ -79,17 +78,22 @@ jlc("U2", "BQ24074RGTR", "BQ24074", "C54313", {
     "13": "VBUS", "2": "VBAT", "3": "VBAT", "10": "SYS", "11": "SYS", "8": "GND", "17": "GND",
     "16": "ISET", "12": "ILIM",
     "6": "GND",   # EN1 low + EN2 high: input current limit set by ILIM
-    "5": "SYS",
+    "5": "SYS",   # (EN2 has a 285 kΩ pull-down: ~13 µA from the cell, the price of a fixed setting)
     "4": "GND",   # /CE: charging always enabled
-    "14": NC,     # TMR open: default safety timer
+    "14": "TMR",
     "15": NC,     # ITERM open: 10 % termination
     "1": "TS", "9": "CHG", "7": "PGOOD"}, B)
 r("R3", "887", "ISET", "GND", B)   # 890 AΩ / 887 Ω = 1.0 A charge current
 r("R4", "1.1k", "ILIM", "GND", B)  # 1610 AΩ / 1.1 kΩ = 1.46 A input limit
+# Safety timer: with TMR open the charger gives up after 5 h (4 h at worst).
+# A worn or large cell behind the PTC, two MOSFETs and the sense resistor
+# spends long in the constant-voltage phase and can need that long at 1 A.
+# 47 kΩ: 10 × 48 s/kΩ × 47 kΩ = 6.3 h (4.7 h at least), pre-charge 38 min.
+r("R33", "47k", "TMR", "GND", B)
 c("C1", "1u", "VBUS", "GND", B)
 c("C2", "10u", "VBUS", "GND", B, C0603)
 c("C3", "10u", "SYS", "GND", B, C0603)
-c("C4", "4.7u", "VBAT", "GND", B, C0603)
+c("C4", "10u", "VBAT", "GND", B, C0603)  # 4.7 µF min. at the BAT pin, after DC bias
 # NTC at the cell holder: charging only between about 0 and 50 °C
 jlc("TH1", "NCP18XH103F03RB", "10k NTC", "C13564", {"1": "TS", "2": "GND"}, B)
 
@@ -129,14 +133,17 @@ jlc("U5", "TPS3840DL30DBVR", "TPS3840DL30", "C2862542", {
     "2": "SV_VDD", "3": "GND", "1": "EN_3V3", "4": NC, "5": NC}, B)
 r("R10", "10k", "SYS", "SV_VDD", B)
 c("C8", "1u", "SV_VDD", "GND", B)
-r("R11", "10M", "SYS", "EN_3V3", B, R0603)
+# Pull-up of the open-drain /RESET: the TPS63802's EN leaks up to 0.2 µA and
+# the TPS3840's output up to 0.09 µA, so 10 MΩ would leave EN below its
+# 1.2 V threshold in the worst case. 1 MΩ costs 3 µA while the supply is cut off.
+r("R11", "1M", "SYS", "EN_3V3", B)
 jlc("U6", "TPS63802DLAR", "TPS63802", "C2845237", {
     "10": "SYS", "1": "EN_3V3", "2": "GND", "3": "GND", "8": "GND",
     "9": "SW1", "7": "SW2", "6": "3V3", "4": "FB", "5": NC}, B)
 jlc("L1", "DFE201612E-R47M=P2", "0.47u", "C668312", {"1": "SW1", "2": "SW2"}, B)
 r("R12", "511k", "3V3", "FB", B)  # 0.5 V × (1 + 511/91) = 3.31 V
 r("R13", "91k", "FB", "GND", B)
-c("C9", "10u", "SYS", "GND", B, C0603)
+c("C9", "22u", "SYS", "GND", B, C0603)  # ≥ 4 µF effective at VIN after DC bias
 c("C10", "22u", "3V3", "GND", B, C0603)
 c("C11", "22u", "3V3", "GND", B, C0603)
 
@@ -175,28 +182,36 @@ c("C16", "10p", "XTAL_N", "GND", B, dnp=True)
 B = "Sensors"
 r("R19", "4.7k", "3V3", "SDA", B)
 r("R20", "4.7k", "3V3", "SCL", B)
-jlc("U8", "VEML7700-TR", "VEML7700", "C504893", {"2": "3V3", "3": "GND", "1": "SCL", "4": "SDA"}, B)
+# VEML7700-TT is the top-view reel (the sensor looks away from the board, into
+# the light channel); the -TR reel is placed on its side and looks along the board.
+jlc("U8", "VEML7700-TT", "VEML7700", "C1850416", {"2": "3V3", "3": "GND", "1": "SCL", "4": "SDA"}, B)
 c("C17", "100n", "3V3", "GND", B)
 
 # ---- e-paper: the Waveshare 1.54″ module, by its PH2.0 cable. The module
 # hangs upside down (its PH socket at the top, picture turned in firmware);
-# a right-angle JST PH socket sits right above it, opening down, so a short
-# PH2.0 cable with a socket on both ends (1:1) goes straight in. Through-hole,
-# hand-soldered.
+# a right-angle JST PH socket sits above it, opening down, for a PH2.0 cable
+# with a socket on both ends, 1:1. Through-hole, hand-soldered.
+# The pin order is the module's: its socket has BUSY at JST's pin 1 and VCC
+# at pin 8 (the print next to it reads BUSY RST DC CS CLK DIN GND VCC from
+# pin 1). Hanging in the light, each of its pins is right below the same
+# signal on J2, so the wires run straight, without crossing.
 B = "E-paper"
-epd = {"1": "3V3", "2": "GND", "3": "EPD_DIN", "4": "EPD_CLK", "5": "EPD_CS", "6": "EPD_DC",
-       "7": "EPD_RST", "8": "EPD_BUSY"}
+epd = {"1": "EPD_BUSY", "2": "EPD_RST", "3": "EPD_DC", "4": "EPD_CS", "5": "EPD_CLK", "6": "EPD_DIN",
+       "7": "GND", "8": "3V3"}
 jlc("J2", "S8B-PH-K-S-", "e-paper", "C157915", dict(epd), B)
 c("C18", "100n", "3V3", "GND", B)
 
 # ---- lamps: per colour an N-MOSFET and two LED places, the second not
 # fitted (more light without a new board). From SYS: the firmware evens out
-# the falling cell voltage (LED reference voltage in menuconfig).
+# the falling cell voltage (LED reference voltage in menuconfig). The
+# resistors keep each LED below its rated current at full duty on USB power
+# (SYS up to 4.5 V): red and yellow 30 mA (V_F min 1.9 V -> 17 mA), green
+# 20 mA (V_F min 2.6 V -> 19 mA with 100 Ω; 68 Ω would allow 28 mA).
 B = "LEDs"
 lamps = [  # colour, GPIO net, LED symbol, LCSC, series resistor
     ("R", "LED_R", "XL-2012SURC-FJ", "C7371909", "150"),
     ("Y", "LED_Y", "XL-2012UYC-FJ", "C7371908", "150"),
-    ("G", "LED_G", "XL-2012UGC", "C965815", "68"),
+    ("G", "LED_G", "XL-2012UGC", "C965815", "100"),
 ]
 n = 21
 for i, (col, gpio, sym, lcsc, rs) in enumerate(lamps):
