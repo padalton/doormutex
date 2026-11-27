@@ -1,0 +1,10 @@
+(version 1)
+# SPDX-FileCopyrightText: 2026 The doormutex contributors
+# SPDX-License-Identifier: CERN-OHL-S-2.0
+
+# The INFO button's plastic locating pegs sit closer to its own pads than
+# the board rule allows – that's the manufacturer's land pattern.
+# The board minimum is that; everything else keeps 0.2 mm.
+(rule "hole clearance"
+  (condition "!(A.Parent.Reference == 'SW3' && B.Parent.Reference == 'SW3')")
+  (constraint hole_clearance (min 0.2mm)))

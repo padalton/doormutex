@@ -62,10 +62,12 @@ NC = None  # an unconnected pin gets a no-connect flag
 
 # ---- USB-C, ESD
 B = "USB"
-jlc("J1", "TYPE-C-31-M-12", "USB-C", "C165948", {
-    "A4B9": "VBUS", "B4A9": "VBUS", "A1B12": "GND", "B1A12": "GND",
+# KiCad's own symbol and footprint for this socket: EasyEDA's footprint
+# merges pads into custom shapes that defeat the clearance rules.
+part("J1", "Connector:USB_C_Receptacle_USB2.0_16P", "USB-C", {
+    "A4": "VBUS", "A9": "VBUS", "B4": "VBUS", "B9": "VBUS", "A1": "GND", "A12": "GND", "B1": "GND", "B12": "GND",
     "A5": "CC1", "B5": "CC2", "A6": "USB_DP", "B6": "USB_DP", "A7": "USB_DN", "B7": "USB_DN",
-    "A8": NC, "B8": NC, "1": "GND", "2": "GND", "3": "GND", "4": "GND"}, B)
+    "A8": NC, "B8": NC, "SH": "GND"}, "Connector_USB:USB_C_Receptacle_HRO_TYPE-C-31-M-12", "C165948", block=B)
 r("R1", "5.1k", "CC1", "GND", B)
 r("R2", "5.1k", "CC2", "GND", B)
 jlc("U1", "USBLC6-2SC6", "USBLC6-2SC6", "C7519", {
@@ -176,11 +178,15 @@ r("R20", "4.7k", "3V3", "SCL", B)
 jlc("U8", "VEML7700-TR", "VEML7700", "C504893", {"2": "3V3", "3": "GND", "1": "SCL", "4": "SDA"}, B)
 c("C17", "100n", "3V3", "GND", B)
 
-# ---- e-paper: the Waveshare 1.54″ module on an 8-pin socket
+# ---- e-paper: the Waveshare 1.54″ module, by its PH2.0 cable. The module
+# hangs upside down (its PH socket at the top, picture turned in firmware);
+# a right-angle JST PH socket sits right above it, opening down, so a short
+# PH2.0 cable with a socket on both ends (1:1) goes straight in. Through-hole,
+# hand-soldered.
 B = "E-paper"
-jlc("J2", "PM2.54-1X8PM-H85", "e-paper", "C42431840", {
-    "1": "3V3", "2": "GND", "3": "EPD_DIN", "4": "EPD_CLK", "5": "EPD_CS", "6": "EPD_DC",
-    "7": "EPD_RST", "8": "EPD_BUSY"}, B)
+epd = {"1": "3V3", "2": "GND", "3": "EPD_DIN", "4": "EPD_CLK", "5": "EPD_CS", "6": "EPD_DC",
+       "7": "EPD_RST", "8": "EPD_BUSY"}
+jlc("J2", "S8B-PH-K-S-", "e-paper", "C157915", dict(epd), B)
 c("C18", "100n", "3V3", "GND", B)
 
 # ---- lamps: per colour an N-MOSFET and two LED places, the second not
