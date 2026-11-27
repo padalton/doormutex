@@ -15,6 +15,16 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** â€
 
 **Status: v0, untested.** Module dimensions are taken from datasheets or are educated guesses â€“ every value marked `TODO verify` in [`doormutex.scad`](doormutex.scad) must be measured on the real part before printing more than a test piece.
 
+## PCB build
+
+`build = "pcb"` (the default) is for [PCB v1](../hardware/README.md#pcb-v1); `build = "breadboard"` keeps the module version described below.
+
+- The board lies against the back of the reflector cones, held by four bosses of the front shell (M2.5 self-tapping, nylon at the top: the antenna is 11 mm away). The cones' back opening is 7 mm for the two SMD LEDs.
+- The sign is 66 mm high (52 in the breadboard build): the e-paper module hangs upside down, its PH2.0 plug at the top, the board's socket right above it. The light is 206 mm tall.
+- A light channel from a 2.4 mm pinhole in the front face, in the top corner of the green chamber, to the light sensor on the board.
+- USB-C in the middle of the bottom; a 2 mm hole through the bottom wall and the foot for a pin to press the INFO button; pin holes in the back cover for RESET and BOOT.
+- The corner ribs (cover, foot and side screws) start behind the board.
+
 ## Parts
 
 | Part (`part=`) | Qty | Material | On the bed | Notes |
