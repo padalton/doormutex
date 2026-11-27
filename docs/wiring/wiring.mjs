@@ -178,7 +178,7 @@ const LED_ROWS = [
   // in pin order (J1 top to bottom) so no gate wire crosses another channel
   { color: C.green, name: "green", gpio: 6, y: 320, r: "47 Ω", lane: 760 },
   { color: C.red, name: "red", gpio: 2, y: 560, r: "100 Ω", lane: 782 },
-  { color: C.yellow, name: "yellow", gpio: 3, y: 800, r: "100 Ω", lane: 804 },
+  { color: C.yellow, name: "yellow", gpio: 3, y: 800, r: "47 Ω", lane: 804 },
 ];
 const MX = 470; // MOSFET leg ends
 

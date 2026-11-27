@@ -28,7 +28,7 @@ const TAIL = 4.5; // complete stage at the end
 const DETAIL = {
   1: "3V3 → + rail · G → − rail · bridge the two + rails",
   2: "source to GND · 10 kΩ gate to GND keeps the LEDs dark at boot",
-  3: "+ rail → resistor → long leg · short leg → drain · green 47 Ω, red and yellow 100 Ω",
+  3: "+ rail → resistor → long leg · short leg → drain · green and yellow 47 Ω, red 100 Ω",
   4: "green → GPIO 6 · red → GPIO 2 · yellow → GPIO 3",
   5: "DIN 18 · CLK 19 · CS 20 · DC 21 · RST 10 · BUSY 11 · 3.3 V and GND",
   6: "SDA → GPIO 22 · SCL → GPIO 23 · 3.3 V and GND",

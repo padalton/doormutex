@@ -65,7 +65,7 @@ From the + rail through the resistor into the LED's long leg; the LED's short le
 
 The rail runs at 3.3 V on purpose: that's roughly the cell voltage just before cut-off, the worst case for the green LED with its high forward voltage. All three stay below the 30 mA the LEDs are rated for continuously.
 
-**Evening out the colours:** at the same current the Würth yellow (1500 mcd typ.) gives a third of the red (5000) and a sixth of the green (10000), measured on the breadboard with 12–13 mA in all three. Hence 47 Ω for the yellow (the drawing still shows 100 Ω), and the rest in the firmware: `menuconfig → doormutex → LEDs`, levels red **74**, yellow **100**, green **53** %. The level is squared like the brightness, so 74 % gives 55 % duty and 53 % gives 28 %. Check the result with the console command `lamps all`: all three at full brightness with their levels, for five minutes.
+**Evening out the colours:** at the same current the Würth yellow (1500 mcd typ.) gives a third of the red (5000) and a sixth of the green (10000), measured on the breadboard with 12–13 mA in all three. Hence 47 Ω for the yellow, and the rest in the firmware: `menuconfig → doormutex → LEDs`, levels red **74**, yellow **100**, green **53** %. The level is squared like the brightness, so 74 % gives 55 % duty and 53 % gives 28 %. Check the result with the console command `lamps all`: all three at full brightness with their levels, for five minutes.
 
 ### Step 4: gates to the GPIOs
 
