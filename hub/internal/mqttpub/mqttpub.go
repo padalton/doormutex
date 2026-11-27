@@ -157,15 +157,53 @@ func (c *Client) onConnect() {
 		}
 	}
 	filters := map[string]byte{
-		c.cfg.BaseTopic + "/+/override/set": qos,
-		c.cfg.BaseTopic + "/+/message/set":  qos,
+		c.cfg.BaseTopic + "/+/override/set":     qos,
+		c.cfg.BaseTopic + "/+/message/set":      qos,
+		c.cfg.BaseTopic + "/device/+/telemetry": qos,
 	}
-	tok := c.client.SubscribeMultiple(filters, c.onCommand)
+	tok := c.client.SubscribeMultiple(filters, c.onMessage)
 	go func() {
 		if tok.WaitTimeout(10*time.Second) && tok.Error() != nil {
 			c.log.Warn("mqtt subscribe failed", "err", tok.Error())
 		}
 	}()
+}
+
+// onMessage routes the lights' telemetry and the commands.
+func (c *Client) onMessage(cl mqtt.Client, m mqtt.Message) {
+	rest, _ := strings.CutPrefix(m.Topic(), c.cfg.BaseTopic+"/device/")
+	if device, ok := strings.CutSuffix(rest, "/telemetry"); ok && rest != m.Topic() {
+		c.onTelemetry(device, m.Payload())
+		return
+	}
+	c.onCommand(cl, m)
+}
+
+// onTelemetry takes a light's <base>/device/<id>/telemetry: the battery it
+// draws on its sign goes to its profile's display, for the web preview.
+func (c *Client) onTelemetry(device string, payload []byte) {
+	var t struct {
+		Profile     string `json:"profile"`
+		EinkBattery *int   `json:"eink_battery"`
+		Charging    bool   `json:"charging"`
+	}
+	if err := json.Unmarshal(payload, &t); err != nil {
+		return // not ours to judge; HA reads it too
+	}
+	var b *eink.Battery
+	if t.EinkBattery != nil {
+		b = &eink.Battery{Percent: max(0, min(100, *t.EinkBattery)), Charging: t.Charging}
+	}
+	for id, p := range c.profiles {
+		if p.profile.Display == nil {
+			continue
+		}
+		if id == t.Profile {
+			p.profile.Display.SetLight(device, b)
+		} else {
+			p.profile.Display.SetLight(device, nil) // the light may have moved
+		}
+	}
 }
 
 // onCommand handles <base>/<profile>/override/set and …/message/set.

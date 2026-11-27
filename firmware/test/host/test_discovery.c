@@ -62,7 +62,7 @@ void test_discovery(void)
     // Telemetry: unknown values become null.
     dm_telemetry_t tel = {.battery_pct = 87.46f, .battery_mv = 3912, .charging = true, .usb = true, .rssi = -61,
                           .light = "red", .fault = "none", .uptime_s = 42, .firmware = "0.1.0"};
-    char doc[512];
+    char doc[640];
     CHECK(dm_telemetry_json(&tel, doc, sizeof(doc)) > 0);
     root = cJSON_Parse(doc);
     CHECK(cJSON_GetObjectItemCaseSensitive(root, "battery")->valuedouble > 87.49 &&
@@ -98,17 +98,20 @@ void test_discovery(void)
     cJSON_Delete(root);
 
     // After a watchdog restart: the outage it saw. Every field at its widest
-    // still fits the main loop's 512-byte buffer.
+    // still fits the main loop's 640-byte buffer.
     const dm_outage_t outage = {.down_s = 4294967295u, .restarts = 4294967295u, .wifi = true, .ip = false,
                                 .mqtt = false, .wifi_reason = -2147483647, .sock_errno = -2147483647,
                                 .mqtt_error = "ESP_ERR_ESP_TLS_CANNOT_RESOLVE_HOSTNAME"};
     dm_telemetry_t wide = {.battery_pct = 100.0f, .battery_mv = 4200, .charging = true, .usb = true, .rssi = -100,
                            .has_lux = true, .lux = 120000.0f, .light = "red_yellow_alternate",
                            .fault = "unknown_light", .uptime_s = 4294967295u, .firmware = "0.10.10-dev+g0123456789",
-                           .reset = "net_watchdog", .outage = &outage};
+                           .reset = "net_watchdog", .outage = &outage, .profile = "a-profile-name-of-31-characters",
+                           .eink_battery = 100};
     CHECK(dm_telemetry_json(&wide, doc, sizeof(doc)) > 0);
     root = cJSON_Parse(doc);
     CHECK_STR(str(root, "reset"), "net_watchdog");
+    CHECK_STR(str(root, "profile"), "a-profile-name-of-31-characters");
+    CHECK_INT(cJSON_GetObjectItemCaseSensitive(root, "eink_battery")->valueint, 100);
     const cJSON *o = cJSON_GetObjectItemCaseSensitive(root, "outage");
     CHECK(cJSON_GetObjectItemCaseSensitive(o, "down")->valuedouble == 4294967295.0);
     CHECK(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(o, "wifi")));

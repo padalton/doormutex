@@ -11,7 +11,7 @@ int main(void)
     } suites[] = {
         {"time", test_time},         {"state", test_state},   {"failsafe", test_failsafe},
         {"netwatch", test_netwatch}, {"pattern", test_pattern}, {"improv", test_improv},
-        {"config", test_config},     {"discovery", test_discovery},
+        {"config", test_config},     {"discovery", test_discovery}, {"battery", test_battery},
     };
     for (size_t i = 0; i < sizeof(suites) / sizeof(suites[0]); i++) {
         int before = dm_failures;

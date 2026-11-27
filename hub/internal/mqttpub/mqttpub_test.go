@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/padalton/doormutex/hub/internal/eink"
 	"github.com/padalton/doormutex/hub/internal/engine"
 	"github.com/padalton/doormutex/hub/internal/service"
 	"github.com/padalton/doormutex/hub/internal/status"
@@ -147,4 +148,31 @@ func TestCommands(t *testing.T) {
 		t.Errorf("message = %v", m)
 	}
 	c.onCommand(nil, msg{"doormutex/office/override/set", "dnd"}) // unknown profile: ignored
+}
+
+func TestTelemetry(t *testing.T) {
+	office, teen := &eink.Display{}, &eink.Display{}
+	c := &Client{cfg: Config{BaseTopic: "doormutex"}, log: slog.New(slog.DiscardHandler),
+		profiles: map[string]*Publisher{
+			"office": {profile: Profile{ID: "office", Display: office}},
+			"teen":   {profile: Profile{ID: "teen", Display: teen}},
+		}}
+	c.onMessage(nil, msg{"doormutex/device/doormutex-d2926c/telemetry", `{"battery":79.4,"charging":true,"profile":"office","eink_battery":79}`})
+	if b := office.Light(); b == nil || b.Percent != 79 || !b.Charging {
+		t.Fatalf("office light = %+v", b)
+	}
+	if teen.Light() != nil {
+		t.Fatal("teen got the office light")
+	}
+	// The light moves to the teen's profile.
+	c.onMessage(nil, msg{"doormutex/device/doormutex-d2926c/telemetry", `{"profile":"teen","eink_battery":50}`})
+	if office.Light() != nil || teen.Light() == nil || teen.Light().Percent != 50 {
+		t.Fatalf("after the move: office %+v, teen %+v", office.Light(), teen.Light())
+	}
+	// No battery on the sign (no gauge), and junk.
+	c.onMessage(nil, msg{"doormutex/device/doormutex-d2926c/telemetry", `{"profile":"teen","eink_battery":null}`})
+	c.onMessage(nil, msg{"doormutex/device/doormutex-d2926c/telemetry", `not json`})
+	if teen.Light() != nil {
+		t.Fatalf("teen light = %+v", teen.Light())
+	}
 }

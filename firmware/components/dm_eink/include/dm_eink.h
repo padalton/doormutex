@@ -1,5 +1,6 @@
 // The 1.54″ e-paper sign (200 × 200, SSD1681, SPI). The hub renders the
-// whole picture; the light just pushes the bits to the panel.
+// picture; the light pushes the bits to the panel and draws its own battery
+// into the footer (the hub's frames are per profile, see dm_battery.h).
 //
 // Buffer: 200 × 200 pixels, 1 bit each, row by row, the most significant
 // bit is the leftmost pixel → 5000 bytes, 1 = white (the hub's eink.Pack).
@@ -41,6 +42,14 @@ esp_err_t dm_eink_show(const uint8_t *frame, size_t len);
 // dm_eink_status describes the panel for the console: "not configured",
 // "waiting for a frame", "ok (refresh 1389 ms)" or what went wrong.
 const char *dm_eink_status(void);
+
+// dm_eink_set_battery takes the fuel gauge's reading (percent < 0: no
+// gauge, the corner stays empty). The sign is redrawn only in steps – see
+// dm_battery_badge_update.
+void dm_eink_set_battery(int percent, bool charging);
+
+// dm_eink_battery is the percentage on the sign, or -1 if none is drawn.
+int dm_eink_battery(void);
 
 #ifdef __cplusplus
 }

@@ -868,10 +868,16 @@ func (s *Server) getEink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "lang: one of "+strings.Join(eink.Languages(), ", "))
 		return
 	}
+	png := strings.HasSuffix(r.URL.Path, ".png")
 	var fr eink.Frame
 	switch q.Get("screen") {
 	case "", "state":
 		var bat *eink.Battery
+		if png {
+			// The preview shows the sign as it hangs on the door: with the
+			// battery the light draws itself, if a light reported one.
+			bat = p.Display.Light()
+		}
 		if v := q.Get("battery"); v != "" {
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 || n > 100 {
@@ -887,7 +893,6 @@ func (s *Server) getEink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "screen: state or offline")
 		return
 	}
-	png := strings.HasSuffix(r.URL.Path, ".png")
 	etag := fr.ETag
 	if png {
 		etag = strings.TrimSuffix(etag, `"`) + `-png"`

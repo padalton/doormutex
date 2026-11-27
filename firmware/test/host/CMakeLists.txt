@@ -22,12 +22,14 @@ FetchContent_MakeAvailable(cjson)
 set(CORE ${CMAKE_CURRENT_SOURCE_DIR}/../../components/dm_core)
 add_executable(dm_tests
     main.c
+    test_battery.c
     test_config.c
     test_discovery.c
     test_improv.c
     test_pattern.c
     test_state.c
     test_time.c
+    ${CORE}/src/dm_battery.c
     ${CORE}/src/dm_config.c
     ${CORE}/src/dm_discovery.c
     ${CORE}/src/dm_improv.c

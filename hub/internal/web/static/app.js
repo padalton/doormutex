@@ -421,6 +421,10 @@ function connect() {
   events.onerror = () => $("#live").classList.remove("on"); // EventSource reconnects on its own
 }
 
+// The light's battery on the sign changes without a state event; the ETag
+// keeps the check cheap while the frame is unchanged.
+setInterval(() => { if (token && !document.hidden) renderEink(); }, 60e3);
+
 // ---- actions
 
 async function act(fn) {

@@ -1,9 +1,12 @@
 package api
 
 import (
+	"bytes"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/padalton/doormutex/hub/internal/eink"
 )
 
 func TestEink(t *testing.T) {
@@ -63,5 +66,31 @@ func TestEink(t *testing.T) {
 	}
 	if resp, _ := f.do(t, http.MethodPut, "/api/v1/settings", `{"eink_language":"xx"}`); resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("eink_language xx: %d", resp.StatusCode)
+	}
+}
+
+// The preview shows the battery the light draws on its sign; the frame for
+// the panel stays without it (each light draws its own).
+func TestEinkPreviewWithLightBattery(t *testing.T) {
+	f := newFixture(t)
+	_, plain := f.do(t, http.MethodGet, "/api/v1/eink.png", "")
+	_, bin := f.do(t, http.MethodGet, "/api/v1/eink.bin", "")
+	_, want := f.do(t, http.MethodGet, "/api/v1/eink.png?battery=79", "")
+	f.api.profiles[0].Display.SetLight("doormutex-d2926c", &eink.Battery{Percent: 79})
+	_, got := f.do(t, http.MethodGet, "/api/v1/eink.png", "")
+	if bytes.Equal(got, plain) || !bytes.Equal(got, want) {
+		t.Error("preview without the light's battery")
+	}
+	if _, b := f.do(t, http.MethodGet, "/api/v1/eink.bin", ""); !bytes.Equal(b, bin) {
+		t.Error("the panel frame got the battery")
+	}
+	// An explicit battery still wins.
+	_, explicit := f.do(t, http.MethodGet, "/api/v1/eink.png?battery=10", "")
+	if bytes.Equal(explicit, got) {
+		t.Error("?battery= ignored")
+	}
+	f.api.profiles[0].Display.SetLight("doormutex-d2926c", nil)
+	if _, b := f.do(t, http.MethodGet, "/api/v1/eink.png", ""); !bytes.Equal(b, plain) {
+		t.Error("battery stayed after the light stopped drawing it")
 	}
 }

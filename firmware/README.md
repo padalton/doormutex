@@ -105,8 +105,8 @@ The light subscribes to the hub's topics and has three of its own (`<id>` = `doo
 |---|---|---|
 | `doormutex/<profile>/state` | hub → light | retained state JSON; the light uses `light` (and `until` for the failsafe) |
 | `doormutex/hub/online` | hub → light | `offline` (the hub's Last Will) → yellow blinks |
-| `doormutex/<profile>/display` | hub → light | e-ink frame, 5000 bytes (200 × 200, 1 bit, rows, MSB = left) |
-| `doormutex/device/<id>/telemetry` | light → | retained: `battery` (%), `voltage` (V), `charging`, `usb`, `rssi`, `lux`, `light`, `fault`, `uptime`, `firmware`, `reset`, `outage` (see [connection watchdog](#connection-watchdog)) |
+| `doormutex/<profile>/display` | hub → light | e-ink frame, 5000 bytes (200 × 200, 1 bit, rows, MSB = left), without the battery – the light draws its own into the footer |
+| `doormutex/device/<id>/telemetry` | light → | retained: `battery` (%), `voltage` (V), `charging`, `usb`, `rssi`, `lux`, `light`, `fault`, `uptime`, `firmware`, `reset`, `outage` (see [connection watchdog](#connection-watchdog)), `profile`, `eink_battery` (the percentage drawn on the sign, `null` if none – the hub shows it in its preview) |
 | `doormutex/device/<id>/online` | light → | `online` / `offline` (Last Will) |
 | `doormutex/device/<id>/cmd` | → light | `identify`, `restart`, `ota <url>` (not implemented yet) |
 
@@ -190,6 +190,7 @@ LED brightness: duty = brightness² (perceived brightness), scaled down by (3.0 
 | MAX17048, charger pins | ✅ real, untested |
 | OTA rollback confirmation | ✅ the first state from the hub marks the image valid |
 | E-ink (SSD1681) | ✅ on the breadboard: own driver from the datasheet, full refresh (~1.4 s) per new frame, panel in deep sleep between; partial refresh TODO |
+| Battery on the e-ink sign | ✅ host-tested: the light draws its battery (level, bolt while charging, percentage) into the hub's footer, pixel for pixel like the hub's renderer – the pieces are generated from it (`hub/internal/eink/battery_c_test.go`), the host tests compare with frames the hub rendered. Redrawn only when the battery appears or disappears, charging starts or stops, or the percentage moves by 5 points |
 | Light sensor (VEML7700) → brightness | ✅ on the breadboard: auto range, power-saving mode, brightness follows the room (below) |
 | Away mode / deep sleep, battery-empty cut-off | ⏳ TODO |
 | OTA download (`ota <url>`) | ⏳ TODO |

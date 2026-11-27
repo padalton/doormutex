@@ -115,6 +115,8 @@ const (
 	margin    = 8
 	headerH   = 60 // symbol + status word
 	footerTop = 182
+	// footerBase is the baseline of the footer's text.
+	footerBase = Height - 5
 )
 
 // Render draws a frame for the state.
@@ -270,7 +272,7 @@ func (c *canvas) footer(lang string, stamp time.Time, b *Battery) {
 	}
 	c.rect(margin, footerTop, Width-margin, footerTop+1, true)
 	f := c.face(regular, 13)
-	base := Height - 5
+	base := footerBase
 	if !stamp.IsZero() {
 		c.text(f, margin, base, tr(lang, "updated", "time", stamp.Format("15:04")))
 	}
@@ -279,13 +281,26 @@ func (c *canvas) footer(lang string, stamp time.Time, b *Battery) {
 	}
 }
 
+// batteryBox is the battery symbol's body for a footer baseline: 24×12,
+// right-aligned. The light draws the same symbol into the hub's frames
+// (firmware/components/dm_core, see battery_c_test.go).
+func batteryBox(base int) (x0, y0, x1, y1 int) {
+	x1 = Width - margin - 3
+	return x1 - 24, base - 11, x1, base + 1
+}
+
+// batteryBolt is the charging bolt over a body starting at (x0, y0).
+func batteryBolt(x0, y0 int) shape {
+	cx, cy := float64(x0+12), float64(y0+6)
+	return func(x, y float64) bool {
+		return triangle(cx+2, cy-6, cx-4, cy+1, cx+1, cy+1)(x, y) || triangle(cx-1, cy-1, cx+4, cy-1, cx-2, cy+6)(x, y)
+	}
+}
+
 func (c *canvas) battery(f font.Face, base int, b Battery) {
 	p := max(0, min(100, b.Percent))
 	// Body 24×12 with a tip, right-aligned; the level fills it.
-	x1 := Width - margin - 3
-	x0 := x1 - 24
-	y0 := base - 11
-	y1 := base + 1
+	x0, y0, x1, y1 := batteryBox(base)
 	c.rect(x0, y0, x1, y1, true)
 	c.rect(x0+2, y0+2, x1-2, y1-2, false)
 	c.rect(x1, y0+3, x1+3, y1-3, true)
@@ -294,11 +309,7 @@ func (c *canvas) battery(f font.Face, base int, b Battery) {
 	}
 	if b.Charging {
 		// A bolt in white with a black outline, over the level.
-		cx, cy := float64(x0+12), float64(y0+6)
-		bolt := func(x, y float64) bool {
-			return triangle(cx+2, cy-6, cx-4, cy+1, cx+1, cy+1)(x, y) || triangle(cx-1, cy-1, cx+4, cy-1, cx-2, cy+6)(x, y)
-		}
-		c.fill(image.Rect(x0, y0-2, x1, y1+2), bolt, false)
+		c.fill(image.Rect(x0, y0-2, x1, y1+2), batteryBolt(x0, y0), false)
 	}
 	label := strconv.Itoa(p) + "%"
 	c.text(f, x0-4-width(f, label), base, label)
@@ -352,9 +363,49 @@ func OfflineFrame(lang string) Frame { return newFrame(Offline(lang)) }
 // content is unchanged – that's the "updated" time in the footer, so the
 // frame doesn't change with every evaluation. It is safe for concurrent use.
 type Display struct {
-	mu    sync.Mutex
-	key   [32]byte
-	since time.Time
+	mu     sync.Mutex
+	key    [32]byte
+	since  time.Time
+	lights map[string]lightBattery // by device ID
+}
+
+type lightBattery struct {
+	b  Battery
+	at time.Time
+}
+
+// SetLight remembers what a light of this profile draws on its sign (its
+// telemetry's eink_battery; nil: nothing, or it moved to another profile).
+// The frames for the lights stay without the battery – each light draws its
+// own; Light puts it into the preview.
+func (d *Display) SetLight(device string, b *Battery) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if b == nil {
+		delete(d.lights, device)
+		return
+	}
+	if d.lights == nil {
+		d.lights = map[string]lightBattery{}
+	}
+	d.lights[device] = lightBattery{b: *b, at: time.Now()}
+}
+
+// Light is the battery the most recently heard light shows, or nil.
+func (d *Display) Light() *Battery {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var last *lightBattery
+	for _, l := range d.lights {
+		if last == nil || l.at.After(last.at) {
+			last = &l
+		}
+	}
+	if last == nil {
+		return nil
+	}
+	b := last.b
+	return &b
 }
 
 // Frame renders the state; battery may be nil.

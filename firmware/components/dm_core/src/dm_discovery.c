@@ -63,6 +63,14 @@ size_t dm_telemetry_json(const dm_telemetry_t *t, char *out, size_t cap)
     cJSON_AddNumberToObject(root, "uptime", t->uptime_s);
     cJSON_AddStringToObject(root, "firmware", t->firmware ? t->firmware : "");
     cJSON_AddStringToObject(root, "reset", t->reset ? t->reset : "unknown");
+    cJSON_AddStringToObject(root, "profile", t->profile ? t->profile : "");
+    // What the sign shows (it moves in steps): the hub draws the same into
+    // its preview of the sign.
+    if (t->eink_battery >= 0) {
+        cJSON_AddNumberToObject(root, "eink_battery", t->eink_battery);
+    } else {
+        cJSON_AddNullToObject(root, "eink_battery");
+    }
     if (t->outage) {
         const dm_outage_t *o = t->outage;
         cJSON *j = cJSON_AddObjectToObject(root, "outage");

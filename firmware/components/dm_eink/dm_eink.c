@@ -5,6 +5,8 @@
 
 #include "dm_eink.h"
 
+#include "dm_battery.h"
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -44,7 +46,9 @@ static struct {
     spi_device_handle_t spi;
     SemaphoreHandle_t mu;
     TaskHandle_t task;
-    uint8_t frame[DM_EINK_BYTES]; // the next frame to draw, under mu
+    uint8_t frame[DM_EINK_BYTES]; // the hub's latest frame, under mu
+    bool have_frame;              // under mu
+    dm_battery_badge_t badge;     // the battery drawn into it, under mu
     bool pending;                 // under mu
     uint32_t shown_crc;           // the frame on the panel, under mu
     bool shown;                   // under mu
@@ -160,23 +164,31 @@ static uint8_t reverse_bits(uint8_t b)
 static void eink_task(void *arg)
 {
     (void)arg;
-    static uint8_t buf[DM_EINK_BYTES]; // drawn outside the lock
+    static uint8_t src[DM_EINK_BYTES]; // the hub's frame with the battery
+    static uint8_t buf[DM_EINK_BYTES]; // as it goes to the panel
     for (;;) {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         xSemaphoreTake(e.mu, portMAX_DELAY);
         bool pending = e.pending;
         e.pending = false;
-        if (pending && e.cfg.rotate_180) {
-            // Last pixel first: the bytes backwards, the bits in each byte too.
-            for (size_t i = 0; i < sizeof(buf); i++) {
-                buf[i] = reverse_bits(e.frame[sizeof(buf) - 1 - i]);
-            }
-        } else if (pending) {
-            memcpy(buf, e.frame, sizeof(buf));
+        dm_battery_badge_t badge = e.badge;
+        if (pending) {
+            memcpy(src, e.frame, sizeof(src));
         }
         xSemaphoreGive(e.mu);
         if (!pending) {
             continue;
+        }
+        if (badge.shown) {
+            dm_battery_draw(src, badge.percent, badge.charging);
+        }
+        if (e.cfg.rotate_180) {
+            // Last pixel first: the bytes backwards, the bits in each byte too.
+            for (size_t i = 0; i < sizeof(buf); i++) {
+                buf[i] = reverse_bits(src[sizeof(buf) - 1 - i]);
+            }
+        } else {
+            memcpy(buf, src, sizeof(buf));
         }
         draw(buf);
         if (!e.ok) {
@@ -249,6 +261,7 @@ esp_err_t dm_eink_show(const uint8_t *frame, size_t len)
         return ESP_OK; // the same frame again, e.g. after a reconnect
     }
     memcpy(e.frame, frame, len);
+    e.have_frame = true;
     e.pending = true;
     e.shown = true;
     e.shown_crc = crc;
@@ -256,4 +269,37 @@ esp_err_t dm_eink_show(const uint8_t *frame, size_t len)
     ESP_LOGI(TAG, "new frame (crc %08lx)", (unsigned long)crc);
     xTaskNotifyGive(e.task);
     return ESP_OK;
+}
+
+void dm_eink_set_battery(int percent, bool charging)
+{
+    if (e.task == NULL) {
+        return;
+    }
+    xSemaphoreTake(e.mu, portMAX_DELAY);
+    bool redraw = dm_battery_badge_update(&e.badge, percent, charging) && e.have_frame;
+    if (redraw) {
+        e.pending = true;
+    }
+    dm_battery_badge_t b = e.badge;
+    xSemaphoreGive(e.mu);
+    if (redraw) {
+        if (b.shown) {
+            ESP_LOGI(TAG, "battery %d %%%s on the sign", b.percent, b.charging ? ", charging" : "");
+        } else {
+            ESP_LOGI(TAG, "battery off the sign");
+        }
+        xTaskNotifyGive(e.task);
+    }
+}
+
+int dm_eink_battery(void)
+{
+    if (e.task == NULL) {
+        return -1;
+    }
+    xSemaphoreTake(e.mu, portMAX_DELAY);
+    int p = e.badge.shown && e.have_frame ? e.badge.percent : -1;
+    xSemaphoreGive(e.mu);
+    return p;
 }
