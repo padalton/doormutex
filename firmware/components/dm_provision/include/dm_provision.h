@@ -19,6 +19,8 @@ typedef struct {
     const char *device_id; // "doormutex-a1b2c3", shown to ESP Web Tools
     const char *firmware;  // version
     void (*on_identify)(void);
+    // on_lamps runs `lamps`: a DM_LAMP_* mask, or DM_LAMPS_AUTO; may be NULL.
+    void (*on_lamps)(int mask);
     // on_status writes live values (sensors, panel) for `show`; may be NULL.
     void (*on_status)(char *out, size_t cap);
 } dm_serial_cfg_t;

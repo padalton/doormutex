@@ -20,6 +20,7 @@ static const char *TAG = "lights";
 #define PWM_MAX ((1u << 12) - 1)
 #define IDENTIFY_STEP_MS 400
 #define IDENTIFY_STEPS 9
+#define TEST_MS (5 * 60 * 1000)
 
 static const uint8_t lamp_bits[3] = {DM_LAMP_RED, DM_LAMP_YELLOW, DM_LAMP_GREEN};
 
@@ -32,6 +33,8 @@ static struct {
     float brightness;
     int supply_mv;
     int identify_left;
+    int test_mask;
+    int64_t test_until_us; // 0: no test
 } s = {.brightness = 0.4f};
 
 static void apply_mask(uint8_t mask)
@@ -51,6 +54,24 @@ static void apply_mask(uint8_t mask)
 static void render_locked(void)
 {
     esp_timer_stop(s.timer); // fine if it isn't running
+    int64_t now = esp_timer_get_time();
+    if (s.test_until_us > now) {
+        // Full brightness, but with the per-lamp levels: the test shows the
+        // balance between the colours, not just the raw LEDs.
+        const int level[3] = {s.cfg.level_red, s.cfg.level_yellow, s.cfg.level_green};
+        for (int ch = 0; ch < 3; ch++) {
+            float l = level[ch] > 0 && level[ch] < 100 ? level[ch] / 100.0f : 1.0f;
+            uint32_t duty = (s.test_mask & lamp_bits[ch]) ? dm_led_duty(l, 0, 0, 0, PWM_MAX) : 0;
+            ledc_set_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)ch, duty);
+            ledc_update_duty(LEDC_LOW_SPEED_MODE, (ledc_channel_t)ch);
+        }
+        esp_timer_start_once(s.timer, (uint64_t)(s.test_until_us - now));
+        return;
+    }
+    if (s.test_until_us != 0) {
+        s.test_until_us = 0;
+        ESP_LOGI(TAG, "lamp test over");
+    }
     if (s.identify_left > 0) {
         apply_mask(lamp_bits[(IDENTIFY_STEPS - s.identify_left) % 3]);
         s.identify_left--;
@@ -152,4 +173,18 @@ void dm_lights_identify(void)
 dm_light_t dm_lights_current(void)
 {
     return s.light;
+}
+
+void dm_lights_test(int mask)
+{
+    xSemaphoreTake(s.mu, portMAX_DELAY);
+    s.test_mask = mask;
+    s.test_until_us = mask >= 0 ? esp_timer_get_time() + (int64_t)TEST_MS * 1000 : 1;
+    if (mask >= 0) {
+        ESP_LOGI(TAG, "lamp test, mask %d", mask);
+    } else {
+        ESP_LOGI(TAG, "lamp test ended");
+    }
+    render_locked();
+    xSemaphoreGive(s.mu);
 }

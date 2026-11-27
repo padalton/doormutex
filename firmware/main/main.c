@@ -468,7 +468,7 @@ void app_main(void)
 #endif
 
     ESP_ERROR_CHECK(dm_net_init());
-    const dm_serial_cfg_t sc = {.device_id = dev.id, .firmware = dev.firmware, .on_identify = identify, .on_status = status};
+    const dm_serial_cfg_t sc = {.device_id = dev.id, .firmware = dev.firmware, .on_identify = identify, .on_lamps = dm_lights_test, .on_status = status};
     ESP_ERROR_CHECK(dm_serial_start(&cfg, &sc));
 
     bool net_started = false;

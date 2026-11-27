@@ -204,6 +204,8 @@ static void handle_line(const char *line)
             "  set KEY VALUE        change a setting (no value: default), then restart\n"
             "  restart              reboot\n"
             "  identify             cycle the lamps\n"
+            "  lamps ryg|all|off    test: these lamps at full power for 5 min\n"
+            "  lamps auto           end the test\n"
             "  factory-reset        forget settings and Wi-Fi\n"
             "keys: mqtt_url mqtt_user mqtt_pass profile base_topic discovery_prefix ntp brightness\n");
         return;
@@ -241,6 +243,16 @@ static void handle_line(const char *line)
             s.sc.on_identify();
         }
         return;
+    case DM_CMD_LAMPS: {
+        int mask = dm_lamps_parse(cmd.key);
+        if (mask == DM_LAMPS_INVALID) {
+            out("lamps: r, y, g in any combination, all, off or auto\n");
+        } else if (s.sc.on_lamps) {
+            s.sc.on_lamps(mask);
+            out(mask == DM_LAMPS_AUTO ? "lamps back to normal\n" : "lamps at full power for 5 min – `lamps auto` ends it\n");
+        }
+        return;
+    }
     case DM_CMD_UNKNOWN:
         out("unknown command – try `help`\n");
         return;

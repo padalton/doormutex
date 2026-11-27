@@ -1,4 +1,5 @@
 #include "dm_config.h"
+#include "dm_pattern.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -163,6 +164,9 @@ void dm_console_parse(const char *line, dm_cmd_t *cmd)
         cmd->kind = DM_CMD_FACTORY_RESET;
     } else if (strcmp(buf, "identify") == 0) {
         cmd->kind = DM_CMD_IDENTIFY;
+    } else if (strcmp(buf, "lamps") == 0) {
+        cmd->kind = DM_CMD_LAMPS;
+        snprintf(cmd->key, sizeof(cmd->key), "%s", rest != NULL ? rest : "");
     } else if (strcmp(buf, "set") == 0 && rest != NULL && *rest != '\0') {
         // set KEY [VALUE…] – the value is the rest of the line (may contain
         // spaces, e.g. a password); no value resets the key.
@@ -179,4 +183,34 @@ void dm_console_parse(const char *line, dm_cmd_t *cmd)
     } else {
         cmd->kind = DM_CMD_UNKNOWN;
     }
+}
+
+int dm_lamps_parse(const char *arg)
+{
+    if (arg == NULL || arg[0] == '\0' || strcmp(arg, "auto") == 0) {
+        return DM_LAMPS_AUTO;
+    }
+    if (strcmp(arg, "off") == 0) {
+        return 0;
+    }
+    if (strcmp(arg, "all") == 0) {
+        return DM_LAMP_RED | DM_LAMP_YELLOW | DM_LAMP_GREEN;
+    }
+    int mask = 0;
+    for (const char *p = arg; *p != '\0'; p++) {
+        switch (*p) {
+        case 'r':
+            mask |= DM_LAMP_RED;
+            break;
+        case 'y':
+            mask |= DM_LAMP_YELLOW;
+            break;
+        case 'g':
+            mask |= DM_LAMP_GREEN;
+            break;
+        default:
+            return DM_LAMPS_INVALID;
+        }
+    }
+    return mask;
 }

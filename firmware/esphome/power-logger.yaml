@@ -1,0 +1,107 @@
+# doormutex power logger – an INA228 on a second ESP32-C6 DevKit measures
+# the light's battery current and reports it to Home Assistant.
+#
+# The INA228 (Adafruit 5832, 15 mΩ shunt) sits high-side in the cell's
+# plus lead, between the protection board's OUT+ (VIN+) and the charger's
+# battery input (VIN−), with its VBUS jumper closed. Discharging reads
+# positive, charging negative. Wiring: docs/breadboard.md → Measuring.
+#
+#   cp secrets.example.yaml secrets.yaml   # Wi-Fi, OTA password
+#   esphome run power-logger.yaml
+#
+# The logger DevKit runs on its own USB supply and shares only GND with the
+# light – never its 3V3.
+#
+# The INA228 integrates charge and energy in hardware, so the counters
+# include every Wi-Fi peak between two readings; they reset when the
+# logger boots or with the button. Charge is signed (net), energy counts
+# both directions – read energy only while the light isn't charging.
+
+substitutions:
+  name: doormutex-power-logger
+
+esphome:
+  name: ${name}
+  friendly_name: doormutex power logger
+  project:
+    name: doormutex.power-logger
+    version: "0.1.0"
+
+esp32:
+  board: esp32-c6-devkitc-1
+  variant: esp32c6
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+improv_serial:
+
+# No key here: Home Assistant hands one over when it adds the device.
+api:
+  encryption: {}
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+i2c:
+  sda: GPIO22
+  scl: GPIO23
+  frequency: 400kHz
+
+sensor:
+  - platform: ina2xx_i2c
+    id: ina
+    model: INA228
+    address: 0x40
+    shunt_resistance: 0.015 ohm
+    max_current: 2.7 A # ±40.96 mV / 15 mΩ
+    adc_range: 1       # ±40.96 mV: ~2.5 µA per step
+    adc_averaging: 128
+    update_interval: 10s
+    current:
+      id: current
+      name: Current
+      accuracy_decimals: 5
+    bus_voltage:
+      id: bus_voltage
+      name: Battery voltage
+      accuracy_decimals: 3
+    shunt_voltage:
+      name: Shunt voltage
+      entity_category: diagnostic
+    power:
+      name: Power
+      accuracy_decimals: 4
+    energy:
+      name: Energy
+      accuracy_decimals: 4
+    charge:
+      id: charge
+      name: Charge
+      accuracy_decimals: 5
+    temperature:
+      name: INA228 temperature
+      entity_category: diagnostic
+
+button:
+  - platform: template
+    name: Reset counters
+    on_press:
+      - lambda: id(ina).reset_energy_counters();
+  - platform: restart
+    name: Restart
+
+# The readings on the USB console too, for checking without Home Assistant.
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("power", "%.3f V  %.2f mA  charge %.4f mAh", id(bus_voltage).state,
+                   id(current).state * 1000.0f, id(charge).state * 1000.0f);

@@ -62,3 +62,4 @@ jobs:
         run: |
           cp firmware/esphome/secrets.example.yaml firmware/esphome/secrets.yaml
           docker run --rm -v "$PWD/firmware/esphome:/config" ghcr.io/esphome/esphome:2026.10.1 config doormutex-mains.yaml
+          docker run --rm -v "$PWD/firmware/esphome:/config" ghcr.io/esphome/esphome:2026.10.1 config power-logger.yaml

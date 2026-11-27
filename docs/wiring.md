@@ -61,9 +61,11 @@ From the + rail through the resistor into the LED's long leg; the LED's short le
 |---|---|---|
 | green (V<sub>F</sub> ~2.9 V) | 47 Ω (yellow violet black) | ~5–10 mA, depending on V<sub>F</sub> |
 | red (V<sub>F</sub> ~2.0 V) | 100 Ω (brown black brown) | ~13 mA |
-| yellow (V<sub>F</sub> ~2.1 V) | 100 Ω (brown black brown) | ~12 mA |
+| yellow (V<sub>F</sub> ~2.1 V) | **47 Ω** (yellow violet black) | ~24 mA |
 
-The rail runs at 3.3 V on purpose: that's roughly the cell voltage just before cut-off, the worst case for the green LED with its high forward voltage. All three stay below the 20 mA the LEDs are rated for.
+The rail runs at 3.3 V on purpose: that's roughly the cell voltage just before cut-off, the worst case for the green LED with its high forward voltage. All three stay below the 30 mA the LEDs are rated for continuously.
+
+**Evening out the colours:** at the same current the Würth yellow (1500 mcd typ.) gives a third of the red (5000) and a sixth of the green (10000), measured on the breadboard with 12–13 mA in all three. Hence 47 Ω for the yellow (the drawing still shows 100 Ω), and the rest in the firmware: `menuconfig → doormutex → LEDs`, levels red **74**, yellow **100**, green **53** %. The level is squared like the brightness, so 74 % gives 55 % duty and 53 % gives 28 %. Check the result with the console command `lamps all`: all three at full brightness with their levels, for five minutes.
 
 ### Step 4: gates to the GPIOs
 
@@ -165,9 +167,10 @@ Safety first: [breadboard → safety for the battery build](breadboard.md#safety
 2. Insert the cell. The CHG LED lights up while it charges.
 3. Unplug USB: the light keeps running on the cell without a reset – that's the power path.
 
-**Check:** Home Assistant shows the battery level and "charging" / "USB power". For the console you need the DevKit's USB again: pull the buck-boost's VOUT wire first (step 11).
+**Check:** Home Assistant shows the battery level and "charging" / "USB power". For the console you need the DevKit's USB again: pull only the wire to the DevKit's 3V3 pin first. LEDs, e-paper and sensors stay on the buck-boost, so leave the cell in – without it the firmware waits for the e-paper at boot and the console never starts.
 
 ## Notes
 
 - **Pins on the PCB:** the assignment here becomes the schematic once the breadboard has confirmed it.
+- **Ground in stage 2:** the ESP32-C6 draws 300–500 mA for a moment when Wi-Fi starts. On the breadboard, the ground return over a poor rail contact dropped 0.1–0.2 V; the DevKit then reset in a loop, and all LEDs, also those on the other boards, flickered in time. Give the DevKit its own short GND (and 3V3) wire straight from the buck-boost: measured from the buck-boost's GND to the DevKit's G under load it must read well under 0.02 V.
 - **LED supply:** the stage 2 drawings keep the LEDs on 3.3 V. The PCB plan feeds them from the cell after the under-voltage cut-off. Whether the green LED still reaches its brightness there near cut-off is exactly what stage 1 (LED rail at 3.3 V) measures.

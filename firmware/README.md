@@ -91,6 +91,8 @@ Kept free: 4, 5, 8, 9, 15 (strapping; 8 is the DevKit's RGB LED, 9 the BOOT butt
    | `show` | device ID, Wi-Fi, live values (lamp, ambient light and brightness, battery, e-ink panel), settings (password masked) |
    | `set KEY VALUE` | `mqtt_url` (`mqtt://`, `mqtts://`, `ws://`, `wss://`), `mqtt_user`, `mqtt_pass`, `profile`, `base_topic` (default `doormutex`), `discovery_prefix` (`homeassistant`), `ntp` (`pool.ntp.org`), `brightness` (1–100, default 40). No value = default. Applies after `restart` |
    | `identify` | lamps cycle red → yellow → green |
+   | `lamps ryg`, `lamps all`, `lamps off` | test: the chosen lamps at full brightness with their per-lamp levels (no dimming or compensation) for five minutes – to balance the colours and to measure the LED currents |
+   | `lamps auto` | end the test, back to the hub's pattern |
    | `restart`, `factory-reset` | the latter forgets settings and Wi-Fi |
 
    Settings live in NVS (namespace `doormutex`), Wi-Fi in the Wi-Fi driver's own NVS area.
