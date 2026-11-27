@@ -31,6 +31,11 @@ void dm_lights_set_supply_mv(int mv);
 // returns to the current pattern ("which light is this?" from HA).
 void dm_lights_identify(void);
 
+// dm_lights_test lights the lamps in mask (DM_LAMP_* bits, 0 = all off)
+// at full brightness – only the per-lamp levels apply, no dimming or
+// compensation – for five minutes, to compare and balance them. A negative mask ends the test.
+void dm_lights_test(int mask);
+
 dm_light_t dm_lights_current(void);
 
 #ifdef __cplusplus

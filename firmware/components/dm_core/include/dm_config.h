@@ -57,6 +57,7 @@ typedef enum {
     DM_CMD_RESTART,
     DM_CMD_FACTORY_RESET,
     DM_CMD_IDENTIFY,
+    DM_CMD_LAMPS, // lamps ryg|off|auto – key holds the argument
     DM_CMD_UNKNOWN,
 } dm_cmd_kind_t;
 
@@ -68,6 +69,12 @@ typedef struct {
 
 // dm_console_parse parses one line (trailing CR/LF allowed).
 void dm_console_parse(const char *line, dm_cmd_t *cmd);
+
+// dm_lamps_parse reads the argument of `lamps`: any of the letters r, y, g
+// (DM_LAMP_* bits), "all", "off" (0), or "auto"/empty to end the test.
+#define DM_LAMPS_AUTO (-1)
+#define DM_LAMPS_INVALID (-2)
+int dm_lamps_parse(const char *arg);
 
 #ifdef __cplusplus
 }

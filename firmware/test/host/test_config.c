@@ -1,5 +1,6 @@
 #include "check.h"
 #include "dm_config.h"
+#include "dm_pattern.h"
 
 void test_config(void)
 {
@@ -58,6 +59,20 @@ void test_config(void)
     CHECK_INT(cmd.kind, DM_CMD_SHOW);
     dm_console_parse("\r\n", &cmd);
     CHECK_INT(cmd.kind, DM_CMD_NONE);
+    dm_console_parse("lamps ryg\n", &cmd);
+    CHECK_INT(cmd.kind, DM_CMD_LAMPS);
+    CHECK_STR(cmd.key, "ryg");
+    dm_console_parse("lamps", &cmd);
+    CHECK_INT(cmd.kind, DM_CMD_LAMPS);
+    CHECK_STR(cmd.key, "");
+    CHECK_INT(dm_lamps_parse("ryg"), DM_LAMP_RED | DM_LAMP_YELLOW | DM_LAMP_GREEN);
+    CHECK_INT(dm_lamps_parse("y"), DM_LAMP_YELLOW);
+    CHECK_INT(dm_lamps_parse("gr"), DM_LAMP_RED | DM_LAMP_GREEN);
+    CHECK_INT(dm_lamps_parse("all"), DM_LAMP_RED | DM_LAMP_YELLOW | DM_LAMP_GREEN);
+    CHECK_INT(dm_lamps_parse("off"), 0);
+    CHECK_INT(dm_lamps_parse("auto"), DM_LAMPS_AUTO);
+    CHECK_INT(dm_lamps_parse(""), DM_LAMPS_AUTO);
+    CHECK_INT(dm_lamps_parse("rx"), DM_LAMPS_INVALID);
     dm_console_parse("factory-reset", &cmd);
     CHECK_INT(cmd.kind, DM_CMD_FACTORY_RESET);
     dm_console_parse("identify", &cmd);

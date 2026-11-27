@@ -15,7 +15,7 @@ The first hardware prototype is built from ready-made modules on a breadboard �
 | **1 – firmware & optics** | USB-C from the PC | visibility at 5 m (one LED behind a 30 mm lens), Wi-Fi + MQTT, LEDs via LEDC PWM (also in light sleep – the biggest technical risk), e-ink with partial refresh, light sensor, lens test prints, module current measurement |
 | **2 – battery** | 18650 via charger + protection | power path (plug/unplug USB while running), fuel gauge, over-discharge protection, real runtime, green LED at low cell voltage |
 
-**Measuring:** the ESP32-C6-DevKitC-1 has jumper **J5**. Pull it and put an ammeter in its place to measure only the module current, without the board's USB chip and power LED.
+**Measuring:** the ESP32-C6-DevKitC-1 has jumper **J5**. Pull it and put an ammeter in its place to measure only the module current, without the board's USB chip and power LED. For the battery build there is a [power logger](#power-logger-ina228) that records the cell's current in Home Assistant.
 
 **Tip for stage 1:** feed the LED rail from 3.3 V instead of 5 V. That is roughly the cell voltage just before cut-off, i.e. the worst case for the green LED (forward voltage ~2.7–3.0 V).
 
@@ -183,6 +183,32 @@ The DevKit's 3V3 pin takes at most 3.6 V – 4.2 V destroys the ESP32-C6. The mo
 | Kiwi Electronics (NL) | fallback for the bq24074 (Adafruit 4755) if DigiKey runs out |
 | Mouser | doesn't ship Adafruit products to private customers in the EU |
 | Pimoroni (UK) | customs since Brexit |
+
+## Power logger (INA228)
+
+How much the light really draws from the cell, as a curve and as mAh per day: an Adafruit INA228 (15 mΩ shunt) in the cell's plus lead, read by the spare DevKit running [ESPHome](../firmware/esphome/power-logger.yaml). The INA228 integrates charge and energy in hardware, so the counters include every Wi-Fi peak between two readings.
+
+```
+cell ─ TP4056 ─ OUT+ ──► VIN+ [INA228 15 mΩ] VIN− ──► bq24074 LIPO
+```
+
+| Connection | From | To |
+|---|---|---|
+| measuring path (thick leads, screw terminals) | TP4056 **OUT+** | INA228 **VIN+** |
+| | INA228 **VIN−** | bq24074 **LIPO** |
+| bus voltage | solder the **VBUS** jumper on the back closed (VBUS = VIN+) | |
+| I²C, STEMMA QT cable | INA228 VIN / GND / SDA (blue) / SCL (yellow) | logger DevKit 3V3 / G / GPIO 22 / GPIO 23 |
+| common ground | logger DevKit **G** | the light's GND (− rail) |
+
+- **Only GND is shared.** The logger DevKit runs on its own USB supply; its 3V3 goes to the INA228 and nowhere else.
+- **The plus lead, not the supply line:** in the battery lead the logger sees discharging (positive) and charging (negative), including the charger's own draw. Between the bq24074's OUT and the buck-boost it would miss both.
+- **Check:** the logger's console prints voltage, current and charge every 10 s; in Home Assistant the device *doormutex power logger* shows up under *Discovered*. First reading of the breadboard light on the cell (Wi-Fi connected, one lamp lit): about 9–10 mA at 4.0 V.
+
+```bash
+cd firmware/esphome
+cp secrets.example.yaml secrets.yaml   # Wi-Fi and OTA password
+esphome run power-logger.yaml           # or: docker run … ghcr.io/esphome/esphome run power-logger.yaml
+```
 
 ## Safety for the battery build (stage 2)
 
