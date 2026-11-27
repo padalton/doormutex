@@ -56,6 +56,13 @@ BODY = {
 }
 
 
+# Parts whose pegs come out on the other side of the board: footprint ->
+# (how far the pegs reach below the part's seating plane, their diameter).
+# Only the holes of at least 3 mm count: the holder's third peg is shorter
+# than the board is thick.
+PEGS = {"BAT-SMD_1042P": (3.3, 3.7)}   # from the part's 3D model; Keystone gives 3.7 mm for the barbs
+
+
 def height_of(name):
     for prefix, h in HEIGHT:
         if name.startswith(prefix):
@@ -93,6 +100,14 @@ def parts():
             continue
         x0, y0, x1, y1 = board_box(fp, BODY.get(name))
         rows.append((fp.GetReference(), x0, y0, x1, y1, h, 0 if fp.GetLayer() == pcbnew.B_Cu else 1))
+        if name in PEGS:
+            reach, d = PEGS[name]
+            ox, oy = gen_pcb.ORIGIN
+            for pad in fp.Pads():
+                if not pad.GetNumber() and pcbnew.ToMM(pad.GetDrillSize().x) >= 3.0:
+                    px, py = pcbnew.ToMM(pad.GetPosition().x) - ox, pcbnew.ToMM(pad.GetPosition().y) - oy
+                    rows.append((fp.GetReference() + " peg", px - d / 2, py - d / 2, px + d / 2, py + d / 2,
+                                 reach - board.GetDesignSettings().GetBoardThickness() / 1e6, 1 if fp.GetLayer() == pcbnew.B_Cu else 0))
     if unknown:
         sys.exit("no height in export_scad.py for: " + ", ".join(unknown))
     return board, rows
