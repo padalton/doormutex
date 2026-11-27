@@ -226,9 +226,11 @@ LABELS = [
     # title block, left of the QR code
     ("PCB " + REV, 18.2, 160.2, B, 1.5), (DATE, 18.2, 162.6, B, 1.2),
     ("doormutex.org", 18.2, 165.2, B, 1.1), ("CERN-OHL-S-2.0", 18.2, 167.4, B, 0.9),
-    # The lamps by what they say, in errno: the front faces the reflector
-    # cones and is never seen again once the light is closed.
-    ("16 EBUSY", X_MID, LAMP_Y["R"] + 8.0, F, 1.2), ("11 EAGAIN", X_MID, LAMP_Y["Y"] + 8.0, F, 1.2), ("0 OK", X_MID, LAMP_Y["G"] + 8.0, F, 1.2),
+    # The lamps by what they answer, in HTTP: red is the mutex itself, yellow
+    # asks for fewer requests. The front faces the reflector cones and is
+    # never seen again once the light is closed.
+    ("423 Locked", X_MID, LAMP_Y["R"] + 8.0, F, 1.2), ("429 Too Many Requests", X_MID, LAMP_Y["Y"] + 8.0, F, 1.2),
+    ("200 OK", X_MID, LAMP_Y["G"] + 8.0, F, 1.2),
     ("// if you can read this, I am not busy", X_MID, 160.0, F, 0.9),
     # under the cell, readable through the holder's floor when the cell is out
     ("mutex_lock(&door);", 20.5, 70.0, B, 1.6, 90),
