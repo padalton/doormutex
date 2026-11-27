@@ -44,3 +44,4 @@ void test_pattern(void);
 void test_improv(void);
 void test_config(void);
 void test_discovery(void);
+void test_battery(void);

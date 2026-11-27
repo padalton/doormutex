@@ -65,6 +65,8 @@ typedef struct {
     const char *firmware;
     const char *reset;         // why the chip last started, e.g. "power_on", "net_watchdog"
     const dm_outage_t *outage; // set after a watchdog restart, else NULL
+    const char *profile;       // the hub profile the light shows
+    int eink_battery;          // the percentage drawn on the e-ink sign, < 0 = none
 } dm_telemetry_t;
 
 // dm_telemetry_json writes the telemetry document; returns its length or

@@ -343,6 +343,9 @@ paths:
         The 200×200 black-and-white frame of the 1.54″ sign as a 1-bit PNG –
         the same content as `eink.bin`. The footer shows the time the content
         last changed, so the frame (and its ETag) only changes with the content.
+        Unlike `eink.bin` it also shows the battery a light of this profile
+        draws on its sign (from the light's telemetry `eink_battery`), so the
+        preview matches the sign; `battery` overrides it.
       operationId: getEinkPNG
       responses:
         "200":

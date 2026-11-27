@@ -228,8 +228,10 @@ static void publish_telemetry(const char *light, const char *fault, const dm_pow
         .firmware = dev.firmware,
         .reset = reset_reason,
         .outage = last_outage,
+        .profile = dev.profile,
+        .eink_battery = dm_eink_battery(),
     };
-    char doc[512];
+    char doc[640];
     size_t n = dm_telemetry_json(&t, doc, sizeof(doc));
     if (n > 0) {
         dm_net_publish(topics.telemetry, doc, n, true);
@@ -290,6 +292,7 @@ static void run(bool net_started)
     int64_t next_telemetry = 0;
     dm_fault_t last_fault = DM_FAULT_BOOTING;
     dm_power_t last_power = {0};
+    int last_eink_battery = -1;
     float lux = -1.0f; // smoothed ambient light, < 0 = no sensor (yet)
     float brightness = cfg.brightness / 100.0f;
     static dm_state_t st;
@@ -347,6 +350,7 @@ static void run(bool net_started)
         if (pw.gauge) {
             dm_lights_set_supply_mv(pw.cell_mv);
         }
+        dm_eink_set_battery(pw.gauge ? (int)(pw.soc_pct + 0.5f) : -1, pw.charging);
         float raw;
         if (dm_ambient_lux(&raw)) {
             // Smooth out a passing shadow; the eye adapts slowly as well.
@@ -360,7 +364,9 @@ static void run(bool net_started)
         }
         live.lux = lux;
         live.brightness = brightness;
-        bool changed = fault != last_fault || pw.charging != last_power.charging || pw.usb != last_power.usb;
+        int eink_battery = dm_eink_battery();
+        bool changed = fault != last_fault || pw.charging != last_power.charging || pw.usb != last_power.usb ||
+                       eink_battery != last_eink_battery;
         if (announce) {
             publish_discovery();
         }
@@ -370,6 +376,7 @@ static void run(bool net_started)
         }
         last_fault = fault;
         last_power = pw;
+        last_eink_battery = eink_battery;
         // TODO(firmware): away mode (deep sleep + polling while the PC is
         // locked), battery-empty screen and cut-off.
     }

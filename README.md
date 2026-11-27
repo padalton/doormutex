@@ -373,7 +373,7 @@ The hub only creates entities via MQTT discovery (one device per profile, device
 | `doormutex/<profile>/message/set` | command from HA: e-ink message, empty clears it |
 | `doormutex/hub/online` | `online` / `offline`, retained; `offline` is the hub's Last Will → failsafe on the light |
 | `doormutex/<profile>/display` | retained e-ink frame rendered by the hub, 5000 bytes like `GET /api/v1/eink.bin`; only sent when it changes; without battery (the light draws its own) |
-| `doormutex/device/<id>/telemetry` | retained JSON from the light: battery, voltage, charging, USB, RSSI, light, fault, firmware ([firmware/README.md](firmware/README.md#mqtt)) |
+| `doormutex/device/<id>/telemetry` | retained JSON from the light: battery, voltage, charging, USB, RSSI, light, fault, firmware, profile and the battery it draws on its sign – the hub puts that into the web preview ([firmware/README.md](firmware/README.md#mqtt)) |
 | `doormutex/device/<id>/online` | `online` / `offline` – the light's Last Will |
 | `doormutex/device/<id>/cmd` | `identify`, `restart`, `ota <url>` |
 
