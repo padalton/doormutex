@@ -52,13 +52,17 @@ def gerbers():
         layers = "F.Cu,In1.Cu,In2.Cu,B.Cu,F.Paste,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts"
         subprocess.run(["kicad-cli", "pcb", "export", "gerbers", "--layers", layers, "--subtract-soldermask",
                         "--no-protel-ext", "-o", tmp + "/", PCB], check=True, capture_output=True)
+        # No drill maps: they draw a legend beside the board, and JLCPCB's order
+        # form then takes the board for 71 mm wide instead of 41. No job file
+        # either – the layers and the two drill files are all JLCPCB reads.
         subprocess.run(["kicad-cli", "pcb", "export", "drill", "--format", "excellon", "--excellon-separate-th",
-                        "--generate-map", "--map-format", "gerberx2", "-o", tmp + "/", PCB], check=True, capture_output=True)
+                        "-o", tmp + "/", PCB], check=True, capture_output=True)
+        files = sorted(f for f in os.listdir(tmp) if f.endswith((".gbr", ".drl")))
         path = os.path.join(OUT, "doormutex-gerbers.zip")
         with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-            for f in sorted(os.listdir(tmp)):
+            for f in files:
                 z.write(os.path.join(tmp, f), f)
-        return path, len(os.listdir(tmp))
+        return path, len(files)
 
 
 def pad_centre(fp):
