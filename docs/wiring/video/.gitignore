@@ -4,3 +4,4 @@ compositions/
 # HyperFrames working files and renders
 .hyperframes/
 *.mp4
+*.jpg
