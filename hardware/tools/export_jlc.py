@@ -104,14 +104,20 @@ def bom_cpl():
         bottom = fp.GetLayer() == pcbnew.B_Cu
         rows.append([ref, f"{pcbnew.ToMM(pos.x - origin.x):.3f}mm", f"{-pcbnew.ToMM(pos.y - origin.y):.3f}mm",
                      "Bottom" if bottom else "Top", f"{jlc_rotation(fp):.0f}"])
-        key = (fp.GetValue(), fp.GetFPIDAsString().split(":")[-1], lcsc)
-        groups.setdefault(key, []).append(ref)
+        # One BOM line per JLCPCB part: with RESET and BOOT, or the seven test
+        # points, on lines of their own JLCPCB's BOM tool finds "multiple
+        # lines matched to the same part" and leaves them all unselected.
+        group = groups.setdefault(lcsc, {"values": [], "footprint": fp.GetFPIDAsString().split(":")[-1], "refs": []})
+        group["refs"].append(ref)
+        if fp.GetValue() not in group["values"]:
+            group["values"].append(fp.GetValue())
     bom = os.path.join(OUT, "doormutex-bom.csv")
     with open(bom, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["Comment", "Designator", "Footprint", "LCSC"])
-        for (value, footprint, lcsc), refs in sorted(groups.items(), key=lambda kv: kv[1][0]):
-            w.writerow([value, ",".join(sorted(refs, key=lambda r: (r.rstrip("0123456789"), int("0" + r.lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))))), footprint, lcsc])
+        order = lambda r: (r.rstrip("0123456789"), int("0" + r.lstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ")))
+        for lcsc, g in sorted(groups.items(), key=lambda kv: order(min(kv[1]["refs"], key=order))):
+            w.writerow([" / ".join(g["values"]), ",".join(sorted(g["refs"], key=order)), g["footprint"], lcsc])
     cpl = os.path.join(OUT, "doormutex-cpl.csv")
     with open(cpl, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
