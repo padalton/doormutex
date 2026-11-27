@@ -209,7 +209,8 @@ function stage1() {
     // 4 – gate to the GPIO
     const p = gpio(r.gpio);
     add(4, wire([[MX - 30, y - 64], [MX - 30, y - 90], [r.lane, y - 90], [r.lane, p.y], [p.x, p.y]], r.color, { dots: [4] }));
-    add(4, text(r.lane - 14, y - 98, `GPIO ${r.gpio}`, { size: 18, fill: r.color, anchor: "end", weight: 700 }));
+    // red text a shade lighter: the LED red is just under 4.5:1 on the background
+    add(4, text(r.lane - 14, y - 98, `GPIO ${r.gpio}`, { size: 18, fill: r.color === C.red ? "#ff6b63" : r.color, anchor: "end", weight: 700 }));
   }
 
   // 5 – e-paper module (Waveshare 1.54" V2) on the right. Its header,
@@ -262,8 +263,16 @@ function stage1() {
 
 // ---- stage 2: only the new parts; the stage 1 wiring stays. The power
 // chain takes the left half, the fuel gauge sits next to the I²C pins.
+//
+// Two sets of parts (docs/breadboard.md): "tp4056" is the default from
+// Amazon.de – a TP4056 module of which only the protection is used, and a
+// TPS63020 buck-boost; "pololu" the Opencircuit alternative – a bare
+// protection board and the Pololu S7V8F3. The wiring is the same.
 
-function stage2() {
+export const VARIANTS = ["tp4056", "pololu"];
+
+function stage2(variant = "tp4056") {
+  const tp = variant === "tp4056";
   const steps = {};
   const add = (n, s) => (steps[n] = (steps[n] || "") + s);
   const L = RAIL;
@@ -289,11 +298,25 @@ function stage2() {
   c += text(hx + 36, hy + 55, "−", { size: 30, anchor: "middle", fill: "#fff", weight: 800 });
   c += text(hx + 220, hy - 14, "cell holder – insert the cell last", { size: 18, anchor: "middle", fill: C.muted });
   const px = 290, py = 380;
-  c += moduleBox(px, py, 200, 120, "", "", "#2a2133");
-  c += text(px + 100, py + 62, "protection", { size: 20, weight: 700, anchor: "middle" });
-  c += text(px + 100, py + 82, "DW01A + 8205A", { size: 14, fill: C.muted, anchor: "middle" });
-  c += pad(px + 40, py, "B−", "bottom") + pad(px + 160, py, "B+", "bottom");
-  c += pad(px + 40, py + 120, "P−", "top") + pad(px + 160, py + 120, "P+", "top");
+  if (tp) {
+    // TP4056 module: its USB socket stays empty, the bq24074 is the charger
+    c += moduleBox(px - 50, py, 250, 120, "", "", "#2a2133");
+    c += text(px + 100, py + 56, "TP4056 module", { size: 20, weight: 700, anchor: "middle" });
+    c += text(px + 100, py + 78, "protection only", { size: 15, fill: C.muted, anchor: "middle" });
+    c += pad(px + 40, py, "B−", "bottom") + pad(px + 160, py, "B+", "bottom");
+    c += pad(px + 40, py + 120, "OUT−", "top") + pad(px + 160, py + 120, "OUT+", "top");
+    const ux = px - 50, uy = py + 42;
+    c += `<rect x="${ux - 14}" y="${uy}" width="30" height="40" rx="8" fill="#9aa0a8"/>`;
+    c += `<path d="M${ux - 24} ${uy - 8} l50 56 M${ux + 26} ${uy - 8} l-50 56" stroke="${C.red}" stroke-width="6" stroke-linecap="round"/>`;
+    c += text(ux - 34, uy + 14, "USB:", { size: 17, fill: "#ff6b63", anchor: "end", weight: 700 });
+    c += text(ux - 34, uy + 36, "leave empty", { size: 17, fill: "#ff6b63", anchor: "end", weight: 700 });
+  } else {
+    c += moduleBox(px, py, 200, 120, "", "", "#2a2133");
+    c += text(px + 100, py + 62, "protection", { size: 20, weight: 700, anchor: "middle" });
+    c += text(px + 100, py + 82, "DW01A + 8205A", { size: 14, fill: C.muted, anchor: "middle" });
+    c += pad(px + 40, py, "B−", "bottom") + pad(px + 160, py, "B+", "bottom");
+    c += pad(px + 40, py + 120, "P−", "top") + pad(px + 160, py + 120, "P+", "top");
+  }
   add(8, c);
   add(8, wire([[hx + 440, hy + 45], [660, hy + 45], [660, 350], [px + 160, 350], [px + 160, py]], C.bat, { dots: [4] }));
   add(8, wire([[hx, hy + 45], [150, hy + 45], [150, 350], [px + 40, 350], [px + 40, py]], "#94a3b8", { dots: [4] }));
@@ -334,10 +357,22 @@ function stage2() {
   // 11 – buck-boost 3.3 V from the charger output onto the + rail
   const rx = 300, ry = 790;
   let r = moduleBox(rx, ry, 240, 110, "", "", "#2a2133");
-  r += text(rx + 110, ry + 62, "S7V8F3", { size: 22, weight: 700 });
+  r += text(rx + 110, ry + 62, tp ? "TPS63020" : "S7V8F3", { size: 22, weight: 700 });
   r += text(rx + 110, ry + 86, "buck-boost 3.3 V", { size: 15, fill: C.muted });
   r += pad(rx + 100, ry, "VIN", "bottom");
   r += pad(rx, ry + 44, "VOUT", "right") + pad(rx, ry + 84, "GND", "right");
+  if (tp) {
+    // reminder: the module ships at 4.2 V; only the 3.3 V jumper closed
+    const jx = 570, jy = 800;
+    r += `<rect x="${jx}" y="${jy}" width="200" height="96" rx="10" fill="#1f2a44" stroke="#3a4560" stroke-width="2"/>`;
+    r += text(jx + 100, jy + 26, "solder jumper", { size: 16, fill: C.muted, anchor: "middle" });
+    [["3.3", true], ["4.2", false], ["5", false]].forEach(([n, closed], i) => {
+      const cx = jx + 40 + i * 60;
+      r += `<rect x="${cx - 18}" y="${jy + 44}" width="14" height="22" rx="2" fill="#d4af37"/><rect x="${cx + 4}" y="${jy + 44}" width="14" height="22" rx="2" fill="#d4af37"/>`;
+      if (closed) r += `<ellipse cx="${cx}" cy="${jy + 55}" rx="21" ry="13" fill="#c9ccd2"/>`;
+      r += text(cx, jy + 88, n, { size: 16, anchor: "middle", fill: closed ? C.text : C.muted, weight: closed ? 700 : 500 });
+    });
+  }
   add(11, r);
   add(11, wire([[bx + 200, by + 200], [rx + 100, ry]], C.sys));
   add(11, wire([[rx, ry + 44], [L.lp, ry + 44]], C.v33));
@@ -385,9 +420,10 @@ svg[data-show] .step.now{display:inline;opacity:1}
 
 // svg returns the drawing of one stage. show = step to highlight
 // (earlier steps dimmed, later hidden); 0 or undefined shows everything.
-// prefix keeps ids unique when both stages share a page (the video).
-export function svg(stage, show = 0, { caption = true, prefix = "" } = {}) {
-  const { steps, base } = stage === 1 ? stage1() : stage2();
+// prefix keeps ids unique when both stages share a page (the video);
+// variant picks the stage 2 parts (VARIANTS).
+export function svg(stage, show = 0, { caption = true, prefix = "", variant = "tp4056" } = {}) {
+  const { steps, base } = stage === 1 ? stage1() : stage2(variant);
   let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"${show ? ` data-show="${show}"` : ""}>`;
   s += `<style>${STYLE}</style><rect width="${W}" height="${H}" fill="${C.bg}"/>`;
   s += `<g id="base">${base}</g>`;
@@ -405,9 +441,80 @@ export function svg(stage, show = 0, { caption = true, prefix = "" } = {}) {
   return prefix ? s.replace(/id="(holes|base|pin-labels)"/g, `id="${prefix}$1"`).replace(/url\(#holes\)/g, `url(#${prefix}holes)`) : s;
 }
 
+// ---- close-up: setting a TPS63020 module from 4.2 V to 3.3 V (video only)
+//
+// The module's pads and jumper labels differ between sellers; this is the
+// principle, not a photo. Ids start with "j-": the video animates them –
+// braid and iron over the 4.2 V blob, a new blob on 3.3 V, then the meter.
+
+export function jumperSvg() {
+  const J = { y: 520, pairs: [["3.3 V", 760], ["4.2 V", 960], ["5 V", 1160]] };
+  const iron = `<g id="j-iron">` +
+    `<polygon points="120,-300 150,-290 200,-520 160,-534" fill="#2a4a8a"/>` +
+    `<polygon points="22,-70 44,-62 150,-290 120,-300" fill="#6b7079"/>` +
+    `<polygon points="0,0 22,-70 44,-62" fill="#c3c7ce"/>` +
+    `<circle id="j-bead" cx="8" cy="-14" r="11" fill="#dfe2e7"/></g>`;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">`;
+  s += `<defs><pattern id="j-hatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">` +
+    `<rect width="14" height="14" fill="#b8743a"/><rect width="7" height="14" fill="#d9925a"/></pattern></defs>`;
+  s += `<rect width="${W}" height="${H}" fill="${C.bg}"/>`;
+
+  // the module
+  s += `<rect x="520" y="170" width="880" height="470" rx="18" fill="#1d3f7a" stroke="#2f5aa3" stroke-width="3"/>`;
+  s += text(560, 224, "TPS63020 module", { size: 30, weight: 700 });
+  s += `<rect x="760" y="270" width="80" height="80" rx="6" fill="#111317"/>`;
+  s += `<rect x="900" y="246" width="140" height="140" rx="14" fill="#3a3d45"/>`;
+  for (const [x, y, n, side] of [[560, 300, "VIN", "right"], [560, 380, "GND", "right"], [1360, 300, "VOUT", "left"], [1360, 380, "GND", "left"]]) {
+    s += `<circle cx="${x}" cy="${y}" r="14" fill="#d4af37" stroke="#8a6d1d" stroke-width="3"/>`;
+    s += text(side === "right" ? x + 26 : x - 26, y + 10, n, { size: 28, weight: 700, anchor: side === "right" ? "start" : "end" });
+  }
+  s += `<rect x="680" y="430" width="560" height="150" rx="12" fill="none" stroke="#e8e9ec" stroke-opacity=".35" stroke-width="2" stroke-dasharray="8 8"/>`;
+  for (const [n, cx] of J.pairs) {
+    s += text(cx, 474, n, { size: 30, weight: 700, anchor: "middle" });
+    s += `<rect x="${cx - 48}" y="492" width="40" height="56" rx="4" fill="#d4af37"/><rect x="${cx + 8}" y="492" width="40" height="56" rx="4" fill="#d4af37"/>`;
+  }
+  const blob = (id, cx) => `<g id="${id}"><ellipse cx="${cx}" cy="${J.y}" rx="54" ry="32" fill="#c9ccd2"/><ellipse cx="${cx - 14}" cy="${J.y - 10}" rx="18" ry="8" fill="#fff" opacity=".55"/></g>`;
+  s += blob("j-blob42", 960) + blob("j-blob33", 760);
+  s += `<ellipse id="j-flux42" cx="960" cy="${J.y}" rx="70" ry="44" fill="#f5b301" fill-opacity=".35"/>`;
+  s += `<ellipse id="j-flux33" cx="760" cy="${J.y}" rx="70" ry="44" fill="#f5b301" fill-opacity=".35"/>`;
+  s += `<rect id="j-ring" x="886" y="438" width="148" height="128" rx="16" fill="none" stroke="#f5b301" stroke-width="6"/>`;
+  s += `<g id="j-braid"><rect x="928" y="290" width="64" height="262" rx="6" fill="url(#j-hatch)"/>` +
+    `<rect id="j-braid-wet" x="928" y="486" width="64" height="66" rx="6" fill="#c9ccd2"/></g>`;
+  s += iron;
+
+  // multimeter
+  let m = `<rect x="1490" y="190" width="320" height="500" rx="26" fill="#f2b705"/>`;
+  m += `<rect x="1520" y="220" width="260" height="120" rx="10" fill="#a9c29a"/>`;
+  m += `<text id="j-d-idle" x="1650" y="300" ${font} font-size="60" font-weight="700" fill="#1b1d22" text-anchor="middle">– – –</text>`;
+  m += `<text id="j-d-ol" x="1650" y="304" ${font} font-size="72" font-weight="800" fill="#1b1d22" text-anchor="middle">OL</text>`;
+  m += `<text id="j-d-v" x="1650" y="304" ${font} font-size="64" font-weight="800" fill="#1b1d22" text-anchor="middle">3.30 V</text>`;
+  m += `<circle cx="1650" cy="525" r="80" fill="#2b2d33"/>`;
+  m += text(1650, 430, "OFF", { size: 22, fill: "#1b1d22", anchor: "middle", weight: 700 });
+  m += text(1562, 462, "Ω", { size: 30, fill: "#1b1d22", anchor: "middle", weight: 800 });
+  m += text(1738, 462, "V", { size: 30, fill: "#1b1d22", anchor: "middle", weight: 800 });
+  m += `<rect id="j-ptr" x="1644" y="457" width="12" height="74" rx="6" fill="#e8e9ec"/>`;
+  m += `<circle cx="1600" cy="650" r="16" fill="${C.red}"/><circle cx="1700" cy="650" r="16" fill="#111317"/>`;
+  s += `<g id="j-meter">${m}</g>`;
+  s += `<text id="j-beep" x="1650" y="382" ${font} font-size="26" font-weight="700" fill="#1b1d22" text-anchor="middle">no beep – open</text>`;
+  // probes: continuity across the 4.2 V pads, then the output
+  s += `<g id="j-pc">` + wire([[1600, 650], [1600, 770], [988, 770], [988, 540]], C.red) + wire([[1700, 650], [1700, 800], [932, 800], [932, 540]], "#94a3b8") + `</g>`;
+  s += `<g id="j-pv">` + wire([[1600, 650], [1600, 720], [1450, 720], [1450, 300], [1360, 300]], C.red) + wire([[1700, 650], [1700, 750], [1420, 750], [1420, 380], [1360, 380]], "#94a3b8") + `</g>`;
+
+  // a cell on the input
+  let c = `<rect x="140" y="268" width="320" height="64" rx="30" fill="#2d6cdf"/>`;
+  c += text(300, 310, "18650", { size: 28, weight: 800, anchor: "middle" });
+  c += text(444, 312, "+", { size: 32, weight: 800, anchor: "middle" }) + text(158, 312, "−", { size: 32, weight: 800, anchor: "middle" });
+  c += text(300, 250, "cell or 3–5 V", { size: 28, fill: C.muted, anchor: "middle" });
+  s += `<g id="j-cell">${c}</g>`;
+  s += `<g id="j-cw">` + wire([[460, 300], [560, 300]], C.bat) + wire([[140, 300], [110, 300], [110, 380], [560, 380]], "#94a3b8") + `</g>`;
+  s += `<text id="j-ok" x="960" y="770" ${font} font-size="44" font-weight="800" fill="${C.green}" text-anchor="middle">3.3 V – now onto the + rail</text>`;
+  return s + "</svg>\n";
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dir = dirname(fileURLToPath(import.meta.url));
   writeFileSync(join(dir, "stage1.svg"), svg(1));
   writeFileSync(join(dir, "stage2.svg"), svg(2));
+  writeFileSync(join(dir, "stage2-pololu.svg"), svg(2, 0, { variant: "pololu" }));
   for (let k = 1; k <= 13; k++) writeFileSync(join(dir, `step-${String(k).padStart(2, "0")}.svg`), svg(k <= 7 ? 1 : 2, k));
 }

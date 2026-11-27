@@ -161,6 +161,8 @@ The DevKit's 3V3 pin takes at most 3.6 V – 4.2 V destroys the ESP32-C6. The mo
 3. **Close the 3.3 V jumper.** Flux on the pads, a little solder on the tip, touch both pads until they bridge.
 4. **Measure before connecting.** A cell (or 3–5 V from a bench supply) on the input, the multimeter on the output: **3.3 V**. Only then wire it to the + rail.
 
+The [wiring video](https://doormutex.org/video/wiring.mp4) shows these four steps animated, between stage 1 and stage 2.
+
 **Tools** – this is the only fine soldering in the build: a temperature-controlled iron with a small tip (conical or ~1–2 mm bevel; USB-C irons such as the Pinecil or Miniware TS101 are enough), 0.5–0.6 mm solder, no-clean flux, desoldering braid 1.5 mm, a scalpel, tweezers and a multimeter. A cheap unregulated iron with a thick tip does headers fine but not this.
 
 ### Filament (Prusa)
