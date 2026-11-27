@@ -193,7 +193,7 @@ def build():
             placed.append((p, sym, pins, nets, ox, oy, (bx0, by0, bx1, by1)))
             x += w
             row_h = max(row_h, h)
-        y += row_h + 6
+        y += row_h + 5
     return syms, items, placed, y
 
 
