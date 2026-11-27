@@ -5,7 +5,47 @@ SPDX-License-Identifier: CERN-OHL-S-2.0
 
 # Hardware
 
-The KiCad project (schematic, layout, production files) follows in milestone M1b, after the [breadboard prototype](../docs/breadboard.md).
+The KiCad project for PCB v1 (milestone M1b, after the [breadboard prototype](../docs/breadboard.md)): the schematic is in progress, layout and production files follow.
+
+## PCB v1
+
+| File | What |
+|---|---|
+| [`tools/design.py`](tools/design.py) | **the circuit** – every part with its value, LCSC number and the net on each pin. Edit this, not the schematic |
+| [`tools/gen_schematic.py`](tools/gen_schematic.py) | writes `doormutex.kicad_sch` from it, runs KiCad's ERC and checks that the exported netlist is exactly the design |
+| [`lib/`](lib/) | the JLCPCB parts as a project library: symbols and footprints imported from their LCSC numbers with [easyeda2kicad](https://github.com/uPesy/easyeda2kicad.py), so footprint and placement match what JLCPCB assembles. The 3D models (~40 MB) are not in the repository – the same command with `--full` fetches them into `lib/doormutex.3dshapes/`. [`tools/fix_lib.py`](tools/fix_lib.py) corrects the pin types EasyEDA gets wrong (passive parts marked as inputs) |
+| `doormutex.kicad_sch` | generated: one A1 sheet, a block per function, net labels on every pin |
+
+```bash
+python3 hardware/tools/gen_schematic.py      # needs kicad-cli (KiCad 9 or 10)
+# a new JLCPCB part:
+easyeda2kicad --full --project-relative --output "$PWD/hardware/lib/doormutex" --lcsc_id C2845237
+python3 hardware/tools/fix_lib.py
+```
+
+### Blocks
+
+```
+USB-C ─► bq24074 (power path) ─► SYS ─┬─► TPS63802 ─► 3V3 ─► ESP32-C6-MINI-1, VEML7700, e-paper
+                ▲                     │      ▲ EN from TPS3840: off below 3.0 V on SYS
+                │ VBAT                └─► LEDs (resistor + AO3400A per lamp)
+18650 ─ 0 Ω (measure) ─ PTC ─ P-MOSFET (reverse polarity) ─┘
+   └─ minus: DW01A + FS8205A ─► P_N ─ 20 mΩ ─► GND   (MAX17055 counts across it)
+```
+
+| Block | Parts (LCSC) | Notes |
+|---|---|---|
+| MCU | ESP32-C6-MINI-1-H8, 8 MB (C42403058) | the MINI has no GPIO 10/11: e-paper RST → **GPIO 14**, BUSY → **GPIO 15**. Info button on GPIO 5 (LP, wakes from deep sleep), fuel-gauge alert on GPIO 4. Footprint for a 32.768 kHz crystal on GPIO 0/1, not fitted |
+| USB | HRO TYPE-C-31-M-12 (C165948), USBLC6-2SC6 (C7519), 5.1 kΩ on CC | one socket for charging, power and flashing – no more pulling the 3V3 wire to use the console |
+| Charger | BQ24074 (C54313) | 887 Ω → 1.0 A charge current, 1.1 kΩ → 1.46 A input limit, NTC 10 k (C13564) at the cell: charging between about 0 and 50 °C |
+| Cell | Keystone 1042 holder (C5249310), PTC 2 A (C207074), DMP2035U reverse polarity (C110499), DW01A + FS8205A (C351410, C908265) | a 0 Ω in the cell's plus lead (and a 2-pin footprint next to it) to measure the current, e.g. with the INA228 logger |
+| Fuel gauge | MAX17055 (C2976422), 20 mΩ sense (C163095) | counts charge (ModelGauge m5) instead of guessing from the voltage like the breadboard's MAX17048, which jumped by 10–20 % on plug-in. Same address 0x36, new driver |
+| 3.3 V | TPS63802 (C2845237), 0.47 µH (C668312), TPS3840DL30 (C2862542) | the supervisor drives the buck-boost's EN directly: below 3.0 V on SYS everything is off (~15 µA left on the cell). With USB, SYS stays up even with an empty cell |
+| Lamps | AO3400A (C20917), XINGLIGHT XL-2012 red/yellow/green (C7371909, C7371908, C965815) | from SYS, two LED places per lamp (the second not fitted). 150 Ω red/yellow, 68 Ω green – the firmware evens out the falling cell voltage and the colours (LED reference and levels in menuconfig) |
+| Sensors, e-paper | VEML7700 (C504893), 1×8 socket for the Waveshare module (C42431840) | |
+| Buttons | 2 × TS-1187A for RESET/BOOT (C318884), SKRTLAE010 side-actuated INFO at the bottom edge next to USB-C (C110293) | |
+
+Most ICs are JLCPCB *extended* parts (a one-off loading fee per part type). Low stock when chosen (2026-11-27): the 8 MB module (379) and the inductor (483) – alternatives ESP32-C6-MINI-1-H4 and DFE201610E-R47M.
 
 Everything in this directory and in `enclosure/` is licensed under the [CERN Open Hardware Licence v2 – Strongly Reciprocal](../LICENSES/CERN-OHL-S-2.0.txt).
 
