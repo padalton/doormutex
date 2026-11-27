@@ -9,9 +9,19 @@
   doormutex-cpl.csv       Designator, Mid X, Mid Y, Layer, Rotation
 
 Parts that are not fitted (DNP) or hand-soldered through-hole parts (the
-e-paper socket) are left out of BOM and CPL. Check the placement preview in
-JLCPCB's order page: rotations of parts from different libraries can differ
-from JLCPCB's own models.
+e-paper socket) are left out of BOM and CPL.
+
+JLCPCB's placement file follows EasyEDA's conventions, not KiCad's:
+
+  * Mid X / Mid Y is the centre of the part's pads, not the footprint's origin;
+  * the rotation of a part on the bottom is what you see looking at the
+    bottom: 180° minus KiCad's angle. KiCad's own position file gives its
+    angle unchanged, which turns every bottom part at 0° or 180° upside down.
+
+The footprints in lib/ are EasyEDA's, so their 0° is JLCPCB's 0°. A footprint
+from KiCad's library can be drawn turned against JLCPCB's: ROTATION holds
+the difference for those. Still check the placement preview on JLCPCB's
+order page – it shows the parts on the pads as their machine will place them.
 """
 
 import csv
@@ -29,6 +39,12 @@ HW = os.path.dirname(HERE)
 PCB = os.path.join(HW, "doormutex.kicad_pcb")
 OUT = os.path.join(HW, "production")
 HAND_SOLDERED = {"J2"}  # through-hole, soldered at home
+# Footprints from KiCad's library: degrees to add so that 0° is the part as
+# EasyEDA draws it. Two-pad resistors and capacitors lie the same way in both.
+ROTATION = {
+    # pads at the back, mouth at the front, A1 on the left – as EasyEDA's footprint for C165948
+    "USB_C_Receptacle_HRO_TYPE-C-31-M-12": 0,
+}
 
 
 def gerbers():
@@ -45,6 +61,27 @@ def gerbers():
         return path, len(os.listdir(tmp))
 
 
+def pad_centre(fp):
+    """Centre of the box around the part's pads (holes without a pad number are not pads)."""
+    box = None
+    for pad in fp.Pads():
+        if not pad.GetNumber():
+            continue
+        b = pad.GetBoundingBox()
+        if box is None:
+            box = b
+        else:
+            box.Merge(b)
+    return box.GetCenter() if box is not None else fp.GetPosition()
+
+
+def jlc_rotation(fp):
+    angle = fp.GetOrientationDegrees()
+    if fp.GetLayer() == pcbnew.B_Cu:
+        angle = 180 - angle
+    return (angle + ROTATION.get(fp.GetFPIDAsString().split(":")[-1], 0)) % 360
+
+
 def bom_cpl():
     board = pcbnew.LoadBoard(PCB)
     origin = board.GetDesignSettings().GetAuxOrigin()
@@ -58,10 +95,10 @@ def bom_cpl():
         if not lcsc:
             print(f"warning: {ref} has no LCSC number – not assembled")
             continue
-        pos = fp.GetPosition()
+        pos = pad_centre(fp)
         bottom = fp.GetLayer() == pcbnew.B_Cu
         rows.append([ref, f"{pcbnew.ToMM(pos.x - origin.x):.3f}mm", f"{-pcbnew.ToMM(pos.y - origin.y):.3f}mm",
-                     "Bottom" if bottom else "Top", f"{fp.GetOrientationDegrees() % 360:.0f}"])
+                     "Bottom" if bottom else "Top", f"{jlc_rotation(fp):.0f}"])
         key = (fp.GetValue(), fp.GetFPIDAsString().split(":")[-1], lcsc)
         groups.setdefault(key, []).append(ref)
     bom = os.path.join(OUT, "doormutex-bom.csv")
