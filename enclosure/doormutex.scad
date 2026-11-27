@@ -155,12 +155,14 @@ m25_tap_d = 2.2;
 pcb_buttons = [[8, 19], [33, 19]];
 // INFO button at the bottom edge (board x): a pin hole through the bottom wall and foot
 pcb_info_x = 30;
-// Light sensor on the front (board x, y): a light channel through the front wall
-pcb_als = [3.5, 87];
-// Light channel: hole in the front face, wall of the tube
+// Light sensor on the front, the centre of its sensitive area (board x, y): a pinhole in the front face
+pcb_als = [3.4, 88.0];
+// The sensor's body on the board (x0, y0, x1, y1): a hood around it keeps the lamps' light out
+pcb_als_box = [1.44, 84.57, 4.44, 91.43];
+// Light channel: pinhole in the front face
 als_channel_d = 2.4;
-// Tallest part on the back: the 18650 holder (Keystone 1042) with its cell
-pcb_back_h = 21;
+// USB-C socket: how far its mouth reaches past the board's bottom edge
+pcb_usb_overhang = 0.6;
 // LED opening at the back of the cones (two SMD LEDs, 3 mm apart)
 pcb_led_hole = 7;
 
@@ -194,6 +196,101 @@ side_screw_y = 30;
 
 /* [Quality] */
 $fn = 64;
+
+/* [Hidden] */
+// BEGIN PCB PARTS – written by hardware/tools/export_scad.py, do not edit
+// [x0, y0, x1, y1, height, 1 = front / 0 = back] in board mm seen from the front
+pcb_parts = [
+  [10.15, 26.65, 30.85, 113.35, 21, 0],  // BT1
+  [7.30, 155.76, 9.16, 156.74, 0.55, 0],  // C1
+  [7.02, 154.04, 10.03, 155.56, 0.9, 0],  // C2
+  [9.84, 149.57, 11.35, 152.58, 0.9, 0],  // C3
+  [3.15, 150.72, 4.66, 153.73, 0.9, 0],  // C4
+  [38.42, 29.87, 39.39, 31.73, 0.55, 0],  // C5
+  [33.78, 47.22, 35.66, 48.19, 0.55, 0],  // C6
+  [35.97, 47.22, 37.83, 48.19, 0.55, 0],  // C7
+  [24.72, 146.06, 25.69, 147.94, 0.55, 0],  // C8
+  [28.54, 149.25, 31.55, 150.75, 0.9, 0],  // C9
+  [28.54, 144.54, 31.55, 146.06, 0.9, 0],  // C10
+  [28.54, 143.04, 31.55, 144.56, 0.9, 0],  // C11
+  [27.88, 3.99, 31.33, 6.01, 1.35, 0],  // C12
+  [28.06, 1.81, 29.94, 2.78, 0.55, 0],  // C13
+  [28.06, 9.41, 29.94, 10.38, 0.55, 0],  // C14
+  [20.72, 14.47, 21.69, 16.34, 0.55, 0],  // C15
+  [26.31, 14.47, 27.28, 16.34, 0.55, 0],  // C16
+  [1.66, 92.11, 3.53, 93.08, 0.55, 1],  // C17
+  [30.11, 129.66, 31.08, 131.53, 0.55, 1],  // C18
+  [18.37, 14.50, 19.63, 16.50, 0.8, 1],  // D1
+  [21.37, 14.50, 22.63, 16.50, 0.8, 1],  // D2
+  [18.37, 59.50, 19.63, 61.50, 0.8, 1],  // D3
+  [21.37, 59.50, 22.63, 61.50, 0.8, 1],  // D4
+  [18.37, 104.50, 19.63, 106.50, 0.8, 1],  // D5
+  [21.37, 104.50, 22.63, 106.50, 0.8, 1],  // D6
+  [5.91, 118.13, 10.12, 123.87, 1.3, 0],  // F1
+  [16.03, 183.68, 24.97, 192.10, 3.3, 0],  // J1
+  [11.50, 129.25, 29.50, 136.85, 4.8, 1],  // J2
+  [6.43, 111.91, 12.57, 115.50, 8.6, 0],  // J3
+  [31.42, 145.62, 34.08, 149.68, 1.2, 0],  // L1
+  [6.40, 123.82, 9.63, 127.38, 1.3, 0],  // Q1
+  [33.10, 33.10, 36.90, 36.67, 1.3, 0],  // Q2
+  [3.50, 23.90, 6.50, 27.10, 1.3, 0],  // Q3
+  [3.50, 56.39, 6.50, 59.61, 1.3, 0],  // Q4
+  [3.50, 98.40, 6.50, 101.60, 1.3, 0],  // Q5
+  [13.51, 178.04, 14.50, 179.96, 0.4, 0],  // R1
+  [26.50, 178.04, 27.50, 179.96, 0.4, 0],  // R2
+  [5.55, 152.10, 6.55, 154.01, 0.4, 0],  // R3
+  [8.85, 151.00, 9.84, 152.91, 0.4, 0],  // R4
+  [7.12, 115.65, 11.88, 117.96, 0.65, 0],  // R5
+  [24.25, 29.51, 26.16, 30.49, 0.4, 0],  // R6
+  [38.41, 27.05, 39.39, 28.95, 0.4, 0],  // R7
+  [38.41, 32.95, 39.39, 34.86, 0.4, 0],  // R8
+  [35.36, 36.77, 37.34, 40.44, 0.65, 0],  // R9
+  [24.70, 148.04, 25.69, 149.96, 0.4, 0],  // R10
+  [26.11, 148.75, 27.09, 150.66, 0.4, 0],  // R11
+  [27.42, 144.62, 28.41, 146.53, 0.4, 0],  // R12
+  [26.44, 146.66, 28.36, 147.65, 0.4, 0],  // R13
+  [28.05, 7.91, 29.95, 8.90, 0.4, 0],  // R14
+  [15.00, 14.05, 16.00, 15.95, 0.4, 0],  // R15
+  [16.50, 14.05, 17.50, 15.95, 0.4, 0],  // R16
+  [29.05, 184.91, 30.95, 185.90, 0.4, 0],  // R17
+  [38.41, 46.25, 39.39, 48.16, 0.4, 0],  // R18
+  [11.80, 2.05, 12.80, 3.95, 0.4, 0],  // R19
+  [11.80, 5.05, 12.80, 6.95, 0.4, 0],  // R20
+  [1.51, 28.05, 2.49, 29.95, 0.4, 0],  // R21
+  [3.01, 28.05, 3.99, 29.95, 0.4, 0],  // R22
+  [4.51, 28.05, 5.49, 29.95, 0.4, 0],  // R23
+  [6.01, 28.05, 6.99, 29.95, 0.4, 0],  // R24
+  [1.51, 60.55, 2.49, 62.45, 0.4, 0],  // R25
+  [3.01, 60.55, 3.99, 62.45, 0.4, 0],  // R26
+  [4.51, 60.55, 5.49, 62.45, 0.4, 0],  // R27
+  [6.01, 60.55, 6.99, 62.45, 0.4, 0],  // R28
+  [1.51, 102.54, 2.49, 104.46, 0.4, 0],  // R29
+  [3.01, 102.54, 3.99, 104.46, 0.4, 0],  // R30
+  [4.51, 102.54, 5.49, 104.46, 0.4, 0],  // R31
+  [6.01, 102.54, 6.99, 104.46, 0.4, 0],  // R32
+  [6.55, 152.10, 7.55, 154.01, 0.4, 0],  // R33
+  [4.50, 16.33, 11.50, 21.67, 1.6, 0],  // SW1
+  [29.50, 16.33, 36.50, 21.67, 1.6, 0],  // SW2
+  [27.70, 187.52, 32.30, 191.38, 3.4, 0],  // SW3
+  [7.87, 68.53, 9.34, 71.47, 0.9, 0],  // TH1
+  [3.23, 34.86, 6.77, 37.14, 1.6, 0],  // TP1
+  [3.23, 37.45, 6.77, 39.75, 1.6, 0],  // TP2
+  [3.23, 40.06, 6.77, 42.34, 1.6, 0],  // TP3
+  [3.23, 42.66, 6.77, 44.94, 1.6, 0],  // TP4
+  [3.23, 45.25, 6.77, 47.55, 1.6, 0],  // TP5
+  [3.23, 47.86, 6.77, 50.14, 1.6, 0],  // TP6
+  [3.23, 50.45, 6.77, 52.75, 1.6, 0],  // TP7
+  [18.53, 177.81, 22.11, 181.19, 1.3, 0],  // U1
+  [4.47, 148.07, 8.92, 151.93, 1, 0],  // U2
+  [33.03, 27.81, 36.61, 31.19, 1.3, 0],  // U3
+  [34.84, 42.84, 37.16, 46.38, 0.8, 0],  // U4
+  [20.65, 146.00, 24.35, 149.20, 1.3, 0],  // U5
+  [28.48, 146.06, 31.28, 149.37, 1, 0],  // U6
+  [13.77, -4.91, 28.27, 11.95, 2.6, 0],  // U7
+  [1.44, 84.57, 4.44, 91.43, 2.35, 1],  // U8
+  [21.97, 14.23, 26.03, 16.58, 0.9, 0],  // Y1
+];
+// END PCB PARTS
 
 // ---------------------------------------------------------------- derived
 
@@ -338,8 +435,11 @@ module usb_cut() {
   slot = usb_socket + [2, 2] * (tol + 0.3);
   translate([UX - slot[0] / 2, usb_y - slot[1] / 2, -1]) cube([slot[0], slot[1], wall + 2]);
   // Recess for the plug's overmould, so the plug reaches deep enough;
-  // its back side is a 45° slope instead of a bridge.
-  r = [13, 7.5]; rd = 1.0;
+  // its back side is a 45° slope instead of a bridge. PCB build: the
+  // socket's mouth is 0.1 mm above the bottom wall, the recess ends 0.6 mm
+  // in front of it – the gap a plug leaves when it is fully in.
+  usb_mouth_z = pcb_top_z - pcb_size[1] - pcb_usb_overhang;
+  r = [13, 7.5]; rd = pcb ? usb_mouth_z - 0.6 : 1.0;
   hull() {
     translate([UX - r[0] / 2, usb_y - r[1] / 2, -1]) cube([r[0], r[1], 1]);
     translate([UX - r[0] / 2, usb_y - r[1] / 2, -1]) cube([r[0], r[1] - rd, 1 + rd]);
@@ -368,11 +468,18 @@ module pcb_bosses() for (p = pcb_holes) let(q = pcb_xz(p))
 module pcb_boss_holes() for (p = pcb_holes) let(q = pcb_xz(p))
   translate([q[0], pcb_front - 8, q[1]]) along_y() cylinder(d = m25_tap_d, h = 8 + 1);
 
-// Light channel from a pinhole in the front face to the sensor on the board
-module als_tube() let(q = pcb_xz(pcb_als))
-  translate([q[0], front_wall - eps, q[1]]) along_y() cylinder(d = als_channel_d + 2 * 1.0, h = pcb_front - front_wall - 1.2);
-module als_hole() let(q = pcb_xz(pcb_als))
-  translate([q[0], -1, q[1]]) along_y() cylinder(d = als_channel_d, h = pcb_front);
+// Light channel: a pinhole in the front face and a hood around the sensor
+// (a VEML7700-TT, 2.35 mm tall, looking at the front wall), so it sees the
+// room and not the inside of the light. The hood ends 1 mm above the board:
+// solder joints and the capacitor next to the sensor sit under its wall.
+als_gap = 0.5;
+module als_box(grow, y0, len) let(a = pcb_xz([pcb_als_box[0], pcb_als_box[1]]), b = pcb_xz([pcb_als_box[2], pcb_als_box[3]]))
+  translate([a[0] - grow, y0, b[1] - grow]) cube([b[0] - a[0] + 2 * grow, len, a[1] - b[1] + 2 * grow]);
+module als_hood() als_box(als_gap + cone_wall, front_wall - eps, pcb_front - front_wall - 1.0);
+module als_hole() {
+  als_box(als_gap, front_wall, pcb_front);
+  let(q = pcb_xz(pcb_als)) translate([q[0], -1, q[1]]) along_y() cylinder(d = als_channel_d, h = front_wall + 2);
+}
 
 // INFO: the button presses down out of the board's bottom edge; a pin
 // through the bottom wall (and the foot) reaches it.
@@ -392,7 +499,7 @@ module front() {
           dividers();
           corner_ribs();
           eink_standoffs();
-          if (pcb) { pcb_bosses(); als_tube(); }
+          if (pcb) { pcb_bosses(); als_hood(); }
         }
       }
     }
@@ -589,14 +696,11 @@ module dummies() { if (pcb) dummies_pcb(); else dummies_breadboard(); }
 module dummies_pcb() {
   z0 = pcb_top_z - pcb_size[1];
   color("#1f5a2c") box([-pcb_size[0] / 2, pcb_front, z0], [pcb_size[0], pcb_t, pcb_size[1]]);
-  // 18650 holder with cell, on the back
-  color("#111") box([-10.5, pcb_back, pcb_top_z - 113.4], [21, pcb_back_h, 86.8]);
-  // ESP32-C6-MINI on the back, its antenna past the top edge
-  color("silver") box([-6.6, pcb_back, pcb_top_z - 12.0], [13.2, 2.6, 16.6]);
-  // USB-C at the bottom edge
-  color("silver") box([-4.5, pcb_back, z0], [9, usb_socket[1], 7.4]);
-  // e-paper socket on the front, right above the module's plug
-  color("#eee") box([-9.2, pcb_front - 6, pcb_top_z - 136], [18.4, 6, 7]);
+  // every part on the board, as KiCad has it (the 18650 holder with its cell,
+  // the ESP32 with its antenna past the top edge, USB-C, the e-paper socket …)
+  for (p = pcb_parts) let(a = pcb_xz([p[0], p[1]]), b = pcb_xz([p[2], p[3]]))
+    color(p[4] > 10 ? "#111" : p[4] > 2 ? "silver" : "#333")
+      box([a[0], p[5] ? pcb_front - p[4] : pcb_back, b[1]], [b[0] - a[0], p[4], a[1] - b[1]]);
   // e-ink module (upside down) with its plug on top
   translate([0, front_wall, eink_z]) {
     color("#e8e8e0") box([-eink_panel[0] / 2, 0, -eink_panel[1] / 2], [eink_panel[0], eink_panel_t, eink_panel[1]]);

@@ -7,6 +7,7 @@
 #
 #   enclosure/render.sh [output dir]      (default: enclosure/build)
 #   OPENSCAD=/path/to/openscad enclosure/render.sh
+#   BUILD=breadboard enclosure/render.sh  (default: the model's build, "pcb")
 set -eu
 
 cd "$(dirname "$0")"
@@ -14,27 +15,34 @@ out=${1:-build}
 mkdir -p "$out"
 openscad=${OPENSCAD:-openscad}
 size=${IMGSIZE:-900,1200}
+build=${BUILD:-}
+osc() {
+  if [ -n "$build" ]; then "$openscad" -D "build=\"$build\"" "$@"; else "$openscad" "$@"; fi
+}
 
 # Manifold always produces closed meshes; --hardwarnings turns every
 # warning (e.g. a non-manifold result or an unknown variable) into an error.
 for part in front back foot side_plate visor diffuser fit_test; do
   echo "STL  $part"
-  "$openscad" --backend Manifold --hardwarnings -q -D "part=\"$part\"" -o "$out/doormutex-$part.stl" doormutex.scad
+  osc --backend Manifold --hardwarnings -q -D "part=\"$part\"" -o "$out/doormutex-$part.stl" doormutex.scad
 done
 
-# Fit check: module dummies against the printed parts and the parts against
-# each other must not overlap.
-echo "CHK  collisions"
-log=$("$openscad" --backend Manifold -D 'part="collisions"' -o "$out/collisions.stl" doormutex.scad 2>&1) || true
-case $log in
-  *"top level object is empty"*) ;;
-  *) echo "$log" >&2; echo "Parts or modules overlap – open $out/collisions.stl" >&2; exit 1 ;;
-esac
+# Fit check, for both builds: what goes inside (the PCB build takes every
+# part from the KiCad board, see hardware/tools/export_scad.py) against the
+# printed parts, and the parts against each other, must not overlap.
+for b in pcb breadboard; do
+  echo "CHK  collisions ($b)"
+  log=$("$openscad" --backend Manifold -D "build=\"$b\"" -D 'part="collisions"' -o "$out/collisions-$b.stl" doormutex.scad 2>&1) || true
+  case $log in
+    *"top level object is empty"*) ;;
+    *) echo "$log" >&2; echo "Parts or modules overlap – open $out/collisions-$b.stl" >&2; exit 1 ;;
+  esac
+done
 
 # Previews: the assembly from the front left and from behind, the exploded view.
 png() {
   echo "PNG  $1"
-  "$openscad" --backend Manifold --hardwarnings -q -D "part=\"$2\"" --imgsize "$size" \
+  osc --backend Manifold --hardwarnings -q -D "part=\"$2\"" --imgsize "$size" \
     --colorscheme Tomorrow --projection p --viewall --autocenter --camera "$3" -o "$out/$1.png" doormutex.scad
 }
 png assembly assembly 0,0,0,70,0,-30,0

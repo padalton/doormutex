@@ -20,10 +20,11 @@ A parametric miniature traffic light in OpenSCAD for the **breadboard build** �
 `build = "pcb"` (the default) is for [PCB v1](../hardware/README.md#pcb-v1); `build = "breadboard"` keeps the module version described below.
 
 - The board lies against the back of the reflector cones, held by four bosses of the front shell (M2.5 self-tapping, nylon at the top: the antenna is 11 mm away). The cones' back opening is 7 mm for the two SMD LEDs.
-- The sign is 66 mm high (52 in the breadboard build): the e-paper module hangs upside down, its PH2.0 plug at the top, the board's socket right above it. The light is 206 mm tall.
-- A light channel from a 2.4 mm pinhole in the front face, in the top corner of the green chamber, to the light sensor on the board.
-- USB-C in the middle of the bottom; a 2 mm hole through the bottom wall and the foot for a pin to press the INFO button; pin holes in the back cover for RESET and BOOT.
+- The sign is 66 mm high (52 in the breadboard build): the e-paper module hangs upside down, its PH2.0 plug at the top, the board's socket above it. The cable turns over in the 9 mm between the plug and the chamber wall and lies behind the module. The light is 206 mm tall.
+- A 2.4 mm pinhole in the front face, in the top corner of the green chamber, and behind it a hood around the light sensor on the board (2.35 mm tall), which keeps the lamps' light away from it. The hood ends 1 mm above the board.
+- USB-C in the middle of the bottom: the socket's mouth is 0.1 mm above the bottom wall, the recess for the plug ends 0.6 mm in front of it. A 2 mm hole through the bottom wall and the foot for a pin to press the INFO button; pin holes in the back cover for RESET and BOOT.
 - The corner ribs (cover, foot and side screws) start behind the board.
+- **The board in the model is the real one:** [`hardware/tools/export_scad.py`](../hardware/tools/export_scad.py) writes every part of the KiCad board as a box (outline, height, side) into the marked block of `doormutex.scad` and fails if the model's board parameters (`pcb_holes`, `pcb_buttons`, `pcb_als` …) differ from the board. Run it after changing the placement; the collision check below then tests the shell against all 87 parts.
 
 ## Parts
 
@@ -166,6 +167,6 @@ A steel door frame is thin sheet metal (~1–1.5 mm), and a stainless one may be
 enclosure/render.sh            # STL for every part + PNG previews in enclosure/build/
 ```
 
-`render.sh` needs OpenSCAD with the Manifold backend (2025 or newer). It fails on any OpenSCAD warning and when module dummies overlap the printed parts or the parts overlap each other (`part="collisions"` must be empty). CI runs it in the pinned `openscad/openscad` container and uploads the STLs and previews as the `enclosure` artifact.
+`render.sh` needs OpenSCAD with the Manifold backend (2025 or newer). It fails on any OpenSCAD warning and when what goes inside overlaps the printed parts or the parts overlap each other (`part="collisions"` must be empty) – checked for both builds. `BUILD=breadboard enclosure/render.sh` renders the breadboard build's parts. CI runs it in the pinned `openscad/openscad` container and uploads the STLs and previews as the `enclosure` artifact.
 
 Licence: [CERN-OHL-S-2.0](../LICENSES/CERN-OHL-S-2.0.txt) for the model, this text CC BY-SA 4.0.
