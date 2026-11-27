@@ -83,7 +83,7 @@ def fix_vias(board):
     for v in board.GetTracks():
         if v.GetClass() != "PCB_VIA":
             continue
-        w, d = pcbnew.ToMM(v.GetWidth()), pcbnew.ToMM(v.GetDrillValue())
+        w, d = pcbnew.ToMM(v.GetWidth(pcbnew.F_Cu)), pcbnew.ToMM(v.GetDrillValue())
         sizes[(round(w, 2), round(d, 2))] = sizes.get((round(w, 2), round(d, 2)), 0) + 1
         if (w - d) / 2 < 0.13:
             v.SetDrill(pcbnew.FromMM(round(w - 0.3, 2)))
@@ -109,6 +109,27 @@ def drop_stubs(board):
         print(f"removed {removed} dangling stubs")
 
 
+def vias_in_pads(board):
+    """Vias of the router whose hole lies in a surface-mount pad, or whose
+    copper touches one: the DRC has nothing against them, the reflow oven
+    has. The vias gen_pcb.py placed (locked) are meant to be where they are."""
+    holes, touching = [], []
+    vias = [v for v in board.GetTracks() if v.GetClass() == "PCB_VIA" and not v.IsLocked()]
+    for fp in board.GetFootprints():
+        for pad in fp.Pads():
+            if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
+                continue
+            layer = pcbnew.B_Cu if pad.IsOnLayer(pcbnew.B_Cu) else pcbnew.F_Cu
+            shape = pad.GetEffectivePolygon(layer, pcbnew.ERROR_INSIDE)
+            for v in vias:
+                name = f"{fp.GetReference()}.{pad.GetNumber()}"
+                if shape.Collide(v.GetPosition(), v.GetDrillValue() // 2):
+                    holes.append(name)
+                elif shape.Collide(v.GetPosition(), v.GetWidth(layer) // 2):
+                    touching.append(name)
+    return holes, touching
+
+
 def main():
     board = pcbnew.LoadBoard(PCB)
     # inner layer 2 is the ground plane: not for routing
@@ -124,7 +145,11 @@ def main():
         # A connection that does not fit at its net class's width (0.5 mm
         # between the pins of a QFN) makes Freerouting 2.6 start over with a
         # narrower "neck" width for those nets – 0.15 mm unless told otherwise.
-        cmd = [JAVA, "-jar", JAR, "-de", dsn, "-do", ses, "-mp", PASSES, "--gui.enabled=false", f"--router.neck_width_um={NECK_UM}"]
+        # Freerouting takes the vias already on the board as its cue: four
+        # thermal vias in the charger's pad and it puts vias into every
+        # other pad as well, where the solder then runs down the hole. Say no.
+        cmd = [JAVA, "-jar", JAR, "-de", dsn, "-do", ses, "-mp", PASSES, "--gui.enabled=false", f"--router.neck_width_um={NECK_UM}",
+               "--router.autorouter.via_in_pad=false", "--router.autorouter.via_touching_pad=false"]
         print("freerouting:", " ".join(cmd[2:]))
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
         log = (r.stdout + r.stderr).splitlines()
@@ -158,7 +183,11 @@ def main():
     thin = sorted({t.GetNetname() for t in tracks if pcbnew.ToMM(t.GetWidth()) < 0.199})
     if thin:
         print("tracks below 0.2 mm on: " + ", ".join(thin))
-    if errors or thin or not ok:
+    holes, touching = vias_in_pads(board)
+    print(f"router vias with their hole in a pad: {len(holes)}, with their copper on a pad: {len(touching)}")
+    if holes or touching:
+        print("  " + ", ".join(sorted(set(holes + touching))))
+    if errors or thin or holes or touching or not ok:
         sys.exit(1)
 
 
