@@ -43,7 +43,7 @@ press_tol = 0.05;
 // Lens diameter (transparent PETG disc)
 lens_d = 30;
 // Lens thickness
-lens_t = 1.0;
+lens_t = 1.2;
 // Radial overlap of the lens on its seat
 lens_seat = 1.5;
 // Depth of the reflector cone behind the lens
