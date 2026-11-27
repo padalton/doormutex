@@ -9,14 +9,18 @@ The board is the back wall of the light's three chambers (enclosure,
 z = height above the bottom of the light):
 
   * front (F.Cu, towards the lenses): the LEDs in the middle of each
-    reflector cone, the e-paper socket and the light sensor in the sign;
+    reflector cone, the e-paper socket in the sign, the light sensor in a
+    corner of the green chamber;
   * back (B.Cu, towards the back cover): everything else – the ESP32 at
     the top with its antenna past the top edge, the 18650 holder in the
     middle, power at the bottom with USB-C and the INFO button on the
     bottom edge.
 
-Routing is not done here (see README). Running it again replaces the board,
-so placement tweaks belong in PLACE below, not in the PCB file.
+The paths that carry real current (USB to the charger, the cell's leads, SYS
+to the buck-boost, 3.3 V up to the ESP32) are laid here as wide tracks
+(ROUTES); route_pcb.py protects them and lets Freerouting do the rest.
+Running it again replaces the board, so placement tweaks belong in PLACE
+below, not in the PCB file.
 """
 
 import os
@@ -49,16 +53,19 @@ def y_of(z):
 LAMP_Y = {"R": y_of(SIGN_H + 112.5), "Y": y_of(SIGN_H + 67.5), "G": y_of(SIGN_H + 22.5)}  # chamber centres
 X_MID = W / 2
 
-# Every part: ref -> (x, y, rotation, side), side "F" (front, towards the
-# lenses) or "B" (back). x, y in board coordinates seen from the front; a
-# part on the back is mirrored by KiCad, its (x, y) is still the centre.
+# Every part: ref -> (x, y, rotation, side[, pad]), side "F" (front, towards
+# the lenses) or "B" (back). x, y in board coordinates seen from the front; a
+# part on the back is mirrored by KiCad. (x, y) is the footprint's origin, or
+# with a pad number the centre of that pad – for parts that must line up
+# with a pin of their neighbour.
 B, F = "B", "F"
+UX, UY = 30.0, 147.65   # U6, the buck-boost: its power pins face right (x + 0.82)
 PLACE = {
-    # -- top of the back: ESP32, its antenna past the top edge (5.7 mm of
-    # module above the pads) into a plastic-only roof
+    # -- top of the back: ESP32, its antenna past the top edge into a
+    # plastic-only roof; the bulk capacitor at its 3V3 pin
     "U7": (X_MID, 6.2, 180, B),
     "C13": (29.0, 2.3, 0, B), "C12": (29.6, 5.0, 0, B),        # at 3V3 (pin 3)
-    "R14": (29.0, 8.2, 0, B), "C14": (29.0, 9.7, 0, B),        # EN
+    "R14": (29.0, 8.4, 0, B), "C14": (29.0, 9.9, 0, B),        # EN
     "R15": (15.5, 15.0, 90, B), "R16": (17.0, 15.0, 90, B),    # BOOT, IO8 straps
     "R19": (12.3, 3.0, 90, B), "R20": (12.3, 6.0, 90, B),      # I²C pull-ups
     "Y1": (24.0, 15.4, 0, B), "C15": (21.2, 15.4, 90, B), "C16": (26.8, 15.4, 90, B),
@@ -71,41 +78,130 @@ PLACE = {
     "TH1": (8.6, 70.0, 90, B),
     "TP1": (5.0, 36.0, 0, B), "TP2": (5.0, 38.6, 0, B), "TP3": (5.0, 41.2, 0, B), "TP4": (5.0, 43.8, 0, B),
     "TP5": (5.0, 46.4, 0, B), "TP6": (5.0, 49.0, 0, B), "TP7": (5.0, 51.6, 0, B),
-    # -- right of the holder, at its minus end (top): protection and gauge
-    "U3": (35.0, 29.5, 0, B), "R7": (38.9, 28.0, 90, B), "C5": (38.9, 30.8, 90, B), "R8": (38.9, 33.6, 90, B),
-    "Q2": (35.0, 35.0, 0, B), "R9": (35.0, 39.6, 90, B),
-    "U4": (35.0, 45.0, 0, B), "C6": (38.9, 44.0, 90, B), "C7": (38.9, 46.8, 90, B), "R18": (32.4, 48.6, 90, B),
+    # -- right of the holder, at its minus end (top): protection, sense
+    # resistor and gauge in the order the current takes
+    "U3": (35.0, 29.5, 0, B), "R7": (38.9, 28.0, 90, B), "C5": (38.9, 30.8, 90, B), "R8": (38.9, 33.9, 90, B),
+    "R6": (25.2, 30.0, 180, B),                                 # Q1's gate, at the cell's minus
+    "Q2": (35.0, 35.0, 0, B),
+    "R9": (36.35, 37.6, 270, B, "1"),                           # P_N right below Q2's pin 3
+    "U4": (36.8, 43.6, 0, B, "5"),                              # below the resistor, room for SCL and SDA to leave between the sense tracks
+    "C6": (35.2, 47.7, 180, B, "1"), "C7": (36.42, 47.7, 0, B, "1"), "R18": (38.9, 47.2, 90, B),
     # -- holder: plus at the bottom, next to the charger (rotation chosen below)
     "BT1": (X_MID, 70.0, 270, B),
-    # -- below the holder, right: the cell's plus lead
-    "R5": (34.5, 117.6, 0, B), "J3": (34.5, 121.2, 90, B), "F1": (34.5, 125.4, 0, B),
-    "Q1": (34.0, 130.0, 0, B), "R6": (37.9, 130.0, 90, B),
-    # -- bottom left: charger
-    "U2": (7.0, 150.0, 0, B), "R3": (3.0, 145.4, 90, B), "R4": (4.5, 145.4, 90, B),
-    "C1": (11.4, 146.0, 90, B), "C2": (11.4, 149.6, 90, B), "C3": (11.4, 153.4, 90, B), "C4": (3.0, 154.6, 90, B),
-    # -- bottom right: supervisor and buck-boost
-    "U5": (32.2, 136.0, 0, B), "R10": (36.0, 134.0, 90, B), "C8": (37.6, 134.0, 90, B), "R11": (36.0, 138.4, 90, B),
-    "U6": (32.0, 150.0, 0, B), "L1": (32.0, 146.0, 0, B), "C9": (28.2, 150.0, 90, B),
-    "C10": (36.0, 150.0, 90, B), "C11": (37.8, 150.0, 90, B), "R12": (35.6, 154.0, 0, B), "R13": (35.6, 155.6, 0, B),
-    # -- bottom edge: USB-C (opening flush with the edge), ESD, INFO button
-    "J1": (X_MID, L - 4.9, 180, B), "U1": (X_MID, L - 13.0, 0, B), "R1": (14.0, L - 14.0, 90, B), "R2": (27.0, L - 14.0, 90, B),
+    # -- below the holder, left: the cell's plus lead on its way down to the charger
+    "J3": (9.5, 113.7, 90, B), "R5": (9.5, 116.8, 180, B),
+    "F1": (8.02, 119.15, 270, B, "1"), "Q1": (8.02, 124.36, 270, B, "3"),
+    # -- bottom left: charger; VBUS leaves it downwards, SYS to the right, the cell to the left
+    "U2": (7.0, 150.0, 0, B),
+    "C4": (3.9, 151.45, 270, B, "1"),                           # BAT
+    "R3": (6.05, 152.55, 270, B, "1"), "R33": (7.05, 152.55, 270, B, "1"),   # ISET, TMR
+    "C2": (7.75, 154.8, 0, B, "1"), "C1": (7.75, 156.25, 0, B, "1"),   # IN
+    "R4": (9.35, 151.45, 270, B, "1"),                          # ILIM
+    "C3": (10.6, 150.3, 270, B, "1"),                           # OUT
+    # -- bottom right: buck-boost as in the data sheet's layout – the coil at
+    # the two switch pins, input and output capacitor at the ends of the row –
+    # and the supervisor that enables it
+    "U6": (UX, UY, 0, B), "L1": (UX + 2.75, UY, 90, B),
+    "C9": (UX + 0.82, UY + 2.35, 180, B, "1"),
+    "C10": (UX + 0.82, UY - 2.35, 180, B, "1"), "C11": (UX + 0.82, UY - 3.85, 180, B, "1"),
+    "R13": (UX - 2.09, UY - 0.5, 180, B, "1"), "R12": (UX - 2.09, UY - 1.56, 270, B, "2"),
+    "U5": (22.5, 147.6, 0, B), "C8": (25.2, 147.0, 90, B), "R10": (25.2, 149.0, 90, B), "R11": (26.6, 149.7, 90, B),
+    # -- bottom edge: USB-C with its mouth 0.6 mm past the edge (the data
+    # sheet's board edge is another 0.4 mm back; this way the mouth clears the
+    # enclosure's bottom wall when the board goes in), ESD, INFO button
+    "J1": (X_MID, L - 3.05, 180, B), "U1": (X_MID, L - 12.0, 0, B), "R1": (14.0, L - 12.5, 90, B), "R2": (27.0, L - 12.5, 90, B),
     "SW3": (30.0, L - 2.1, 180, B), "R17": (30.0, L - 6.1, 0, B),
-    # -- front: LEDs in the middle of the cones, e-paper socket and its
-    # fallback header in the sign, the light sensor in a corner between two
-    # chambers (a light channel in the front shell)
-    # J2: pins at the top, opening down towards the module's plug below it
-    "J2": (X_MID, y_of(SIGN_H - 1.5), 180, F), "C18": (31.0, y_of(SIGN_H - 3.0), 90, F),
-    "U8": (3.5, 87.0, 90, F), "C17": (3.5, 91.6, 90, F),
+    # -- front: LEDs in the middle of the cones, the e-paper socket in the
+    # sign, the light sensor in the top corner of the green chamber (a light
+    # channel in the front shell)
+    # J2: pins at the top, opening down towards the module's plug below it;
+    # its back end stays 0.65 mm below the wall between sign and green chamber
+    "J2": (X_MID, y_of(SIGN_H - 2.6), 180, F), "C18": (30.6, y_of(SIGN_H - 2.6), 90, F),   # C18 at pin 8, 3.3 V
+    # U8: pads towards the board edge; its sensitive area is 1.5 mm from the
+    # pad row, at ALS below
+    "U8": (1.9, 88.0, 270, F), "C17": (2.6, 92.6, 0, F),
 }
+ALS = (3.4, 88.0)  # centre of U8's sensitive area – the enclosure's light channel (pcb_als)
 for i, col in enumerate("RYG"):
     PLACE[f"D{2 * i + 1}"] = (X_MID - 1.5, LAMP_Y[col], 90, F)
     PLACE[f"D{2 * i + 2}"] = (X_MID + 1.5, LAMP_Y[col], 90, F)
 # Parts whose PLACE point is the centre of their outline, not their origin
-CENTRED = {"J4", "J3", "BT1"}
-ZONES = []
+CENTRED = {"J3", "BT1"}
 # Next to the cones, away from the e-paper module; the top two are 11 mm
 # from the antenna – nylon screws there.
 MOUNT = [(3.0, 6.0), (W - 3.0, 6.0), (3.0, 113.0), (W - 3.0, 113.0)]
+
+# ---- the paths that carry current, laid by hand: (net, layer, width, points).
+# A point is (x, y) or "REF.PAD" (the pad's centre). Widths: 1 mm of 35 µm
+# copper is 0.5 mΩ per mm; the inner layers are half as thick, so nothing
+# heavy goes there.
+TRUNK_X = 32.3   # 3.3 V runs up the front, between the holder's pegs and the right column
+ROUTES = [
+    # USB-C -> charger IN (up to 1.5 A): both pin pairs to the front, up, back at the charger
+    ("VBUS", B, 0.5, ["J1.A9", (18.05, L - 9.3)]), ("VBUS", B, 0.5, ["J1.A4", (22.95, L - 9.3)]),
+    ("VBUS", F, 1.5, [(22.95, L - 9.3), (9.95, L - 9.3), (7.75, L - 11.5), (7.75, 157.65)]),
+    ("VBUS", F, 0.9, [(7.2, 157.65), (8.3, 157.65)]), ("VBUS", B, 0.9, [(7.2, 157.65), (8.3, 157.65)]),
+    ("VBUS", B, 0.9, [(7.75, 157.65), "C1.1", "C2.1"]),
+    ("VBUS", B, 0.28, ["C2.1", "U2.13"]),
+    # cell plus -> 0 Ω -> PTC -> Q1 -> charger BAT (1 A)
+    ("CELL_P", B, 1.2, [(17.8, 112.6), (13.6, 116.8), "R5.1"]),
+    ("CELL_PM", B, 1.2, ["R5.2", "F1.1"]),
+    ("CELL_PF", B, 0.6, ["F1.2", "Q1.3"]),
+    ("VBAT", B, 0.6, ["Q1.2", (7.07, 128.4)]),
+    ("VBAT", B, 1.0, [(7.07, 128.4), (3.9, 131.6), (3.9, 150.0), "C4.1"]),
+    ("VBAT", B, 0.75, [(3.9, 150.0), (5.5, 150.0)]),             # across pins 2 and 3
+    ("VBAT", B, 0.28, ["U2.2", (5.5, 150.0), "U2.3"]),
+    # cell minus -> protection MOSFETs -> sense resistor -> ground (1 A)
+    ("CELL_N", B, 1.0, [(23.6, 32.9), (37.7, 32.9), (37.7, 34.05)]), ("CELL_N", B, 0.6, [(37.7, 34.05), "Q2.1"]),
+    ("P_N", B, 0.8, ["Q2.3", "R9.1"]),
+    ("GND", B, 0.9, ["R9.2", (38.3, 39.6)]), ("GND", B, 0.9, [(38.3, 39.2), (38.3, 40.4)]),
+    # the gauge measures across the resistor's pads, not across the tracks to them
+    ("P_N", B, 0.2, [(35.85, 37.6), (34.9, 37.6), (34.9, 42.6), (35.6, 43.05), "U4.2"]),
+    ("GND", B, 0.2, [(36.9, 40.0), (37.35, 40.6), (37.35, 43.0), "U4.5"]),
+    # charger OUT -> buck-boost (0.7 A at the Wi-Fi peaks), passing below C9's ground pad
+    ("SYS", B, 0.75, [(8.5, 150.0), (10.6, 150.0)]),             # across pins 10 and 11, to C3
+    ("SYS", B, 0.28, ["U2.10", (8.5, 150.0), "U2.11"]),
+    ("SYS", B, 1.0, [(10.6, 150.0), (12.4, 150.0), (13.8, 151.4), (UX + 0.82, 151.4), "C9.1"]),
+    ("SYS", B, 0.5, ["C9.1", (UX + 0.82, UY + 1.1)]),         # ends on pin 10, clear of pin 9
+    # buck-boost: coil, output capacitors, and 3.3 V up the front to the ESP32
+    ("SW2", B, 0.3, ["U6.7", (UX + 2.2, UY - 0.5)]), ("SW1", B, 0.3, ["U6.9", (UX + 2.2, UY + 0.5)]),
+    ("3V3", B, 0.5, [(UX + 0.82, UY - 1.1), "C10.1"]), ("3V3", B, 0.9, ["C10.1", "C11.1"]),
+    ("3V3", B, 1.0, [(UX + 0.82, UY - 3.15), (TRUNK_X, UY - 3.15), (TRUNK_X, UY - 4.15)]),
+    ("3V3", F, 2.0, [(TRUNK_X, UY - 3.15), (TRUNK_X, 6.0)]),
+    ("3V3", B, 1.0, [(TRUNK_X, 6.0), (TRUNK_X, 7.0), (28.65, 7.0), "C12.1"]),
+    ("3V3", B, 0.4, ["C12.1", (28.0, 3.83), "U7.3"]),
+    # the feedback divider senses 3.3 V at the output capacitor, not somewhere along the track
+    ("3V3", B, 0.25, ["R12.1", (UX - 2.09, UY - 5.75), (UX + 0.82, UY - 5.75), "C11.1"]),
+    # buck-boost ground: both ground pins and the capacitors' ground pads go
+    # straight down to the plane
+    ("GND", B, 0.3, ["U6.8", "U6.3", (UX - 1.7, UY + 0.3), "U6.2"]),
+    ("GND", B, 0.5, ["C9.2", (UX - 1.95, UY + 2.35)]),
+    ("GND", B, 0.6, ["C10.2", "C11.2", (UX - 0.73, UY - 5.0)]),
+]
+VIAS = [  # net, x, y, diameter, drill
+    ("VBUS", 18.05, L - 9.3, 0.8, 0.4), ("VBUS", 22.95, L - 9.3, 0.8, 0.4), ("VBUS", 7.2, 157.65, 0.8, 0.4), ("VBUS", 8.3, 157.65, 0.8, 0.4),
+    ("GND", 38.3, 39.2, 0.8, 0.4), ("GND", 38.3, 40.4, 0.8, 0.4),
+    ("GND", UX - 1.7, UY + 0.3, 0.6, 0.3), ("GND", UX - 1.95, UY + 2.35, 0.6, 0.3), ("GND", UX - 0.73, UY - 5.0, 0.6, 0.3),
+    ("3V3", TRUNK_X, UY - 3.15, 0.8, 0.4), ("3V3", TRUNK_X, UY - 4.15, 0.8, 0.4), ("3V3", TRUNK_X, 6.0, 0.8, 0.4), ("3V3", TRUNK_X, 7.0, 0.8, 0.4),
+    # the charger's thermal pad: its heat goes into the ground plane and the front pour
+    ("GND", 6.55, 149.55, 0.6, 0.3), ("GND", 7.45, 149.55, 0.6, 0.3), ("GND", 6.55, 150.45, 0.6, 0.3), ("GND", 7.45, 150.45, 0.6, 0.3),
+]
+# No copper here: (layers, x0, y0, x1, y1, tracks and vias too?)
+KEEPOUTS = [
+    # the strip of board under the module's antenna end, above its first pad row
+    ("all", 13.2, 0.0, 27.8, 0.8, True),
+    # SKRTLAE010 data sheet: no copper under the plunger, between the frame pads
+    ("B", 29.0, L - 1.75, 31.0, L - 0.5, True),
+    # the gauge's CSN pin hangs on the sense resistor's pad by its own track only
+    ("B", 36.6, 40.3, 37.8, 44.05, False),
+]
+# Marks that stay readable once the parts are on: (text, x, y, side, size)
+LABELS = [
+    ("+", 14.0, 111.2, B, 2.4), ("+", 27.0, 111.2, B, 2.4), ("-", 14.0, 28.8, B, 2.4), ("-", 27.0, 28.8, B, 2.4),
+    ("RESET", 8.0, 23.0, B, 1.0), ("BOOT", 33.0, 23.0, B, 1.0), ("INFO", 34.6, L - 3.2, B, 1.0),
+    ("BUSY", 12.0, 128.4, B, 0.9), ("3V3", 29.4, 128.4, B, 0.9), ("BUSY", 12.4, 128.3, F, 0.9), ("3V3", 28.8, 128.3, F, 0.9),
+    ("doormutex PCB v1", 20.5, 164.0, B, 1.5),
+]
 
 
 def mm(v):
@@ -139,28 +235,11 @@ def pin_nets(p):
     return gs.resolve_pins(p, gs.pins_of(sym))
 
 
-def place_in_zone(board_fps, zone):
-    """Packs the zone's footprints in rows, left to right, by courtyard size."""
-    name, x0, y0, x1, y1, refs = zone
-    x, y, row_h = x0, y0, 0.0
-    for ref in refs:
-        fp = board_fps.get(ref)
-        if fp is None:
-            continue
-        fp.SetLayerAndFlip(pcbnew.B_Cu)
-        bb = fp.GetBoundingBox(False)
-        w, h = pcbnew.ToMM(bb.GetWidth()) + 0.8, pcbnew.ToMM(bb.GetHeight()) + 0.8
-        if x + w > x1 and x > x0:
-            x, y = x0, y + row_h
-            row_h = 0.0
-        if y + h > y1:
-            print(f"warning: zone {name!r} is full at {ref}")
-        # move so the bounding box starts at (x, y)
-        dx = mm(ORIGIN[0] + x) - bb.GetLeft()
-        dy = mm(ORIGIN[1] + y) - bb.GetTop()
-        fp.Move(pcbnew.VECTOR2I(dx, dy))
-        x += w
-        row_h = max(row_h, h)
+def pad_of(fp, number):
+    pads = [p for p in fp.Pads() if p.GetNumber() == number]
+    if not pads:
+        sys.exit(f"{fp.GetReference()}: no pad {number}")
+    return pads[0]
 
 
 def main():
@@ -210,7 +289,7 @@ def main():
                     pad.SetNet(net(n))
         fps[p["ref"]] = fp
 
-    for ref, (x, y, rot, side) in PLACE.items():
+    for ref, (x, y, rot, side, *anchor) in PLACE.items():
         fp = fps[ref]
         if side == "B":
             fp.SetLayerAndFlip(pcbnew.B_Cu)
@@ -218,6 +297,9 @@ def main():
         fp.SetPosition(vec(x, y))
         if ref in CENTRED:
             c = fp.GetBoundingBox(False).GetCenter()
+            fp.Move(pcbnew.VECTOR2I(vec(x, y).x - c.x, vec(x, y).y - c.y))
+        if anchor:  # (x, y) is the centre of this pad
+            c = pad_of(fp, anchor[0]).GetPosition()
             fp.Move(pcbnew.VECTOR2I(vec(x, y).x - c.x, vec(x, y).y - c.y))
     # the holder's plus (pad 2) belongs at the bottom, next to the charger
     bt = fps["BT1"]
@@ -279,9 +361,71 @@ def main():
         a.SetWidth(mm(0.1))
         board.Add(a)
 
-    # Ground on the inner layer 1, everywhere
+    # The hand-laid tracks and vias. A wrong net on a pad they end on would
+    # be a short, so every "REF.PAD" point is checked against the track's net.
+    def point(spec, netname):
+        if isinstance(spec, str):
+            ref, number = spec.split(".")
+            pad = pad_of(fps[ref], number)
+            if pad.GetNetname() != netname:
+                sys.exit(f"ROUTES: {spec} is on {pad.GetNetname()!r}, not {netname!r}")
+            return pad.GetPosition()
+        return vec(*spec)
+
+    for netname, side, width, points in ROUTES:
+        pts = [point(s, netname) for s in points]
+        for a, b in zip(pts, pts[1:]):
+            tr = pcbnew.PCB_TRACK(board)
+            tr.SetStart(a)
+            tr.SetEnd(b)
+            tr.SetWidth(mm(width))
+            tr.SetLayer(pcbnew.B_Cu if side == "B" else pcbnew.F_Cu)
+            tr.SetNet(net(netname))
+            tr.SetLocked(True)
+            board.Add(tr)
+    for netname, x, y, diameter, drill in VIAS:
+        via = pcbnew.PCB_VIA(board)
+        via.SetViaType(pcbnew.VIATYPE_THROUGH)
+        via.SetLayerPair(pcbnew.F_Cu, pcbnew.B_Cu)
+        via.SetPosition(vec(x, y))
+        via.SetWidth(pcbnew.F_Cu, mm(diameter))
+        via.SetDrill(mm(drill))
+        via.SetNet(net(netname))
+        via.SetLocked(True)
+        board.Add(via)
+
+    for layers, x0, y0, x1, y1, tracks_too in KEEPOUTS:
+        z = pcbnew.ZONE(board)
+        z.SetIsRuleArea(True)
+        z.SetDoNotAllowZoneFills(True)
+        z.SetDoNotAllowTracks(tracks_too)
+        z.SetDoNotAllowVias(tracks_too)
+        z.SetDoNotAllowPads(False)
+        z.SetDoNotAllowFootprints(False)
+        if layers == "all":
+            z.SetLayerSet(pcbnew.LSET.AllCuMask())
+        else:
+            z.SetLayer(pcbnew.B_Cu if layers == "B" else pcbnew.F_Cu)
+        o = z.Outline()
+        o.NewOutline()
+        for x, y in [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]:
+            o.Append(mm(ORIGIN[0] + x), mm(ORIGIN[1] + y))
+        board.Add(z)
+
+    for text, x, y, side, size in LABELS:
+        s = pcbnew.PCB_TEXT(board)
+        s.SetText(text)
+        s.SetPosition(vec(x, y))
+        s.SetLayer(pcbnew.B_SilkS if side == "B" else pcbnew.F_SilkS)
+        s.SetTextSize(pcbnew.VECTOR2I(mm(size), mm(size)))
+        s.SetTextThickness(mm(max(0.15, size * 0.15)))
+        s.SetMirrored(side == "B")
+        board.Add(s)
+
+    # Ground on the inner layer next to the parts (inner layer 2 is 0.2 mm
+    # below the back, where everything but the LEDs sits), everywhere
     zone = pcbnew.ZONE(board)
-    zone.SetLayer(pcbnew.In1_Cu)
+    zone.SetLayer(pcbnew.In2_Cu)
     zone.SetNet(net("GND"))
     outline = zone.Outline()
     outline.NewOutline()

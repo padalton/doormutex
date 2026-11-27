@@ -5,9 +5,11 @@
     python3 hardware/tools/gen_pcb.py && python3 hardware/tools/route_pcb.py
 
 Exports the board as Specctra DSN (net classes from doormutex.kicad_pro),
-lets Freerouting route it, imports the session, pours ground on the outer
-layers and fills all zones. Freerouting 2.x needs Java 25 or newer: set
-JAVA (default /usr/lib/jvm/java-25-openjdk/bin/java) and FREEROUTING_JAR.
+lets Freerouting route it around the tracks gen_pcb.py has laid, imports the
+session, pours ground on the outer layers, fills all zones, runs the DRC and
+checks the copper resistance of the power paths (check_power.py).
+Freerouting 2.x needs Java 25 or newer: set JAVA (default
+/usr/lib/jvm/java-25-openjdk/bin/java) and FREEROUTING_JAR.
 """
 
 import os
@@ -19,10 +21,15 @@ import pcbnew
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HW = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import check_power  # noqa: E402
+
 PCB = os.path.join(HW, "doormutex.kicad_pcb")
 JAVA = os.environ.get("JAVA", "/usr/lib/jvm/java-25-openjdk/bin/java")
 JAR = os.environ.get("FREEROUTING_JAR", "/usr/lib/freerouting/freerouting-executable.jar")
 PASSES = os.environ.get("PASSES", "40")
+NECK_UM = 250   # the narrowest Freerouting may make a track where the class width does not fit
+LOG = os.environ.get("FREEROUTING_LOG")  # keep Freerouting's whole output in this file
 
 
 def fill(board):
@@ -85,18 +92,25 @@ def fix_vias(board):
 
 def main():
     board = pcbnew.LoadBoard(PCB)
-    # inner layer 1 is the ground plane: not for routing
-    board.SetLayerType(pcbnew.In1_Cu, pcbnew.LT_POWER)
+    # inner layer 2 is the ground plane: not for routing
+    board.SetLayerType(pcbnew.In2_Cu, pcbnew.LT_POWER)
     edge_keepouts(board)
     fill(board)
     with tempfile.TemporaryDirectory() as tmp:
         dsn, ses = os.path.join(tmp, "board.dsn"), os.path.join(tmp, "board.ses")
         if not pcbnew.ExportSpecctraDSN(board, dsn):
             sys.exit("DSN export failed")
-        cmd = [JAVA, "-jar", JAR, "-de", dsn, "-do", ses, "-mp", PASSES, "--gui.enabled=false"]
+        # The tracks and vias gen_pcb.py has laid are locked: KiCad exports
+        # them as fixed wiring, Freerouting routes around them.
+        # A connection that does not fit at its net class's width (0.5 mm
+        # between the pins of a QFN) makes Freerouting 2.6 start over with a
+        # narrower "neck" width for those nets – 0.15 mm unless told otherwise.
+        cmd = [JAVA, "-jar", JAR, "-de", dsn, "-do", ses, "-mp", PASSES, "--gui.enabled=false", f"--router.neck_width_um={NECK_UM}"]
         print("freerouting:", " ".join(cmd[2:]))
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
         log = (r.stdout + r.stderr).splitlines()
+        if LOG:
+            open(LOG, "w", encoding="utf-8").write("\n".join(log) + "\n")
         for line in log[-15:]:
             print("  " + line)
         if not os.path.exists(ses):
@@ -120,6 +134,12 @@ def main():
             k = l.split("]")[0] + "]"
             kinds[k] = kinds.get(k, 0) + 1
         print(f"DRC: {len(errors)} errors", dict(sorted(kinds.items(), key=lambda kv: -kv[1])))
+    ok = check_power.check(PCB)
+    thin = sorted({t.GetNetname() for t in tracks if pcbnew.ToMM(t.GetWidth()) < 0.199})
+    if thin:
+        print("tracks below 0.2 mm on: " + ", ".join(thin))
+    if errors or thin or not ok:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
