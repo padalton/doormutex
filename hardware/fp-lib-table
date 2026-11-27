@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "doormutex")(type "KiCad")(uri "${KIPRJMOD}/lib/doormutex.pretty")(options "")(descr "JLCPCB parts, imported with easyeda2kicad"))
+)
